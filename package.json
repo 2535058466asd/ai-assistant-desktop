@@ -1,0 +1,60 @@
+{
+  "name": "ai-assistant-desktop",
+  "version": "1.0.0",
+  "description": "Desktop AI Assistant with STT/TTS and LLM",
+  "main": "dist-electron/main/index.js",
+  "scripts": {
+    "dev": "vite --open false",
+    "build": "tsc && vite build",
+    "build:node": "tsc -p tsconfig.node.json",
+    "electron:dev": "npm run build:node && concurrently \"npm run dev\" \"wait-on http://localhost:5173 && set NODE_ENV=development && electron .\"",
+    "electron:build": "npm run build:node && npm run build && electron-builder"
+  },
+  "keywords": [
+    "ai",
+    "assistant",
+    "electron",
+    "stt",
+    "tts"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.13.6",
+    "edge-tts": "^1.0.1",
+    "emojis-list": "^3.0.0",
+    "framer-motion": "^12.34.3",
+    "mime-db": "^1.54.0",
+    "node-whisper": "^2024.11.13",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^1.0.1",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "concurrently": "^8.2.0",
+    "electron": "^40.6.1",
+    "electron-builder": "^24.9.0",
+    "typescript": "^5.9.3",
+    "vite": "^5.0.0",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.ai-assistant.desktop",
+    "productName": "AI Assistant Desktop",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "dir"
+    }
+  }
+}
