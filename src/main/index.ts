@@ -9,7 +9,6 @@ import path from 'path'
 import http from 'http'
 import https from 'https'
 import fs from 'fs'
-import doubaoApi from './services/doubaoApi'
 import { getSystemControlService } from './services/systemControl'
 import { getMemoryService } from './services/memoryService'
 import { getScreenshotService } from './services/screenshotService'
@@ -216,16 +215,7 @@ ipcMain.handle('text-to-speech', async (_event, text: string) => {
   }
 });
 
-ipcMain.handle('send-message-to-ai', async (_event, userMessages: string[], assistantMessages: string[]) => {
-  try {
-    const messages = doubaoApi.formatMessages(userMessages, assistantMessages);
-    const reply = await doubaoApi.sendMessage(messages);
-    return { success: true, message: reply };
-  } catch (error) {
-    console.error('IPC send-message-to-ai error:', error);
-    return { success: false, message: error instanceof Error ? error.message : String(error) };
-  }
-});
+
 
 ipcMain.handle('whisper-transcribe', async (_event, audioBase64: string, language: string = 'zh') => {
   try {
