@@ -137,7 +137,7 @@ export class MemoryService {
    */
   addMemory(content: string, category: ImportantMemory['category'] = 'fact'): void {
     const memory: ImportantMemory = {
-      id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+      id: Date.now().toString(36) + Math.random().toString(36).substring(2),
       content,
       timestamp: Date.now(),
       category

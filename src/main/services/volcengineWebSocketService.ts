@@ -369,18 +369,14 @@ export class VolcengineTTSWebSocketService {
     let needsReconnect = false
 
     try {
-      // 每次合成前都重新连接，避免上一次会话残留导致 "session number limit exceeded" 错误
+      // 只有在连接异常时才重连，避免每次都断开重连影响性能
       // readyState: 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
       const state = this.ws?.readyState ?? -1
       if (state !== WebSocket.OPEN) {
+        console.log('🔄 [Main] TTS 连接未打开，正在连接...')
         await this.connect()
       } else {
-        // 已有连接时也先断开再重连，确保服务端清理旧会话
-        console.log('🔄 [Main] TTS 检测到已有连接，断开后重连以确保干净状态')
-        const oldWs = this.ws
-        this.ws = null
-        try { oldWs.close() } catch(e) { /* 忽略关闭错误 */ }
-        await this.connect()
+        console.log('✅ [Main] TTS 连接已打开，直接使用现有连接')
       }
 
       this.sessionId = externalSessionId || uuidv4()

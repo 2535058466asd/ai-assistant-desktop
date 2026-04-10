@@ -167,21 +167,21 @@ export class VolcengineTTSV3 implements TTSService {
     }
     this.isSynthesizing = true
 
-    return new Promise(async (resolve) => {
-      try {
-        if (!this.isConnected) {
-          await this.initialize()
-        }
+    try {
+      if (!this.isConnected) {
+        await this.initialize()
+      }
 
-        this.audioChunks = []
-        this.currentSessionId = ''
+      this.audioChunks = []
+      this.currentSessionId = ''
 
-        console.log('🎤 [VolcengineTTSV3] 开始 TTS 合成:', request.text.substring(0, 50) + '...')
+      console.log('🎤 [VolcengineTTSV3] 开始 TTS 合成:', request.text.substring(0, 50) + '...')
 
-        const sessionId = this.generateUUID()
-        this.currentSessionId = sessionId
-        console.log('🎯 [VolcengineTTSV3] 生成 sessionId:', sessionId)
+      const sessionId = this.generateUUID()
+      this.currentSessionId = sessionId
+      console.log('🎯 [VolcengineTTSV3] 生成 sessionId:', sessionId)
 
+      return new Promise<TTSResult>((resolve) => {
         this.onCompleteCallback = (audioBuffer: ArrayBuffer) => {
           console.log('🔔 [VolcengineTTSV3] onCompleteCallback 被调用，音频大小:', audioBuffer.byteLength)
           this.onCompleteCallback = null
@@ -211,29 +211,24 @@ export class VolcengineTTSV3 implements TTSService {
 
         console.log('✅ [VolcengineTTSV3] 回调已设置，准备发送合成请求...')
 
-        const result = await window.electronAPI!.invoke('tts-v3-synthesize', this.config, request.text, { sessionId })
-
-        if (!result?.success) {
-          this.onCompleteCallback = null
-          this.onErrorCallback = null
-          this.isSynthesizing = false
-          resolve({ success: false, error: result?.error || 'TTS 合成失败' })
-          return
-        }
+        window.electronAPI!.invoke('tts-v3-synthesize', this.config, request.text, { sessionId })
+          .catch((error) => {
+            console.error('❌ TTS 合成请求失败:', error)
+            this.onCompleteCallback = null
+            this.onErrorCallback = null
+            this.isSynthesizing = false
+            resolve({ success: false, error: error instanceof Error ? error.message : 'TTS 合成失败' })
+          })
 
         console.log('✅ [VolcengineTTSV3] TTS 合成请求已发送，等待响应...')
-
-      } catch (error) {
-        console.error('❌ TTS 合成失败:', error)
-        this.onCompleteCallback = null
-        this.onErrorCallback = null
-        this.isSynthesizing = false
-        resolve({
-          success: false,
-          error: error instanceof Error ? error.message : 'TTS 合成失败'
-        })
-      }
-    })
+      })
+    } catch (error) {
+      console.error('❌ TTS 合成失败:', error)
+      this.onCompleteCallback = null
+      this.onErrorCallback = null
+      this.isSynthesizing = false
+      return { success: false, error: error instanceof Error ? error.message : 'TTS 合成失败' }
+    }
   }
 
   async synthesizeStream(

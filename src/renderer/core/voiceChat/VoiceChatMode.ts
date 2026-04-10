@@ -307,33 +307,33 @@ export class VoiceChatMode {
    * 播放音频（自动识别 MP3/WAV/PCM 格式）
    */
   private async playAudio(audioData: ArrayBuffer): Promise<void> {
-    return new Promise(async (resolve) => {
+    try {
+      let wavData: ArrayBuffer;
+
+      // 先尝试用 AudioContext 解码（自动识别 MP3/WAV/OGG 等格式）
       try {
-        let wavData: ArrayBuffer;
-
-        // 先尝试用 AudioContext 解码（自动识别 MP3/WAV/OGG 等格式）
-        try {
-          // 复用 AudioContext，避免内存泄漏
-          if (!this.audioContext) {
-            this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-          }
-          // 如果 AudioContext 被暂停，需要恢复
-          if (this.audioContext.state === 'suspended') {
-            await this.audioContext.resume();
-          }
-          const decoded = await this.audioContext.decodeAudioData(audioData.slice(0));
-          wavData = this.audioBufferToWav(decoded);
-          console.log('✅ [VoiceChatMode] AudioContext 解码成功，已转为 WAV');
-        } catch (e) {
-          // 解码失败说明是裸 PCM 数据，直接加 WAV 头
-          console.warn('⚠️ [VoiceChatMode] AudioContext 解码失败，使用 PCM→WAV 方式');
-          wavData = this.pcmToWav(audioData);
+        // 复用 AudioContext，避免内存泄漏
+        if (!this.audioContext) {
+          this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         }
+        // 如果 AudioContext 被暂停，需要恢复
+        if (this.audioContext.state === 'suspended') {
+          await this.audioContext.resume();
+        }
+        const decoded = await this.audioContext.decodeAudioData(audioData.slice(0));
+        wavData = this.audioBufferToWav(decoded);
+        console.log('✅ [VoiceChatMode] AudioContext 解码成功，已转为 WAV');
+      } catch (e) {
+        // 解码失败说明是裸 PCM 数据，直接加 WAV 头
+        console.warn('⚠️ [VoiceChatMode] AudioContext 解码失败，使用 PCM→WAV 方式');
+        wavData = this.pcmToWav(audioData);
+      }
 
-        const blob = new Blob([wavData], { type: 'audio/wav' });
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
+      const blob = new Blob([wavData], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
 
+      await new Promise<void>((resolve) => {
         audio.onended = () => {
           URL.revokeObjectURL(url);
           resolve();
@@ -345,12 +345,15 @@ export class VoiceChatMode {
           resolve();
         };
 
-        await audio.play();
-      } catch (error) {
-        console.error('❌ [VoiceChatMode] 创建音频失败:', error);
-        resolve();
-      }
-    });
+        audio.play().catch(error => {
+          console.error('❌ [VoiceChatMode] 播放音频失败:', error);
+          URL.revokeObjectURL(url);
+          resolve();
+        });
+      });
+    } catch (error) {
+      console.error('❌ [VoiceChatMode] 创建音频失败:', error);
+    }
   }
 
   /**

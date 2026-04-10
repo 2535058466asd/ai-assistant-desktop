@@ -86,14 +86,14 @@ export class Orchestrator {
    * 生成会话 ID
    */
   private generateSessionId(): SessionId {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    return Date.now().toString(36) + Math.random().toString(36).substring(2);
   }
 
   /**
    * 生成消息 ID
    */
   private generateMessageId(): string {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    return Date.now().toString(36) + Math.random().toString(36).substring(2);
   }
 
   /**

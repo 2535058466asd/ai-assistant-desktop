@@ -61,7 +61,7 @@ function AppContent() {
       },
       onSendMessage: async (text) => {
         const userMessage: Message = {
-          id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+          id: Date.now().toString(36) + Math.random().toString(36).substring(2),
           role: 'user',
           content: text,
           timestamp: Date.now(),
@@ -108,15 +108,15 @@ function AppContent() {
           )
         );
 
+        // 获取内容并删除，无论是否触发 TTS
+        const content = streamContentMap.current.get(messageId);
+        streamContentMap.current.delete(messageId);
+
         // 副作用：触发 TTS 播放（放在 updater 外面，且用 Set 防重复）
-        if (isVoiceChatEnabledRef.current && !spokenMessageIds.current.has(messageId)) {
+        if (isVoiceChatEnabledRef.current && content && !spokenMessageIds.current.has(messageId)) {
           spokenMessageIds.current.add(messageId);
-          const content = streamContentMap.current.get(messageId);
-          if (content) {
-            console.log('🎤 [App] 触发 TTS 播放:', content.substring(0, 50) + '...');
-            voiceChatMode.speakResponse(content);
-            streamContentMap.current.delete(messageId);
-          }
+          console.log('🎤 [App] 触发 TTS 播放:', content.substring(0, 50) + '...');
+          voiceChatMode.speakResponse(content);
         }
       }
     };
@@ -129,7 +129,7 @@ function AppContent() {
       setMessages(history);
     } else {
       const welcomeMessage: Message = {
-        id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+        id: Date.now().toString(36) + Math.random().toString(36).substring(2),
         role: 'assistant',
         content: orchestrator.getWelcomeMessage(),
         timestamp: Date.now(),
@@ -173,6 +173,9 @@ function AppContent() {
 
   const handleClearMessages = useCallback(() => {
     setMessages([]);
+    // 清理 spokenMessageIds，避免内存泄漏
+    spokenMessageIds.current.clear();
+    console.log('🧹 [App] 已清理 spokenMessageIds');
   }, []);
 
   return (
