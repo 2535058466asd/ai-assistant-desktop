@@ -43,6 +43,7 @@
     "concurrently": "^8.2.0",
     "electron": "^33.3.1",
     "electron-builder": "^24.9.0",
+    "electron-reloader": "^1.2.3",
     "typescript": "^5.3.3",
     "vite": "^5.0.0",
     "wait-on": "^7.2.0"

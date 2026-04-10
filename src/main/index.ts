@@ -1,3 +1,9 @@
+// 在文件顶部添加
+if (process.env.NODE_ENV === 'development') {
+  try {
+    require('electron-reloader')(module);
+  } catch (_) {}
+}
 import { app, BrowserWindow, Menu, ipcMain } from 'electron'
 import path from 'path'
 import http from 'http'
