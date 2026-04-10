@@ -113,8 +113,9 @@ export class ASRManager {
    * 设置配置
    */
   setConfig(config: Partial<ASRConfig>): void {
+    const oldType = this.config.type;
     this.config = { ...this.config, ...config };
-    if (config.type && config.type !== this.config.type) {
+    if (config.type && config.type !== oldType) {
       this.switchType(config.type);
     }
   }

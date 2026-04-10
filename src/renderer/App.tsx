@@ -145,10 +145,15 @@ function AppContent() {
 
   // 切换语音对话模式
   const handleToggleVoiceChat = useCallback(async () => {
-    const enabled = await voiceChatModeRef.current.toggle();
-    setIsVoiceChatEnabled(enabled);
-    isVoiceChatEnabledRef.current = enabled;
-    showToast(enabled ? '语音对话模式已开启' : '语音对话模式已关闭', 'info');
+    try {
+      const enabled = await voiceChatModeRef.current.toggle();
+      setIsVoiceChatEnabled(enabled);
+      isVoiceChatEnabledRef.current = enabled;
+      showToast(enabled ? '语音对话模式已开启' : '语音对话模式已关闭', 'info');
+    } catch (error) {
+      console.error('❌ 切换语音对话模式失败:', error);
+      showToast('切换语音对话模式失败', 'error');
+    }
   }, [showToast]);
 
   useEffect(() => {

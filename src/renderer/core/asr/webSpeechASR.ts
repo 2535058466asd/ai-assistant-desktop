@@ -147,7 +147,7 @@ export class WebSpeechASR implements ASRService {
     return 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
   }
 
-  getLanguages?(): string[] {
+  getLanguages(): string[] {
     return ['zh-CN', 'en-US', 'ja-JP', 'ko-KR'];
   }
 }

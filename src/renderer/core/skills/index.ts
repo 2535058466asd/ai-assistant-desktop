@@ -34,42 +34,10 @@ async function getSkills(): Promise<SkillDefinition[]> {
     const weatherModule = await import('./weather/index');
     const universalControlModule = await import('./universal-control/index');
     
-    console.log('📦 导入的模块:', {
-      searchBrowser: searchBrowserModule,
-      searchWeb: searchWebModule,
-      weather: weatherModule,
-      universalControl: universalControlModule
-    });
-    
-    // 详细调试：打印每个模块的所有导出
-    console.log('🔍 search-browser 导出:', Object.keys(searchBrowserModule));
-    console.log('🔍 search-web 导出:', Object.keys(searchWebModule));
-    console.log('🔍 weather 导出:', Object.keys(weatherModule));
-    console.log('🔍 universal-control 导出:', Object.keys(universalControlModule));
-    
-    console.log('🔍 searchBrowserModule.default:', searchBrowserModule.default);
-    console.log('🔍 searchBrowserModule.searchBrowserSkill:', searchBrowserModule.searchBrowserSkill);
-    
-    console.log('🔍 searchWebModule.default:', searchWebModule.default);
-    console.log('🔍 searchWebModule.searchWebSkill:', searchWebModule.searchWebSkill);
-    
-    console.log('🔍 weatherModule.default:', weatherModule.default);
-    console.log('🔍 weatherModule.weatherSkill:', weatherModule.weatherSkill);
-    
-    console.log('🔍 universalControlModule.default:', universalControlModule.default);
-    console.log('🔍 universalControlModule.universalControlSkill:', universalControlModule.universalControlSkill);
-    
     const searchBrowserSkill = searchBrowserModule.default || searchBrowserModule.searchBrowserSkill;
     const searchWebSkill = searchWebModule.default || searchWebModule.searchWebSkill;
     const weatherSkill = weatherModule.default || weatherModule.weatherSkill;
     const universalControlSkill = universalControlModule.default || universalControlModule.universalControlSkill;
-    
-    console.log('📦 解析的技能:', {
-      searchBrowserSkill,
-      searchWebSkill,
-      weatherSkill,
-      universalControlSkill
-    });
     
     allSkills = [
       // 搜索相关技能
@@ -101,8 +69,6 @@ async function getSkills(): Promise<SkillDefinition[]> {
  * ```
  */
 export async function initSkills(): Promise<void> {
-  console.log('\n🚀 正在初始化启源 AI 技能系统...\n');
-  
   const skills = await getSkills();
   
   for (const skill of skills) {
@@ -111,25 +77,7 @@ export async function initSkills(): Promise<void> {
   
   const stats = skillRegistry.getStats();
   
-  console.log(`\n✅ 技能系统初始化完成！`);
-  console.log(`📊 统计信息：`);
-  console.log(`   - 总技能数: ${stats.totalSkills}`);
-  console.log(`   - 已启用: ${stats.enabledSkills}`);
-  console.log(`   - 常用技能:`);
-  
-  if (stats.topUsed.length > 0) {
-    for (const entry of stats.topUsed) {
-      const emoji = entry.skill.metadata.metadata?.emoji || '⚡️';
-      console.log(`     ${emoji} ${entry.skill.metadata.name} - ${entry.skill.metadata.description.slice(0, 30)}...`);
-    }
-  } else {
-    for (const entry of skillRegistry.getAll().slice(0, 5)) {
-      const emoji = entry.skill.metadata.metadata?.emoji || '⚡️';
-      console.log(`     ${emoji} ${entry.skill.metadata.name} - ${entry.skill.metadata.description.slice(0, 30)}...`);
-    }
-  }
-  
-  console.log('');
+  console.log(`✅ 技能系统初始化完成！总技能数: ${stats.totalSkills}`);
 }
 
 /**

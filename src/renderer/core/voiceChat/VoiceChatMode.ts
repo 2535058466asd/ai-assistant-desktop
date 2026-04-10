@@ -42,7 +42,7 @@ export class VoiceChatMode {
   
   // 静音检测相关
   private lastText: string = '';
-  private silenceTimer: NodeJS.Timeout | null = null;
+  private silenceTimer: number | null = null;
   private readonly SILENCE_TIMEOUT = 1500; // 1.5 秒静音后自动发送
 
   // 防重复调用锁：TTS 播放中不再触发新的播放
@@ -130,7 +130,7 @@ export class VoiceChatMode {
       const success = await this.asrManager.startListening(
         // onResult: 收到识别结果
         (result: ASRResult) => {
-          if (result.success && result.text) {
+          if (result && result.success && result.text) {
             this.lastText = result.text;
             // 通知 UI 更新用户正在说的文字
             if (this.callbacks?.onUserText) {
@@ -169,11 +169,19 @@ export class VoiceChatMode {
         if (this.callbacks?.onError) {
           this.callbacks.onError('无法启动语音识别');
         }
+        // 启动失败后重新尝试
+        if (this.isEnabled) {
+          setTimeout(() => this.startListening(), 1000);
+        }
       }
     } catch (error) {
       console.error('❌ [VoiceChatMode] 启动监听失败:', error);
       if (this.callbacks?.onError) {
         this.callbacks.onError('启动语音识别失败');
+      }
+      // 出错后重新尝试
+      if (this.isEnabled) {
+        setTimeout(() => this.startListening(), 1000);
       }
     }
   }
@@ -241,6 +249,16 @@ export class VoiceChatMode {
     }
     this.isSpeaking = true;
     
+    if (!text || !text.trim()) {
+      console.warn('⚠️ [VoiceChatMode] 空文本，跳过 TTS');
+      this.isSpeaking = false;
+      // 播放完成后，重新开始监听
+      if (this.isEnabled) {
+        await this.startListening();
+      }
+      return;
+    }
+    
     console.log('🎤 [VoiceChatMode] 播放 AI 回复:', text.substring(0, 50) + '...');
     this.setState('speaking');
     
@@ -256,14 +274,20 @@ export class VoiceChatMode {
         voice: 'zh_female_vv_uranus_bigtts'
       });
       
-      if (result.success && result.audioData) {
+      if (result && result.success && result.audioData) {
         // 播放音频
         await this.playAudio(result.audioData);
       } else {
-        console.error('❌ [VoiceChatMode] TTS 合成失败:', result.error);
+        console.error('❌ [VoiceChatMode] TTS 合成失败:', result?.error || '未知错误');
+        if (this.callbacks?.onError) {
+          this.callbacks.onError('语音合成失败');
+        }
       }
     } catch (error) {
       console.error('❌ [VoiceChatMode] 播放语音失败:', error);
+      if (this.callbacks?.onError) {
+        this.callbacks.onError('播放语音失败');
+      }
     } finally {
       // 无论成功失败都释放锁
       this.isSpeaking = false;

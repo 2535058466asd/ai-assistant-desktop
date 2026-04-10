@@ -44,8 +44,6 @@ class SkillRegistry {
       enabled: true,
       usageCount: 0
     });
-    
-    console.log(`✅ 技能已注册: ${id} (${skill.metadata.description})`);
   }
   
   /**
@@ -134,7 +132,6 @@ class SkillRegistry {
     if (!entry) return false;
     
     entry.enabled = enabled;
-    console.log(`${enabled ? '✅' : '❌'} 技能 "${id}" 已${enabled ? '启用' : '禁用'}`);
     return true;
   }
   
@@ -188,21 +185,9 @@ class SkillExecutor {
     const startTime = Date.now();
     const steps: SkillExecutionStep[] = [];
     
-    console.log('🔍 [DEBUG] ========== SkillExecutor.execute 开始 ==========');
-    console.log('🔍 [DEBUG] SkillExecutor 类定义位置：registry.ts');
-    console.log('🔍 [DEBUG] registry 变量位置：registry.ts 第 168 行');
-    console.log('🔍 [DEBUG] registry 是否存在:', registry);
-    console.log('🔍 [DEBUG] registry 类型:', typeof registry);
-    console.log('🔍 [DEBUG] registry.skills 是否存在:', registry?.skills);
-    console.log('🔍 [DEBUG] registry.getById 是否存在:', registry?.getById);
-    console.log('🔍 [DEBUG] registry.skills.size:', registry?.skills?.size);
-    console.log('🔍 [DEBUG] 所有已注册的技能 ID:', Array.from(registry?.skills?.keys() || []));
-    
     try {
       // 1. 查找技能
-      console.log('🔍 [DEBUG] 准备调用 registry.getById, skillId:', skillId);
       const entry = registry.getById(skillId);
-      console.log('🔍 [DEBUG] 查找到的 entry:', entry);
       
       if (!entry || !entry.enabled) {
         throw new Error(`技能 "${skillId}" 不存在或未启用`);
@@ -216,20 +201,12 @@ class SkillExecutor {
       // 3. 增加使用统计
       registry.incrementUsage(skillId);
       
-      // 4. 执行前日志
-      console.log(`🚀 开始执行技能: ${skillId}`);
-      console.log(`📋 参数:`, params);
-      
-      // 5. 执行技能（传入步骤记录函数）
+      // 4. 执行技能（传入步骤记录函数）
       const result = await skill.execute(params, steps);
       
-      // 6. 记录总时间
+      // 5. 记录总时间
       result.totalExecutionTime = Date.now() - startTime;
       result.steps = steps;
-      
-      // 7. 执行后日志
-      console.log(`✅ 技能执行完成: ${skillId} (${result.totalExecutionTime}ms)`);
-      console.log(`📊 步骤数: ${steps.length}`);
       
       return result;
       
@@ -296,8 +273,6 @@ export async function callTool(
   const stepNumber = steps.length + 1;
   const startTime = Date.now();
   
-  console.log(`  [步骤 ${stepNumber}] 调用工具: ${toolId}`, toolParams);
-  
   try {
     // 查找工具
     const tool = getToolById(toolId);
@@ -324,8 +299,6 @@ export async function callTool(
     
     steps.push(step);
     
-    console.log(`  [步骤 ${stepNumber}] ✅ 完成: ${step.name} (${Date.now() - startTime}ms)`);
-    
     return result;
     
   } catch (error: any) {
@@ -344,7 +317,7 @@ export async function callTool(
     
     steps.push(step);
     
-    console.error(`  [步骤 ${stepNumber}] ❌ 失败: ${error.message}`);
+    console.error(`❌ 工具调用失败: ${toolId} - ${error.message}`);
     
     return { success: false, error: error.message };
   }

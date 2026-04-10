@@ -118,10 +118,14 @@ export interface SkillExecutionStep {
   toolParams?: Record<string, any>;
   /** 步骤结果 */
   result?: ToolResult | SkillResult;
+  /** 输出信息（兼容旧版） */
+  output?: any;
   /** 开始时间 */
   startTime: number;
   /** 结束时间 */
   endTime: number;
+  /** 执行时间 */
+  executionTime?: number;
   /** 是否成功 */
   success: boolean;
 }
@@ -203,9 +207,10 @@ export interface SkillDefinition {
   /**
    * 执行函数
    * @param params 用户传入的参数
+   * @param steps 执行步骤记录（可选，用于可视化）
    * @returns 技能执行结果
    */
-  execute: (params: Record<string, any>) => Promise<SkillResult>;
+  execute: (params: Record<string, any>, steps?: SkillExecutionStep[]) => Promise<SkillResult>;
 }
 
 // ============================================================

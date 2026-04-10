@@ -115,6 +115,14 @@ export async function* sendMessageToDoubaoStream(
   history: Array<{ role: string; content: string }> = [],
   systemPrompt: string = ''
 ): AsyncGenerator<string> {
+  if (!userInput.trim()) {
+    throw new Error('用户输入不能为空');
+  }
+
+  if (!apiConfig.apiKey || !apiConfig.apiUrl) {
+    throw new Error('API 配置不完整');
+  }
+
   const messages: Message[] = [];
 
   if (systemPrompt) {
@@ -146,7 +154,8 @@ export async function* sendMessageToDoubaoStream(
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error?.message || '未知错误'}`);
     }
 
     const reader = response.body?.getReader();
@@ -161,6 +170,8 @@ export async function* sendMessageToDoubaoStream(
       const { done, value } = await reader.read();
       
       if (done) break;
+
+      if (!value) continue;
 
       buffer += decoder.decode(value, { stream: true });
       
@@ -200,6 +211,6 @@ export async function* sendMessageToDoubaoStream(
 
   } catch (error: any) {
     console.error('❌ 豆包流式 API 调用失败:', error);
-    throw new Error('与 AI 助手通信失败，请稍后重试');
+    throw new Error(`与 AI 助手通信失败: ${error.message || '未知错误'}`);
   }
 }

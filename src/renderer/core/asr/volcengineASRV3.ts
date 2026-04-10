@@ -311,7 +311,7 @@ export class VolcengineASRV3 implements ASRService {
            !!navigator.mediaDevices?.getUserMedia
   }
 
-  getLanguages?(): string[] {
+  getLanguages(): string[] {
     return ['zh-CN', 'en-US']
   }
 }

@@ -22,5 +22,5 @@ export interface TTSService {
   speak(request: TTSRequest): Promise<TTSResult>;
   stop(): void;
   isSupported(): boolean;
-  getVoices?(): string[];
+  getVoices(): string[];
 }

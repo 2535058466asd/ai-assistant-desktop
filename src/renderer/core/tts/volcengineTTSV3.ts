@@ -269,7 +269,7 @@ export class VolcengineTTSV3 implements TTSService {
            !!window.electronAPI
   }
 
-  getVoices?(): string[] {
+  getVoices(): string[] {
     return [
       'zh_female_vv_uranus_bigtts',
       'zh_male_chunshui_uranus_bigtts',

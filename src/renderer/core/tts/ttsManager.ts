@@ -194,7 +194,7 @@ export class TTSManager {
     return this.currentService.isSupported();
   }
 
-  getVoices?(): string[] {
+  getVoices(): string[] {
     if (this.currentService.getVoices) {
       return this.currentService.getVoices();
     }
@@ -210,8 +210,9 @@ export class TTSManager {
   }
 
   setConfig(config: Partial<TTSConfig>): void {
+    const oldType = this.config.type;
     this.config = { ...this.config, ...config };
-    if (config.type && config.type !== this.config.type) {
+    if (config.type && config.type !== oldType) {
       this.switchType(config.type);
     }
   }

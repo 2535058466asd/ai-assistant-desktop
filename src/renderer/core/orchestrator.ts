@@ -125,19 +125,29 @@ export class Orchestrator {
       this.onMessageCallback(userMessage);
     }
 
-    // 2. 大脑层处理 - 意图识别
-    const structuredIntent = await this.brain.processInput(text, this.sessionId);
+    try {
+      // 2. 大脑层处理 - 意图识别
+      const structuredIntent = await this.brain.processInput(text, this.sessionId);
 
-    if (structuredIntent.needAsk && structuredIntent.askQuestion) {
-      await this.sendAssistantMessage(structuredIntent.askQuestion);
-      return;
+      if (!structuredIntent) {
+        await this.sendAssistantMessage('抱歉，我无法理解您的请求，请尝试重新表述。');
+        return;
+      }
+
+      if (structuredIntent.needAsk && structuredIntent.askQuestion) {
+        await this.sendAssistantMessage(structuredIntent.askQuestion);
+        return;
+      }
+
+      // 3. 清单层 - 创建执行计划
+      const executionPlan = this.taskPlanner.createPlan(structuredIntent);
+
+      // 4. 执行计划（使用流式输出）
+      await this.executePlanWithStream(executionPlan, structuredIntent);
+    } catch (error) {
+      console.error('❌ 处理输入失败:', error);
+      await this.sendAssistantMessage('处理您的请求时出现错误，请稍后重试。');
     }
-
-    // 3. 清单层 - 创建执行计划
-    const executionPlan = this.taskPlanner.createPlan(structuredIntent);
-
-    // 4. 执行计划（使用流式输出）
-    await this.executePlanWithStream(executionPlan, structuredIntent);
   }
 
   /**
@@ -177,9 +187,14 @@ export class Orchestrator {
 
       // 使用流式 API 调用豆包
       const systemPrompt = getQiyuanSystemPrompt();
+      const userInput = structuredIntent.rawText || '';
+
+      if (!userInput.trim()) {
+        throw new Error('空输入');
+      }
 
       for await (const chunk of sendMessageToDoubaoStream(
-        structuredIntent.rawText || '',
+        userInput,
         history,
         systemPrompt
       )) {
@@ -192,6 +207,10 @@ export class Orchestrator {
       }
 
       // 流式结束，保存完整消息
+      if (!accumulatedContent.trim()) {
+        accumulatedContent = '抱歉，我无法生成回复，请稍后重试。';
+      }
+
       assistantMessage.content = accumulatedContent;
       delete (assistantMessage as any).isStreaming; // 移除流式标记
       
@@ -208,14 +227,24 @@ export class Orchestrator {
     } catch (error) {
       console.error('❌ 流式执行失败，尝试非流式模式:', error);
       
+      // 通知 UI 流式结束（出错）
+      if (this.streamCallbacks) {
+        this.streamCallbacks.onStreamEnd(messageId);
+      }
+      
       // 降级为非流式模式
-      await this.taskExecutor.executePlan(
-        executionPlan,
-        structuredIntent,
-        async (content: string) => {
-          await this.sendAssistantMessage(content);
-        }
-      );
+      try {
+        await this.taskExecutor.executePlan(
+          executionPlan,
+          structuredIntent,
+          async (content: string) => {
+            await this.sendAssistantMessage(content);
+          }
+        );
+      } catch (execError) {
+        console.error('❌ 非流式执行也失败:', execError);
+        await this.sendAssistantMessage('处理您的请求时出现错误，请稍后重试。');
+      }
     }
   }
 

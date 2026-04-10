@@ -51,5 +51,5 @@ export interface ASRService {
   /**
    * 获取支持的语言列表
    */
-  getLanguages?(): string[];
+  getLanguages(): string[];
 }

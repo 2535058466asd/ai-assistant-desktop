@@ -556,6 +556,33 @@ export const universalControlSkill: SkillDefinition = {
     }
   ],
   
+  whenToUse: [
+    '用户要求打开或关闭某个应用',
+    '用户要求播放、暂停、停止媒体',
+    '用户要求调整音量或静音',
+    '用户要求锁屏、关机、重启电脑',
+    '用户要求截图',
+    '用户要求打开文件夹或文件操作'
+  ],
+  
+  errorHandling: [
+    {
+      errorType: '应用未找到',
+      cause: '应用未安装或名称错误',
+      solution: '尝试模糊匹配或提示用户确认应用名称'
+    },
+    {
+      errorType: '权限不足',
+      cause: '需要管理员权限执行该操作',
+      solution: '提示用户确认或使用管理员权限运行'
+    },
+    {
+      errorType: '操作失败',
+      cause: '应用不支持该操作或系统限制',
+      solution: '返回错误信息并建议替代方案'
+    }
+  ],
+  
   examples: [
     {
       id: 'open-app',
