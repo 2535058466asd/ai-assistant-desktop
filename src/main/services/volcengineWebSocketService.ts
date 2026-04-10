@@ -109,6 +109,10 @@ export class VolcengineTTSWebSocketService {
   private sessionStartedRejecter: ((error: Error) => void) | null = null
   private sessionFinishedResolver: (() => void) | null = null
   private sessionFinishedRejecter: ((error: Error) => void) | null = null
+  private reconnectAttempts: number = 0
+  private maxReconnectAttempts: number = 5
+  private reconnectDelay: number = 1000
+  private isReconnecting: boolean = false
 
   constructor(config: TTSConfig) {
     this.config = config
@@ -224,6 +228,29 @@ export class VolcengineTTSWebSocketService {
       return true
     }
 
+    if (this.isConnecting) {
+      console.log('🔄 [Main] TTS 连接正在进行中，等待完成')
+      // 等待当前连接完成
+      return new Promise((resolve, reject) => {
+        const checkInterval = setInterval(() => {
+          if (!this.isConnecting) {
+            clearInterval(checkInterval)
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+              resolve(true)
+            } else {
+              reject(new Error('连接失败'))
+            }
+          }
+        }, 100)
+        
+        // 超时处理
+        setTimeout(() => {
+          clearInterval(checkInterval)
+          reject(new Error('连接超时'))
+        }, 30000)
+      })
+    }
+
     return new Promise((resolve, reject) => {
       try {
         this.isConnecting = true
@@ -252,9 +279,10 @@ export class VolcengineTTSWebSocketService {
         this.ws.on('open', () => {
           console.log('✅ [Main] TTS WebSocket 连接成功')
           this.isConnecting = false
+          this.reconnectAttempts = 0 // 重置重连次数
           
           this.ws!.send(this.buildTTSMessage(TTSMsgType.FullClientRequest, TTSMsgTypeFlagBits.WithEvent, TTSEventType.StartConnection, {}))
-      console.log('📤 [Main] TTS 已发送 StartConnection (event=1)')
+          console.log('📤 [Main] TTS 已发送 StartConnection (event=1)')
         })
 
         this.ws.on('message', (data: Buffer) => {
@@ -316,9 +344,17 @@ export class VolcengineTTSWebSocketService {
           reject(error)
         })
 
-        this.ws.on('close', () => {
-          console.log('🔌 [Main] TTS WebSocket 连接关闭')
+        this.ws.on('close', (code, reason) => {
+          console.log(`🔌 [Main] TTS WebSocket 连接关闭，code: ${code}, reason: ${reason}`)
           this.isConnecting = false
+          
+          // 自动重连（排除主动关闭的情况）
+          if (code !== 1000 && !this.isReconnecting) {
+            console.log('🔄 [Main] TTS 连接意外关闭，准备重连')
+            this.reconnect().catch(error => {
+              console.error('❌ [Main] TTS 重连失败:', error)
+            })
+          }
         })
 
       } catch (error) {
@@ -450,6 +486,40 @@ export class VolcengineTTSWebSocketService {
     }
   }
 
+  private async reconnect(): Promise<boolean> {
+    if (this.isReconnecting || this.reconnectAttempts >= this.maxReconnectAttempts) {
+      return false
+    }
+
+    this.isReconnecting = true
+    this.reconnectAttempts++
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1) // 指数退避
+
+    console.log(`🔄 [Main] TTS 尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})，延迟 ${delay}ms`)
+
+    return new Promise((resolve) => {
+      setTimeout(async () => {
+        try {
+          const success = await this.connect()
+          if (success) {
+            console.log('✅ [Main] TTS 重连成功')
+            this.reconnectAttempts = 0
+            this.isReconnecting = false
+            resolve(true)
+          } else {
+            console.warn('⚠️ [Main] TTS 重连失败')
+            this.isReconnecting = false
+            resolve(false)
+          }
+        } catch (error) {
+          console.error('❌ [Main] TTS 重连错误:', error)
+          this.isReconnecting = false
+          resolve(false)
+        }
+      }, delay)
+    })
+  }
+
   disconnect() {
     if (this.ws) {
       this.ws.send(this.buildTTSMessage(TTSMsgType.FullClientRequest, TTSMsgTypeFlagBits.WithEvent, TTSEventType.FinishConnection, {}))
@@ -480,6 +550,11 @@ export class VolcengineASRWebSocketService {
   private seq: number = 1
   private mainWindow: BrowserWindow | null = null
   private recognitionResult: string = ''
+  private reconnectAttempts: number = 0
+  private maxReconnectAttempts: number = 5
+  private reconnectDelay: number = 1000
+  private isReconnecting: boolean = false
+  private isConnecting: boolean = false
 
   constructor(config: ASRConfig) {
     this.config = config
@@ -631,13 +706,71 @@ export class VolcengineASRWebSocketService {
     return { code, isLastPackage, payloadMsg }
   }
 
+  private async reconnect(): Promise<boolean> {
+    if (this.isReconnecting || this.reconnectAttempts >= this.maxReconnectAttempts) {
+      return false
+    }
+
+    this.isReconnecting = true
+    this.reconnectAttempts++
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1) // 指数退避
+
+    console.log(`🔄 [Main] ASR 尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})，延迟 ${delay}ms`)
+
+    return new Promise((resolve) => {
+      setTimeout(async () => {
+        try {
+          const success = await this.connect()
+          if (success) {
+            console.log('✅ [Main] ASR 重连成功')
+            this.reconnectAttempts = 0
+            this.isReconnecting = false
+            resolve(true)
+          } else {
+            console.warn('⚠️ [Main] ASR 重连失败')
+            this.isReconnecting = false
+            resolve(false)
+          }
+        } catch (error) {
+          console.error('❌ [Main] ASR 重连错误:', error)
+          this.isReconnecting = false
+          resolve(false)
+        }
+      }, delay)
+    })
+  }
+
   async connect(): Promise<boolean> {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       return true
     }
 
+    if (this.isConnecting) {
+      console.log('🔄 [Main] ASR 连接正在进行中，等待完成')
+      // 等待当前连接完成
+      return new Promise((resolve, reject) => {
+        const checkInterval = setInterval(() => {
+          if (!this.isConnecting) {
+            clearInterval(checkInterval)
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+              resolve(true)
+            } else {
+              reject(new Error('连接失败'))
+            }
+          }
+        }, 100)
+        
+        // 超时处理
+        setTimeout(() => {
+          clearInterval(checkInterval)
+          reject(new Error('连接超时'))
+        }, 30000)
+      })
+    }
+
     return new Promise((resolve, reject) => {
       try {
+        this.isConnecting = true
         const headers = {
           'X-Api-App-Key': this.config.appId,
           'X-Api-Access-Key': this.config.accessToken,
@@ -656,6 +789,8 @@ export class VolcengineASRWebSocketService {
 
         this.ws.on('open', () => {
           console.log('✅ [Main] ASR WebSocket 连接成功')
+          this.isConnecting = false
+          this.reconnectAttempts = 0 // 重置重连次数
           resolve(true)
         })
 
@@ -695,15 +830,26 @@ export class VolcengineASRWebSocketService {
 
         this.ws.on('error', (error) => {
           console.error('❌ [Main] ASR WebSocket 错误:', error)
+          this.isConnecting = false
           reject(error)
         })
 
-        this.ws.on('close', () => {
-          console.log('🔌 [Main] ASR WebSocket 连接关闭')
+        this.ws.on('close', (code, reason) => {
+          console.log(`🔌 [Main] ASR WebSocket 连接关闭，code: ${code}, reason: ${reason}`)
+          this.isConnecting = false
+          
+          // 自动重连（排除主动关闭的情况）
+          if (code !== 1000 && !this.isReconnecting) {
+            console.log('🔄 [Main] ASR 连接意外关闭，准备重连')
+            this.reconnect().catch(error => {
+              console.error('❌ [Main] ASR 重连失败:', error)
+            })
+          }
         })
 
       } catch (error) {
         console.error('❌ [Main] ASR 连接失败:', error)
+        this.isConnecting = false
         reject(error)
       }
     })

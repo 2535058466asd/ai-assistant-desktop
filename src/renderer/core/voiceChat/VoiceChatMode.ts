@@ -47,6 +47,9 @@ export class VoiceChatMode {
 
   // 防重复调用锁：TTS 播放中不再触发新的播放
   private isSpeaking: boolean = false;
+  
+  // AudioContext 单例，避免内存泄漏
+  private audioContext: AudioContext | null = null;
 
   /**
    * 初始化语音对话模式
@@ -310,10 +313,16 @@ export class VoiceChatMode {
 
         // 先尝试用 AudioContext 解码（自动识别 MP3/WAV/OGG 等格式）
         try {
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const decoded = await audioContext.decodeAudioData(audioData.slice(0));
+          // 复用 AudioContext，避免内存泄漏
+          if (!this.audioContext) {
+            this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          }
+          // 如果 AudioContext 被暂停，需要恢复
+          if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume();
+          }
+          const decoded = await this.audioContext.decodeAudioData(audioData.slice(0));
           wavData = this.audioBufferToWav(decoded);
-          audioContext.close();
           console.log('✅ [VoiceChatMode] AudioContext 解码成功，已转为 WAV');
         } catch (e) {
           // 解码失败说明是裸 PCM 数据，直接加 WAV 头
@@ -448,6 +457,17 @@ export class VoiceChatMode {
       this.asrManager.stopListening();
     } catch (error) {
       console.error('停止 ASR 失败:', error);
+    }
+    
+    // 关闭 AudioContext 释放资源
+    if (this.audioContext) {
+      try {
+        await this.audioContext.close();
+        this.audioContext = null;
+        console.log('✅ [VoiceChatMode] AudioContext 已关闭');
+      } catch (error) {
+        console.error('关闭 AudioContext 失败:', error);
+      }
     }
   }
 
