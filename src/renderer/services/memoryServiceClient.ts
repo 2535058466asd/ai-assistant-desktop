@@ -68,6 +68,34 @@ export class MemoryService {
     }
     return '';
   }
+
+  /**
+   * 搜索记忆
+   */
+  async searchMemories(keyword: string): Promise<any[]> {
+    if (window.electronAPI?.memorySearchMemories) {
+      return await window.electronAPI.memorySearchMemories(keyword);
+    }
+    return [];
+  }
+
+  /**
+   * 删除指定记忆
+   */
+  async deleteMemory(id: string): Promise<void> {
+    if (window.electronAPI?.memoryDeleteMemory) {
+      await window.electronAPI.memoryDeleteMemory(id);
+    }
+  }
+
+  /**
+   * 清空所有记忆
+   */
+  async clearAllMemories(): Promise<void> {
+    if (window.electronAPI?.memoryClearAllMemories) {
+      await window.electronAPI.memoryClearAllMemories();
+    }
+  }
 }
 
 // 创建单例

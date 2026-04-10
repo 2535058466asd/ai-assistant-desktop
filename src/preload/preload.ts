@@ -92,6 +92,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   memoryGetPrompt: async () => {
     return ipcRenderer.invoke('memory-get-prompt');
   },
+  // 记忆服务 - 搜索记忆
+  memorySearchMemories: async (keyword: string) => {
+    return ipcRenderer.invoke('memory-search-memories', keyword);
+  },
+  // 记忆服务 - 删除记忆
+  memoryDeleteMemory: async (id: string) => {
+    return ipcRenderer.invoke('memory-delete-memory', id);
+  },
+  // 记忆服务 - 清空所有记忆
+  memoryClearAllMemories: async () => {
+    return ipcRenderer.invoke('memory-clear-all-memories');
+  },
   // 截图服务 - 截取屏幕
   screenshotTake: async () => {
     return ipcRenderer.invoke('screenshot-take');
@@ -187,6 +199,9 @@ declare global {
       memoryAddMemory: (content: string, category?: string) => Promise<void>;
       memoryGetAllMemories: () => Promise<any[]>;
       memoryGetPrompt: () => Promise<string>;
+      memorySearchMemories: (keyword: string) => Promise<any[]>;
+      memoryDeleteMemory: (id: string) => Promise<void>;
+      memoryClearAllMemories: () => Promise<void>;
       screenshotTake: () => Promise<{ success: boolean; imageData?: string; error?: string }>;
       // OpenClaw 设备认证
       openclawGetDeviceIdentity: () => Promise<{ success: boolean; identity?: { id: string; publicKeyBase64: string; createdAt: number }; error?: string }>;

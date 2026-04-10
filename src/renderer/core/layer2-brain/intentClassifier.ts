@@ -5,7 +5,7 @@
 
 import type { Intent, StructuredIntent, Slots, SessionId, SingleIntent } from '../../types';
 import { sendMessageToDoubao } from '../../services/doubaoApiClient';
-import { getMemoryService } from '../../services/memoryService';
+import { getMemoryService } from '../../services/memoryServiceClient';
 
 /**
  * 意图分类器类（LLM智能版，支持多意图）

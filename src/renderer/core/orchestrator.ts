@@ -17,7 +17,7 @@ import { getTaskPlannerManager } from './layer3-planner';
 import { getTaskExecutorManager } from './layer4-executor';
 import { getQiyuanSystemPrompt, DEFAULT_QIYUAN_SETTINGS } from './qiyuanSettings';
 import { sendMessageToDoubao, sendMessageToDoubaoStream } from '../services/doubaoApiClient';
-import { getOpenClawBridge } from './openclawBridge';
+import { getOpenClawBridge } from './bridge/openclawBridge';
 
 /**
  * 流式回调接口

@@ -7,8 +7,8 @@ import type { ExecutionPlan, StructuredIntent, SingleIntent, Intent, Slots } fro
 import { sendMessageToDoubao } from '../../services/doubaoApiClient';
 import { getBrainManager } from '../layer2-brain';
 import { getQiyuanSystemPrompt } from '../qiyuanSettings';
-import { getMemoryService } from '../../services/memoryService';
-import { getOpenClawBridge } from '../openclawBridge';
+import { getMemoryService } from '../../services/memoryServiceClient';
+import { getOpenClawBridge } from '../bridge/openclawBridge';
 
 // 导入新的技能系统
 import { initSkills, executeSkill as executeNewSkill } from '../skills';

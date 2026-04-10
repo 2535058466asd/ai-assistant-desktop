@@ -10,7 +10,7 @@ import http from 'http'
 import https from 'https'
 import fs from 'fs'
 import { getSystemControlService } from './services/systemControl'
-import { getMemoryService } from './services/memoryService'
+import { getMemoryService } from './services/memoryServiceBackend'
 import { getScreenshotService } from './services/screenshotService'
 import openclawAuth from './services/openclawAuth'
 import { getTTSService, getASRService } from './services/volcengineWebSocketService'
@@ -393,6 +393,18 @@ ipcMain.handle('memory-get-all-memories', async () => {
 
 ipcMain.handle('memory-get-prompt', async () => {
   return memoryService.getMemoryPrompt();
+});
+
+ipcMain.handle('memory-search-memories', async (_event, keyword: string) => {
+  return memoryService.searchMemories(keyword);
+});
+
+ipcMain.handle('memory-delete-memory', async (_event, id: string) => {
+  memoryService.deleteMemory(id);
+});
+
+ipcMain.handle('memory-clear-all-memories', async () => {
+  memoryService.clearAllMemories();
 });
 
 ipcMain.handle('screenshot-take', async () => {

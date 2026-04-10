@@ -3,7 +3,7 @@
 // 让启源 AI 能够使用 OpenClaw 的工具能力
 // ==========================================
 
-import { getOpenClawApi, type OpenClawToolRequest, type OpenClawToolResult } from '../services/openclawApi';
+import { getOpenClawApi, type OpenClawToolRequest, type OpenClawToolResult } from '../services/openclawApiClient';
 import { getSearXNGService } from '../services/searxngApi';
 
 /**
