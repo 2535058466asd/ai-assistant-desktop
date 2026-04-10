@@ -1,0 +1,348 @@
+/**
+ * ChatArea 聊天区域组件样式
+ * 展示用户消息和 AI 回复，支持富文本渲染
+ * 
+ * 消息类型：
+ * - 用户消息：右对齐、渐变气泡、圆角不对称
+ * - AI 消息：左对齐、带头像、深色气泡、操作按钮
+ */
+
+/* ===== 聊天区域容器 ===== */
+.chatArea {
+  flex: 1; /* 占据剩余空间 */
+  overflow-y: auto; /* 垂直滚动 */
+  padding: 24px 0;
+  min-height: 0; /* 关键：允许 flex 子项收缩 */
+}
+
+/* ===== 消息组容器（限制最大宽度居中）===== */
+.messageGroup {
+  max-width: var(--chat-max-width); /* 700px，更聚焦的对话区域 */
+  margin: 0 auto;
+  padding: 0 20px; /* 更紧凑的内边距 */
+}
+
+/* ===== 时间分割线（如"今天 00:08"）===== */
+.timestampDivider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 24px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  user-select: none;
+}
+
+/* 分割线两侧的横线 - 更细更淡 */
+.timestampDivider::before,
+.timestampDivider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-color);
+}
+
+/* ==========================================
+   用户消息样式（右侧对齐）
+   ========================================== */
+.messageUser {
+  display: flex;
+  justify-content: flex-end; /* 右对齐 */
+  margin-bottom: 20px;
+  /* 入场动画 */
+  animation: messageIn var(--transition-slow) var(--ease-smooth);
+}
+
+/* 用户消息气泡容器 */
+.userBubbleWrapper {
+  max-width: 70%; /* 限制最大宽度 */
+}
+
+/* 用户消息气泡 - 渐变背景 + 不对称圆角 */
+.userBubble {
+  padding: 12px 18px;
+  background: var(--gradient-main); /* 蓝-紫渐变 */
+  border-radius: var(--radius-xl) var(--radius-xl) 4px var(--radius-xl);
+  /* 圆角规律：左上右上大圆角，右下小圆角（朝向对话边缘）*/
+  color: white;
+  font-size: 14px;
+  line-height: 1.7;
+  box-shadow: var(--shadow-blue);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  /* 添加微妙的动画效果 */
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* 用户气泡悬停效果：轻微上浮 */
+.userBubble:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
+}
+
+/* 用户消息时间戳 */
+.userBubbleTime {
+  text-align: right;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 6px;
+}
+
+/* ==========================================
+   AI 消息样式（左侧对齐 + 头像）
+   ========================================== */
+.messageAi {
+  display: flex;
+  gap: 14px; /* 头象与内容间距 */
+  margin-bottom: 24px;
+  /* 入场动画 */
+  animation: messageIn var(--transition-slow) var(--ease-smooth);
+}
+
+/* AI 头像 - 渐变方块 + 发光阴影 */
+.aiAvatar {
+  width: 32px; /* 更小的头像 */
+  height: 32px;
+  border-radius: 8px; /* 更小的圆角 */
+  background: var(--gradient-logo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0; /* 防止被压缩 */
+  box-shadow: var(--shadow-avatar);
+  margin-top: 2px; /* 微调与文字对齐 */
+}
+
+.aiAvatarSvg {
+  width: 18px; /* 图标大小适配 */
+  height: 18px;
+  color: white;
+}
+
+/* AI 消息内容区 */
+.aiContent {
+  flex: 1;
+  min-width: 0; /* 允许文本截断 */
+}
+
+/* AI 消息气泡 - 白色背景 + 渐变边框 + 动态阴影 */
+.aiBubble {
+  padding: 14px 18px;
+  background: var(--bg-secondary);
+  /* 圆角规律：左上小圆角，其他三个大圆角 */
+  border-radius: 4px var(--radius-xl) var(--radius-xl) var(--radius-xl);
+  border: 1px solid var(--border-color);
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-primary);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  /* 微妙的阴影，增加层次感 */
+  box-shadow: var(--shadow-sm);
+  /* 悬停时添加渐变边框效果 */
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+/* AI 气泡悬停效果：添加渐变边框和阴影 */
+.aiBubble:hover {
+  box-shadow: var(--shadow-md), var(--shadow-glow);
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
+/* 使用伪元素添加渐变边框效果（亮色主题） */
+[data-theme="light"] .aiBubble::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  right: -1px;
+  bottom: -1px;
+  border-radius: 4px var(--radius-xl) var(--radius-xl) var(--radius-xl);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(124, 58, 237, 0.05));
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+[data-theme="light"] .aiBubble:hover::before {
+  opacity: 1;
+}
+
+/* AI 消息内的段落间距 */
+.aiBubble p {
+  margin-bottom: 8px;
+}
+
+.aiBubble p:last-child {
+  margin-bottom: 0;
+}
+
+/* AI 消息中的加粗文字（高亮色） */
+.aiBubble strong {
+  color: var(--accent-cyan);
+  font-weight: 500;
+}
+
+/* AI 消息中的行内代码块 */
+.aiBubble code {
+  font-family: var(--font-mono);
+  background: rgba(6, 182, 212, 0.1);
+  color: var(--accent-cyan);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  border: 1px solid rgba(6, 182, 212, 0.15);
+}
+
+/* 键盘按键样式（模拟真实键盘外观） */
+.kbdStyle {
+  font-family: var(--font-mono);
+  background: var(--bg-primary);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-bottom-width: 2px; /* 底部加粗模拟立体感 */
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* 有序/无序列表 */
+.aiBubble ol,
+.aiBubble ul {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+
+.aiBubble li {
+  margin-bottom: 4px;
+}
+
+/* ==========================================
+   AI 消息操作按钮（复制/收起）
+   默认隐藏，鼠标悬停时显示
+   ========================================== */
+.aiActions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  opacity: 0; /* 默认透明 */
+  transition: opacity var(--transition-normal);
+}
+
+/* 悬停在 AI 消息上时显示操作按钮 */
+.messageAi:hover .aiActions {
+  opacity: 1;
+}
+
+/* 单个操作按钮 */
+.aiActionBtn {
+  padding: 4px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.aiActionBtn:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  background: rgba(37, 99, 235, 0.04);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.aiActionBtnSvg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* ==========================================
+   打字指示器动画（AI 正在思考时显示）
+   ========================================== */
+.typingIndicator {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 24px;
+  /* 入场动画 */
+  animation: messageIn var(--transition-slow) var(--ease-smooth);
+}
+
+/* 打字动画点容器 - 白色背景 + 渐变边框 */
+.typingDots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 18px;
+  background: var(--bg-secondary);
+  border-radius: 4px var(--radius-xl) var(--radius-xl) var(--radius-xl);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  /* 微妙的动画效果 */
+  transition: all 0.2s ease;
+}
+
+/* 单个跳动的小圆点 - 蓝色渐变 */
+.typingDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  /* 三个点依次延迟弹跳 */
+  animation: typingBounce 1.4s infinite ease-in-out;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
+}
+
+.typingDot:nth-child(2) {
+  animation-delay: 0.2s; /* 第二个点延迟 0.2s */
+}
+
+.typingDot:nth-child(3) {
+  animation-delay: 0.4s; /* 第三个点延迟 0.4s */
+}
+
+/* ==========================================
+   流式输出样式（打字机效果）
+   ========================================== */
+
+/* 流式输出中的消息气泡 */
+.streamingBubble {
+  border-right: 2px solid var(--accent-blue);
+}
+
+/* 流式输出闪烁光标 */
+.streamingCursor {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--accent-blue);
+  font-weight: bold;
+  animation: cursorBlink 0.8s infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* ==========================================
+   TTS 播放按钮样式
+   ========================================== */
+
+/* 正在播放状态 */
+.playingBtn {
+  color: var(--accent-blue) !important;
+}
+
+.playingBtn .aiActionBtnSvg {
+  stroke: var(--accent-blue) !important;
+}

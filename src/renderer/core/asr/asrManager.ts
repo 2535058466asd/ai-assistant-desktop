@@ -1,18 +1,17 @@
 // ==========================================
 // ASR 管理器
-// 统一管理不同的ASR方案，方便切换
+// 豆包语音 ASR 2.0 WebSocket v3 双向流式
 // ==========================================
 
 import type { ASRService, ASRRequest, ASRResult } from './asrInterface';
 import { WebSpeechASR } from './webSpeechASR';
-import { VolcengineASR, type VolcengineASRConfig } from './volcengineASR';
-import { WhisperASR } from './whisperASR';
+import { VolcengineASRV3, type VolcengineASRV3Config } from './volcengineASRV3';
 import type { ASRConfig as GlobalASRConfig } from '../../config/asrConfig';
 
-export type ASRType = 'web-speech' | 'whisper' | 'volcengine';
+export type ASRType = 'volcengine' | 'web-speech';
 
 interface ASRConfig extends Omit<GlobalASRConfig, 'volcengine'> {
-  volcengine?: VolcengineASRConfig;
+  volcengine?: VolcengineASRV3Config;
 }
 
 export class ASRManager {
@@ -21,7 +20,7 @@ export class ASRManager {
 
   constructor(config?: Partial<ASRConfig>) {
     this.config = {
-      type: 'web-speech',
+      type: 'volcengine',
       language: 'zh-CN',
       ...config
     };
@@ -31,26 +30,26 @@ export class ASRManager {
 
   private createService(type: ASRType): ASRService {
     switch (type) {
-      case 'web-speech':
-        return new WebSpeechASR();
-      case 'whisper':
-        console.log('🔄 初始化Whisper ASR');
-        return new WhisperASR();
       case 'volcengine':
-        if (this.config.volcengine?.apiKey) {
-          console.log('🔄 初始化火山引擎 ASR');
-          return new VolcengineASR(this.config.volcengine);
+        // 豆包 ASR 2.0 WebSocket v3 双向流式优化版
+        if (this.config.volcengine?.appId && this.config.volcengine?.accessToken) {
+          console.log('🔄 初始化豆包语音 ASR 2.0（WebSocket v3 双向流式优化版）');
+          return new VolcengineASRV3(this.config.volcengine);
         } else {
-          console.warn('⚠️  火山引擎ASR配置不完整，使用Whisper ASR');
-          return new WhisperASR();
+          console.warn('⚠️  豆包 ASR 配置不完整，降级使用 Web Speech API');
+          return new WebSpeechASR();
         }
+      case 'web-speech':
+        console.log('🔄 使用浏览器原生 Web Speech API');
+        return new WebSpeechASR();
       default:
-        return new WhisperASR();
+        console.warn('⚠️  未知的 ASR 类型，使用 Web Speech API');
+        return new WebSpeechASR();
     }
   }
 
   /**
-   * 初始化ASR服务（使用全局配置）
+   * 初始化 ASR 服务（使用全局配置）
    */
   initialize(globalConfig: GlobalASRConfig): void {
     this.config = {
@@ -60,7 +59,7 @@ export class ASRManager {
     };
     
     this.currentService = this.createService(this.config.type);
-    console.log('🎵 ASR管理器已初始化，类型:', this.config.type);
+    console.log('🎵 ASR 管理器已初始化，类型:', this.config.type);
   }
 
   /**
@@ -100,12 +99,12 @@ export class ASRManager {
   }
 
   /**
-   * 切换ASR方案
+   * 切换 ASR 方案
    */
   switchType(type: ASRType): void {
     if (this.config.type === type) return;
     
-    console.log(`🔄 切换ASR方案: ${this.config.type} -> ${type}`);
+    console.log(`🔄 切换 ASR 方案: ${this.config.type} -> ${type}`);
     this.config.type = type;
     this.currentService = this.createService(type);
   }

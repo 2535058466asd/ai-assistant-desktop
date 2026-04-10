@@ -1,0 +1,23 @@
+/**
+ * AppLayout 主布局组件样式
+ * 整合侧边栏 + 顶栏 + 聊天区 + 输入区的整体布局
+ */
+
+/* ===== 应用根容器 - 全屏 Flex 布局 ===== */
+.app {
+  display: flex;
+  height: 100vh; /* 占满视口高度 */
+  width: 100vw;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ===== 主内容区域（右侧）===== */
+.main {
+  flex: 1; /* 占据剩余空间 */
+  display: flex;
+  flex-direction: column; /* 内部垂直排列：顶栏 | 聊天区 | 输入区 */
+  min-width: 0; /* 允许内容收缩，防止溢出 */
+  height: 100vh; /* 固定高度，不受内容影响 */
+  overflow: hidden; /* 防止内容溢出 */
+}

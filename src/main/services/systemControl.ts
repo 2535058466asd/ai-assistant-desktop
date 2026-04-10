@@ -47,59 +47,94 @@ export class SystemControlService {
   }
 
   /**
-   * Windows下打开应用程序（智能查找）
+   * Windows下打开应用程序（简化版 - 类似 OpenClaw 的 launch 命令）
+   * 
+   * 策略：
+   * 1. 先尝试常见系统软件（notepad、calc 等）- 用 start 命令
+   * 2. 再尝试用 PowerShell Start-Process 启动应用
    */
   private async openAppWindows(appName: string): Promise<{ success: boolean; message: string }> {
     const normalizedAppName = appName.toLowerCase().trim();
     
-    console.log(`🔍 正在查找并打开: ${appName}`);
+    console.log(`🔍 正在打开应用: ${appName}`);
 
-    // 策略1: 从桌面快捷方式查找（最优先，快捷方式最可靠）
-    try {
-      console.log('策略1: 尝试从桌面快捷方式查找...');
-      const result = await this.tryOpenFromDesktopShortcuts(appName);
-      if (result.success) {
-        return result;
+    // 策略1: 常见系统软件（直接用 start 命令，最可靠）
+    const systemApps: Record<string, string> = {
+      '记事本': 'notepad',
+      'notepad': 'notepad',
+      '计算器': 'calc',
+      'calc': 'calc',
+      '浏览器': 'explorer',
+      'chrome': 'chrome',
+      'edge': 'msedge',
+      'cmd': 'cmd',
+      '命令提示符': 'cmd',
+      'powershell': 'powershell',
+      '任务管理器': 'taskmgr',
+      'taskmgr': 'taskmgr',
+      '资源管理器': 'explorer',
+      'explorer': 'explorer'
+    };
+
+    // 检查是否是系统软件
+    for (const [key, command] of Object.entries(systemApps)) {
+      if (normalizedAppName === key || normalizedAppName.includes(key)) {
+        console.log(`🎯 匹配到系统软件: ${command}`);
+        try {
+          exec(`start "" "${command}"`);
+          return { success: true, message: `已成功打开 ${appName} 😊` };
+        } catch (e) {
+          console.log(`❌ 打开系统软件 ${command} 失败:`, e);
+        }
       }
-    } catch (e) {
-      console.log('策略1失败:', e);
     }
 
-    // 策略2: 从开始菜单查找
+    // 策略2: 用 PowerShell Start-Process 尝试启动应用（类似 OpenClaw 的 launch）
     try {
-      console.log('策略2: 尝试从开始菜单查找...');
-      const result = await this.tryOpenFromStartMenu(appName);
-      if (result.success) {
-        return result;
-      }
-    } catch (e) {
-      console.log('策略2失败:', e);
+      console.log('⚡ 使用 PowerShell Start-Process 启动...');
+      
+      // 构造 PowerShell 命令
+      const psCommand = `
+        $appName = '${appName}'
+        
+        # 方法1: 尝试按名称启动
+        try {
+          Start-Process $appName -ErrorAction Stop
+          exit 0
+        } catch {}
+        
+        # 方法2: 从开始菜单查找
+        $app = Get-StartApps | Where-Object { $_.Name -like "*$appName*" } | Select-Object -First 1
+        if ($app) {
+          Start-Process shell:AppsFolder\\$($app.AppId)
+          exit 0
+        }
+        
+        # 方法3: 从桌面快捷方式查找
+        $desktopPath = [Environment]::GetFolderPath('Desktop')
+        $shortcut = Get-ChildItem -Path $desktopPath -Filter "*.lnk" | Where-Object { $_.Name -like "*$appName*" } | Select-Object -First 1
+        if ($shortcut) {
+          Start-Process $shortcut.FullName
+          exit 0
+        }
+        
+        exit 1
+      `;
+      
+      const { stdout, stderr } = await execAsync(
+        `powershell -NoProfile -Command "${psCommand.replace(/\n/g, '; ')}"`,
+        { timeout: 10000 }
+      );
+      
+      console.log('✅ PowerShell 启动成功');
+      return { success: true, message: `已成功打开 ${appName} 😊` };
+      
+    } catch (e: any) {
+      console.log('❌ PowerShell 启动失败:', e.message);
     }
 
-    // 策略3: 用PowerShell查找已安装的应用
-    try {
-      console.log('策略3: 尝试用PowerShell查找...');
-      const result = await this.tryOpenWithPowerShell(appName);
-      if (result.success) {
-        return result;
-      }
-    } catch (e) {
-      console.log('策略3失败:', e);
-    }
-
-    // 策略4: 常见系统软件（直接用命令，不弹框）
-    try {
-      console.log('策略4: 尝试常见系统软件...');
-      const result = await this.tryOpenSystemApps(normalizedAppName);
-      if (result.success) {
-        return result;
-      }
-    } catch (e) {
-      console.log('策略4失败:', e);
-    }
-
-    // 所有策略都失败了
-    throw new Error('所有查找策略都失败了');
+    // 所有策略都失败
+    throw new Error(`无法找到或启动应用: ${appName}。请确认应用名称是否正确。`);
   }
 
   /**

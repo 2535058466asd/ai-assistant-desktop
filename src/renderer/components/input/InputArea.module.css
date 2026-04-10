@@ -1,0 +1,316 @@
+/**
+ * InputArea 输入区域组件样式
+ * 用户与 AI 交互的核心入口
+ * 
+ * 结构：
+ * - 快捷建议芯片（可选显示）
+ * - 输入容器：附件按钮 | 文本输入框 | 发送按钮
+ * - 底部提示文字
+ */
+
+/* ===== 输入区域容器 - 渐变遮罩背景 ===== */
+.inputArea {
+  padding: 16px 24px 20px;
+  /* 从下往上的渐变遮罩，让输入区与聊天区自然过渡 */
+  background: linear-gradient(to top, var(--bg-primary) 60%, transparent);
+  flex-shrink: 0; /* 防止被压缩 */
+}
+
+/* 内容包裹器（限制最大宽度居中）*/
+.inputWrapper {
+  max-width: var(--chat-max-width); /* 700px，与聊天区对齐 */
+  margin: 0 auto;
+}
+
+/* ===== 快捷建议芯片组 ===== */
+.quickSuggestions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap; /* 超出自动换行 */
+  margin-bottom: 12px;
+}
+
+/* 单个建议芯片 - 圆角胶囊形状 */
+.suggestionChip {
+  padding: 6px 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 20px; /* 完全圆角胶囊 */
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+/* 悬停效果：边框高亮 + 文字变色 */
+.suggestionChip:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.05);
+}
+
+/* ===== 主输入容器（带边框和聚焦发光效果）===== */
+.inputContainer {
+  display: flex;
+  align-items: flex-end; /* 底部对齐（适配多行文本）*/
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-normal);
+}
+
+/* 聚焦态 - 发光边框效果 */
+.inputContainerFocusWithin {
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-glow);
+}
+
+/* ===== 左侧附件/功能按钮组 ===== */
+.inputExtras {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-bottom: 2px; /* 微调与输入框对齐 */
+}
+
+/* 单个附件按钮（上传文件、语音等）*/
+.extraBtn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0; /* 防止被压缩 */
+}
+
+.extraBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.extraBtnSvg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ===== 文本输入框 ===== */
+.chatInput {
+  flex: 1; /* 占据剩余空间 */
+  background: transparent;
+  border: none;
+  outline: none; /* 移除默认轮廓，用容器边框代替 */
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+  resize: none; /* 禁止手动拖拽调整大小 */
+  max-height: 120px; /* 最大高度限制（约6行）*/
+  min-height: 24px; /* 最小高度 */
+  font-family: inherit;
+  padding: 0;
+}
+
+/* 占位符样式 */
+.chatInput::placeholder {
+  color: var(--text-muted);
+}
+
+/* ===== 发送按钮 ===== */
+.sendBtn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: var(--gradient-main); /* 蓝-紫渐变 */
+  border-radius: var(--radius-md);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-normal);
+  flex-shrink: 0; /* 防止被压缩 */
+  box-shadow: var(--shadow-btn); /* 默认阴影 */
+}
+
+/* 悬停效果：上浮 + 阴影增强 */
+.sendBtn:hover:not(:disabled) {
+  transform: translateY(-1px); /* 轻微上浮 */
+  box-shadow: var(--shadow-btnHover); /* 阴影扩散 */
+}
+
+/* 点击效果：回弹 */
+.sendBtn:active:not(:disabled) {
+  transform: translateY(0); /* 回到原位 */
+}
+
+/* 禁用态：半透明 + 不可点击 */
+.sendBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.sendBtnSvg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ===== 底部提示文字 ===== */
+.inputHint {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  opacity: 0.6;
+  user-select: none;
+}
+
+/* ==========================================
+   语音输入样式（录音模式）
+   ========================================== */
+
+/* 录音模式下输入容器边框高亮 */
+.recordingMode {
+  border-color: #ef4444 !important; /* 红色边框 */
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15) !important;
+}
+
+/* 语音按钮激活状态 */
+.voiceBtnActive {
+  color: #ef4444 !important;
+}
+
+.voiceBtnActive .extraBtnSvg {
+  stroke: #ef4444 !important;
+}
+
+/* 录音脉冲动画 */
+.recordingPulse {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: rgba(239, 68, 68, 0.3);
+  border-radius: 50%;
+  animation: pulseAnimation 1.5s infinite ease-out;
+  z-index: -1;
+}
+
+@keyframes pulseAnimation {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+/* 录音状态提示栏 */
+.recordingStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin-top: 8px;
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 20px;
+  font-size: 13px;
+  color: #ef4444;
+  animation: fadeInUp 0.3s ease-out;
+}
+
+/* 录音红点闪烁 */
+.recordingDot {
+  width: 8px;
+  height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: dotBlink 1s infinite;
+}
+
+@keyframes dotBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================
+   语音对话模式样式
+   ========================================== */
+
+/* 语音对话模式按钮激活状态 */
+.voiceChatBtnActive {
+  background: rgba(37, 99, 235, 0.2) !important;
+  color: var(--accent-blue) !important;
+  border-color: var(--accent-blue) !important;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.3);
+}
+
+/* 语音对话模式状态提示栏 */
+.voiceChatStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin-top: 8px;
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--accent-blue);
+  animation: fadeInUp 0.3s ease-out;
+}
+
+/* 正在听 - 绿色闪烁点 */
+.voiceChatDot {
+  width: 8px;
+  height: 8px;
+  background: #22c55e;
+  border-radius: 50%;
+  animation: dotBlink 1s infinite;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+}
+
+/* 正在思考 - 蓝色旋转点 */
+.voiceChatThinking {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-blue);
+  border-radius: 50%;
+  animation: thinkingPulse 1.2s infinite ease-in-out;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.5);
+}
+
+@keyframes thinkingPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.6; }
+}
+
+/* 正在播放 - 橙色波浪点 */
+.voiceChatSpeaking {
+  width: 8px;
+  height: 8px;
+  background: #f59e0b;
+  border-radius: 50%;
+  animation: speakingBounce 0.8s infinite ease-in-out;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+}
+
+@keyframes speakingBounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.4); }
+}
+
+/* 空闲状态 - 灰色静态点 */
+.voiceChatIdle {
+  width: 8px;
+  height: 8px;
+  background: #94a3b8;
+  border-radius: 50%;
+}

@@ -8,6 +8,10 @@ import { sendMessageToDoubao } from '../../services/doubaoApi';
 import { getBrainManager } from '../layer2-brain';
 import { getQiyuanSystemPrompt } from '../qiyuanSettings';
 import { getMemoryService } from '../../services/memoryService';
+import { getOpenClawBridge } from '../openclawBridge';
+
+// 导入新的技能系统
+import { initSkills, executeSkill as executeNewSkill } from '../skills';
 
 /**
  * 任务执行器类
@@ -16,9 +20,15 @@ import { getMemoryService } from '../../services/memoryService';
 export class TaskExecutor {
   private brainManager = getBrainManager();
   private memoryService = getMemoryService();
+  private openclawBridge = getOpenClawBridge();
 
   constructor() {
     console.log('⚙️  执行层初始化成功（支持多意图）');
+    
+    // 初始化技能系统（自动注册所有技能）
+    initSkills().catch(error => {
+      console.error('❌ 技能系统初始化失败:', error);
+    });
   }
 
   /**
@@ -121,12 +131,12 @@ export class TaskExecutor {
     };
 
     // 对于闲聊意图
-    if (intent === 'CHAT' || intent === 'UNKNOWN') {
+    if (intent === 'chat' || intent === 'unknown') {
       return '好的';
     }
 
     // 对于查询时间意图
-    if (intent === 'CHECK_TIME') {
+    if (intent === 'check_time') {
       const now = new Date();
       const timeStr = now.toLocaleString('zh-CN', {
         year: 'numeric',
@@ -140,9 +150,9 @@ export class TaskExecutor {
     }
 
     // 对于系统控制意图
-    if (['OPEN_APP', 'OPEN_FOLDER', 'LOCK_SCREEN', 'ADJUST_VOLUME', 'MUTE_VOLUME', 
-        'SEARCH_WEB', 'SHUTDOWN_COMPUTER', 'RESTART_COMPUTER', 'CANCEL_SHUTDOWN', 
-        'SLEEP_COMPUTER', 'EMPTY_RECYCLE_BIN'].includes(intent)) {
+    if (['open_app', 'open_folder', 'lock_screen', 'adjust_volume', 'mute_volume', 
+        'search_web', 'shutdown_computer', 'restart_computer', 'cancel_shutdown', 
+        'sleep_computer', 'empty_recycle_bin'].includes(intent)) {
       // 执行系统控制，但不发送消息
       const result = await this.handleSystemControlIntentNoMessage(simpleIntent);
       return result;
@@ -158,97 +168,33 @@ export class TaskExecutor {
     intent: StructuredIntent
   ): Promise<string> {
     try {
-      // 调用后端执行系统控制
-      let result: { success: boolean; message: string } | null = null;
-      
-      switch (intent.intent) {
-        case 'OPEN_APP':
-          if (window.electronAPI?.systemOpenApp) {
-            result = await window.electronAPI.systemOpenApp(intent.slots.appName as string);
-          }
-          break;
-        case 'OPEN_FOLDER':
-          if (window.electronAPI?.systemOpenFolder) {
-            result = await window.electronAPI.systemOpenFolder(intent.slots.folderName as string);
-          }
-          break;
-        case 'LOCK_SCREEN':
-          if (window.electronAPI?.systemLockScreen) {
-            result = await window.electronAPI.systemLockScreen();
-          }
-          break;
-        case 'ADJUST_VOLUME':
-          if (window.electronAPI?.systemAdjustVolume) {
-            result = await window.electronAPI.systemAdjustVolume(
-              intent.slots.volume as number | undefined,
-              intent.slots.volumeDirection as 'up' | 'down' | undefined
-            );
-          }
-          break;
-        case 'MUTE_VOLUME':
-          if (window.electronAPI?.systemToggleMute) {
-            result = await window.electronAPI.systemToggleMute(
-              intent.slots.muteAction as 'mute' | 'unmute' | undefined
-            );
-          }
-          break;
-        case 'SEARCH_WEB':
-          if (window.electronAPI?.systemSearchWeb) {
-            result = await window.electronAPI.systemSearchWeb(intent.slots.query as string);
-          }
-          break;
-        case 'SHUTDOWN_COMPUTER':
-          if (window.electronAPI?.systemShutdown) {
-            result = await window.electronAPI.systemShutdown();
-          }
-          break;
-        case 'RESTART_COMPUTER':
-          if (window.electronAPI?.systemRestart) {
-            result = await window.electronAPI.systemRestart();
-          }
-          break;
-        case 'CANCEL_SHUTDOWN':
-          if (window.electronAPI?.systemCancelShutdown) {
-            result = await window.electronAPI.systemCancelShutdown();
-          }
-          break;
-        case 'SLEEP_COMPUTER':
-          if (window.electronAPI?.systemSleep) {
-            result = await window.electronAPI.systemSleep();
-          }
-          break;
-        case 'EMPTY_RECYCLE_BIN':
-          if (window.electronAPI?.systemEmptyRecycleBin) {
-            result = await window.electronAPI.systemEmptyRecycleBin();
-          }
-          break;
-      }
+      // 把意图映射到 OpenClaw 工具
+      const openclawRequest = this.mapIntentToOpenClawTool(intent);
 
-      // 返回简化的结果描述
-      if (result) {
+      if (openclawRequest) {
+        // 调用 OpenClaw 工具
+        const result = await this.openclawBridge.executeSkill(openclawRequest);
+
         if (result.success) {
+          // 返回简化的结果描述
           switch (intent.intent) {
-            case 'OPEN_APP':
+            case 'open_app':
               return `打开${intent.slots.appName}`;
-            case 'OPEN_FOLDER':
+            case 'open_folder':
               return '打开文件夹';
-            case 'LOCK_SCREEN':
+            case 'lock_screen':
               return '锁屏';
-            case 'ADJUST_VOLUME':
-              return intent.slots.volumeDirection === 'up' ? '音量增大' : '音量减小';
-            case 'MUTE_VOLUME':
-              return intent.slots.muteAction === 'mute' ? '静音' : '取消静音';
-            case 'SEARCH_WEB':
+            case 'search_web':
               return `搜索${intent.slots.query}`;
-            case 'SHUTDOWN_COMPUTER':
+            case 'shutdown_computer':
               return '关机';
-            case 'RESTART_COMPUTER':
+            case 'restart_computer':
               return '重启';
-            case 'CANCEL_SHUTDOWN':
+            case 'cancel_shutdown':
               return '取消关机';
-            case 'SLEEP_COMPUTER':
+            case 'sleep_computer':
               return '休眠';
-            case 'EMPTY_RECYCLE_BIN':
+            case 'empty_recycle_bin':
               return '清空回收站';
             default:
               return '操作完成';
@@ -274,13 +220,13 @@ export class TaskExecutor {
     sendMessage: (content: string) => Promise<void>
   ): Promise<void> {
     // 对于闲聊意图，直接调用豆包 API
-    if (intent.intent === 'CHAT' || intent.intent === 'UNKNOWN') {
+    if (intent.intent === 'chat' || intent.intent === 'unknown') {
       await this.handleChatIntent(intent.rawText, sendMessage);
       return;
     }
 
     // 对于查询时间意图
-    if (intent.intent === 'CHECK_TIME') {
+    if (intent.intent === 'check_time') {
       const now = new Date();
       const timeStr = now.toLocaleString('zh-CN', {
         year: 'numeric',
@@ -295,9 +241,9 @@ export class TaskExecutor {
     }
 
     // 对于系统控制意图
-    if (['OPEN_APP', 'OPEN_FOLDER', 'LOCK_SCREEN', 'ADJUST_VOLUME', 'MUTE_VOLUME', 
-        'SEARCH_WEB', 'SHUTDOWN_COMPUTER', 'RESTART_COMPUTER', 'CANCEL_SHUTDOWN', 
-        'SLEEP_COMPUTER', 'EMPTY_RECYCLE_BIN'].includes(intent.intent)) {
+    if (['open_app', 'open_folder', 'lock_screen', 'adjust_volume', 'mute_volume', 
+        'search_web', 'check_weather', 'shutdown_computer', 'restart_computer', 'cancel_shutdown', 
+        'sleep_computer', 'empty_recycle_bin'].includes(intent.intent)) {
       
       // 先检查用户是否有情绪表达，如果有就先回应
       const hasEmotion = this.checkHasEmotion(intent.rawText);
@@ -316,7 +262,7 @@ export class TaskExecutor {
   }
 
   /**
-   * 处理系统控制意图
+   * 处理系统控制意图（直接调用 Electron 主进程的系统控制）
    */
   private async handleSystemControlIntent(
     intent: StructuredIntent,
@@ -326,135 +272,249 @@ export class TaskExecutor {
       // 先发送执行中消息
       let executingMessage = '';
       switch (intent.intent) {
-        case 'OPEN_APP':
+        case 'open_app':
           executingMessage = `好的，正在打开${intent.slots.appName}～`;
           break;
-        case 'OPEN_FOLDER':
+        case 'open_folder':
           executingMessage = '好的，正在打开文件夹～';
           break;
-        case 'LOCK_SCREEN':
+        case 'lock_screen':
           executingMessage = '好的，正在锁定屏幕～';
           break;
-        case 'ADJUST_VOLUME':
-          if (intent.slots.volume) {
-            executingMessage = `好的，正在将音量调至${intent.slots.volume}%～`;
-          } else if (intent.slots.volumeDirection === 'up') {
-            executingMessage = '好的，正在增大音量～';
-          } else {
-            executingMessage = '好的，正在减小音量～';
-          }
-          break;
-        case 'MUTE_VOLUME':
-          if (intent.slots.muteAction === 'mute') {
-            executingMessage = '好的，正在静音～';
-          } else if (intent.slots.muteAction === 'unmute') {
-            executingMessage = '好的，正在取消静音～';
-          } else {
-            executingMessage = '好的，正在切换静音状态～';
-          }
-          break;
-        case 'SEARCH_WEB':
+        case 'search_web':
           executingMessage = `好的，正在为你搜索"${intent.slots.query}"～`;
           break;
-        case 'SHUTDOWN_COMPUTER':
-          executingMessage = '好的，电脑将在60秒后关机～';
+        case 'shutdown_computer':
+          executingMessage = '好的，电脑将在 60 秒后关机～';
           break;
-        case 'RESTART_COMPUTER':
-          executingMessage = '好的，电脑将在60秒后重启～';
+        case 'restart_computer':
+          executingMessage = '好的，电脑将在 60 秒后重启～';
           break;
-        case 'CANCEL_SHUTDOWN':
+        case 'cancel_shutdown':
           executingMessage = '好的，正在取消关机/重启～';
           break;
-        case 'SLEEP_COMPUTER':
+        case 'sleep_computer':
           executingMessage = '好的，电脑即将休眠～';
           break;
-        case 'EMPTY_RECYCLE_BIN':
+        case 'empty_recycle_bin':
           executingMessage = '好的，正在清空回收站～';
+          break;
+        case 'check_weather':
+          executingMessage = `好的，正在查询${intent.slots.location}的天气～`;
           break;
       }
       await sendMessage(executingMessage);
 
-      // 调用后端执行系统控制
-      let result: { success: boolean; message: string } | null = null;
-      
-      switch (intent.intent) {
-        case 'OPEN_APP':
-          if (window.electronAPI?.systemOpenApp) {
-            result = await window.electronAPI.systemOpenApp(intent.slots.appName as string);
-          }
-          break;
-        case 'OPEN_FOLDER':
-          if (window.electronAPI?.systemOpenFolder) {
-            result = await window.electronAPI.systemOpenFolder(intent.slots.folderName as string);
-          }
-          break;
-        case 'LOCK_SCREEN':
-          if (window.electronAPI?.systemLockScreen) {
-            result = await window.electronAPI.systemLockScreen();
-          }
-          break;
-        case 'ADJUST_VOLUME':
-          if (window.electronAPI?.systemAdjustVolume) {
-            result = await window.electronAPI.systemAdjustVolume(
-              intent.slots.volume as number | undefined,
-              intent.slots.volumeDirection as 'up' | 'down' | undefined
-            );
-          }
-          break;
-        case 'MUTE_VOLUME':
-          if (window.electronAPI?.systemToggleMute) {
-            result = await window.electronAPI.systemToggleMute(
-              intent.slots.muteAction as 'mute' | 'unmute' | undefined
-            );
-          }
-          break;
-        case 'SEARCH_WEB':
-          if (window.electronAPI?.systemSearchWeb) {
-            result = await window.electronAPI.systemSearchWeb(intent.slots.query as string);
-          }
-          break;
-        case 'SHUTDOWN_COMPUTER':
-          if (window.electronAPI?.systemShutdown) {
-            result = await window.electronAPI.systemShutdown();
-          }
-          break;
-        case 'RESTART_COMPUTER':
-          if (window.electronAPI?.systemRestart) {
-            result = await window.electronAPI.systemRestart();
-          }
-          break;
-        case 'CANCEL_SHUTDOWN':
-          if (window.electronAPI?.systemCancelShutdown) {
-            result = await window.electronAPI.systemCancelShutdown();
-          }
-          break;
-        case 'SLEEP_COMPUTER':
-          if (window.electronAPI?.systemSleep) {
-            result = await window.electronAPI.systemSleep();
-          }
-          break;
-        case 'EMPTY_RECYCLE_BIN':
-          if (window.electronAPI?.systemEmptyRecycleBin) {
-            result = await window.electronAPI.systemEmptyRecycleBin();
-          }
-          break;
-      }
+      // 直接调用 Electron 主进程的系统控制 API
+      const result = await this.executeSystemControl(intent);
 
-      // 发送执行结果
-      if (result) {
-        if (result.success) {
-          await sendMessage(`✅ ${result.message}`);
-        } else {
-          await sendMessage(`❌ ${result.message}`);
-        }
+      console.log('🔍 [DEBUG] handleSystemControlIntent 收到结果:', result);
+
+      if (result.success) {
+        console.log('🔍 [DEBUG] 发送成功消息:', result.message);
+        await sendMessage(`✅ ${result.message || '操作完成'}`);
       } else {
-        await sendMessage('❌ 系统控制功能暂不可用');
+        console.log('🔍 [DEBUG] 发送失败消息:', result.message);
+        await sendMessage(`❌ ${result.message || '操作失败'}`);
       }
 
     } catch (error) {
       console.error('❌ 系统控制执行失败:', error);
       await sendMessage('❌ 执行失败，请稍后重试');
     }
+  }
+
+  /**
+   * 执行系统控制（调用 Electron 主进程）
+   */
+  private async executeSystemControl(intent: StructuredIntent): Promise<{ success: boolean; message: string }> {
+    try {
+      switch (intent.intent) {
+        case 'open_app':
+          return await (window as any).electronAPI.systemOpenApp(intent.slots.appName);
+        
+        case 'open_folder':
+          return await (window as any).electronAPI.systemOpenFolder(intent.slots.folderName);
+        
+        case 'lock_screen':
+          return await (window as any).electronAPI.systemLockScreen();
+        
+        case 'shutdown_computer':
+          return await (window as any).electronAPI.systemShutdown();
+        
+        case 'restart_computer':
+          return await (window as any).electronAPI.systemRestart();
+        
+        case 'cancel_shutdown':
+          return await (window as any).electronAPI.systemCancelShutdown();
+        
+        case 'sleep_computer':
+          return await (window as any).electronAPI.systemSleep();
+        
+        case 'empty_recycle_bin':
+          return await (window as any).electronAPI.systemEmptyRecycleBin();
+        
+        // 使用新的技能系统（搜索网页、查询天气）
+        case 'search_web':
+        case 'check_weather':
+          return await this.executeSkillViaNewSystem(intent);
+        
+        default:
+          return { success: false, message: '不支持的操作' };
+      }
+    } catch (error) {
+      console.error('❌ 系统控制执行失败:', error);
+      return { success: false, message: '执行失败' };
+    }
+  }
+
+  /**
+   * 执行 OpenClaw 工具（通过 OpenClaw 桥接层）
+   */
+  private async executeOpenClawTool(intent: StructuredIntent): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log('🔧 通过 OpenClaw 执行工具:', intent.intent);
+
+      // 把意图转换为 OpenClaw 工具请求
+      const openclawRequest = this.mapIntentToOpenClawTool(intent);
+
+      let result;
+      
+      if (openclawRequest) {
+        // 有 OpenClaw 工具映射，调用 OpenClaw
+        console.log('📡 调用 OpenClaw 工具:', openclawRequest.skillId);
+        result = await this.openclawBridge.executeSkill(openclawRequest);
+      } else {
+        // 没有 OpenClaw 工具映射，直接调用本地实现
+        console.log('🏠 调用本地实现:', intent.intent);
+        
+        // 把启源意图名映射到本地工具名
+        const localSkillMap: Record<string, string> = {
+          'check_weather': 'weather',
+          'search_web': 'search_web'
+        };
+        
+        const localSkillId = localSkillMap[intent.intent] || intent.intent;
+        const localParams = intent.slots || {};
+        
+        result = await this.openclawBridge.executeSkill({
+          skillId: localSkillId,
+          params: localParams
+        });
+      }
+
+      if (result.success) {
+        return { success: true, message: result.data || '操作完成' };
+      } else {
+        return { success: false, message: result.error || '操作失败' };
+      }
+    } catch (error: any) {
+      console.error('❌ OpenClaw 工具执行失败:', error);
+      return { success: false, message: `执行失败：${error.message || '请稍后重试'}` };
+    }
+  }
+
+  /**
+   * 通过新的技能系统执行技能（推荐方式）
+   * 
+   * 优势：
+   * - 不消耗 OpenClaw token
+   * - 完全本地化控制
+   * - 支持可视化步骤记录
+   */
+  private async executeSkillViaNewSystem(intent: StructuredIntent): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log('🚀 通过启源 AI 技能系统执行:', intent.intent);
+
+      // 意图名到技能 ID 的映射
+      const intentToSkillMap: Record<string, string> = {
+        'search_web': 'search-web',        // 网页搜索（SearXNG）
+        'check_weather': 'weather'         // 天气查询（wttr.in）
+      };
+
+      const skillId = intentToSkillMap[intent.intent];
+      
+      if (!skillId) {
+        return { success: false, message: `不支持的意图：${intent.intent}` };
+      }
+
+      // 准备参数
+      let params: Record<string, any> = { ...intent.slots };
+      
+      // 根据意图类型调整参数
+      if (intent.intent === 'search_web') {
+        params.query = intent.slots.query || '';
+      }
+      
+      if (intent.intent === 'check_weather') {
+        params.location = intent.slots.location || '北京';
+      }
+
+      console.log(`📡 调用技能: ${skillId}`, params);
+
+      // 执行技能
+      const result = await executeNewSkill(skillId, params);
+
+      console.log('🔍 [DEBUG] executeSkillViaNewSystem 返回结果:', result);
+
+      if (result.success) {
+        // 如果有步骤记录，可以用于展示给用户
+        if (result.steps && result.steps.length > 0) {
+          console.log(`📊 技能执行步骤:`);
+          result.steps.forEach((step) => {
+            console.log(`   ${step.success ? '✅' : '❌'} [步骤 ${step.stepNumber}] ${step.name} (${Date.now() - step.startTime}ms)`);
+          });
+        }
+
+        const message = result.data?.message || result.data || '操作完成';
+        console.log('🔍 [DEBUG] 准备返回消息:', message);
+        
+        return { 
+          success: true, 
+          message: message
+        };
+      } else {
+        console.log('🔍 [DEBUG] 技能执行失败:', result.error);
+        return { success: false, message: result.error || '操作失败' };
+      }
+    } catch (error: any) {
+      console.error('❌ 技能系统执行失败:', error);
+      return { success: false, message: `执行失败：${error.message || '请稍后重试'}` };
+    }
+  }
+
+  /**
+   * 把意图转换为 OpenClaw 工具请求
+   * 启源 AI 意图名 → OpenClaw 工具名 的映射
+   */
+  private mapIntentToOpenClawTool(intent: StructuredIntent): { skillId: string; params: Record<string, any> } | null {
+    // 意图名到 OpenClaw 工具名的映射
+    // 注意：只有 OpenClaw 的 tools 可以通过 HTTP API 调用
+    // skills 不能通过 HTTP API 调用，需要用本地实现
+    // search_web 直接用本地 SearXNG（OpenClaw web_search 需要 API Key）
+    const intentToToolMap: Record<string, string> = {
+      // 'search_web': 'web_search',  // 暂时不用，需要 Brave API Key
+    };
+
+    const skillId = intentToToolMap[intent.intent];
+    
+    // 如果没有映射，返回 null（表示用本地实现）
+    if (!skillId) {
+      return null;
+    }
+    
+    // 对于搜索，把 query 参数传给 OpenClaw
+    let params = intent.slots || {};
+    
+    // OpenClaw web_search 工具需要 query 参数
+    if (intent.intent === 'search_web' && intent.slots.query) {
+      params = { query: intent.slots.query };
+    }
+
+    return {
+      skillId,
+      params
+    };
   }
 
   /**

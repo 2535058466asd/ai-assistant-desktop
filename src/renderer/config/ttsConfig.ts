@@ -1,5 +1,6 @@
 // ==========================================
 // TTS 配置文件
+// 豆包语音 TTS 2.0 WebSocket v3 双向流式
 // ==========================================
 
 import type { TTSType } from '../core/tts';
@@ -7,19 +8,19 @@ import type { TTSType } from '../core/tts';
 export interface TTSConfig {
   type: TTSType;
   
-  // 火山引擎TTS配置（老版v3接口 - appid+token鉴权）
+  // 豆包 TTS 2.0 配置（WebSocket v3 双向流式）
   volcengine?: {
-    appId: string;
-    token: string;
-    apiUrl?: string;
-    voice?: string;
-    model?: string;
-    resourceId?: string;
-    encoding?: string;
-    sampleRate?: number;
-    speed?: number;
-    volume?: number;
-    pitch?: number;
+    appId: string;            // 应用 ID（X-Api-App-Key）
+    accessToken: string;      // Access Token（X-Api-Access-Key）
+    apiUrl?: string;          // WebSocket API 地址
+    voice?: string;           // 音色（speaker，必须是 TTS 2.0 专属音色）
+    model?: string;           // 模型版本（seed-tts-2.0-expressive 或 seed-tts-2.0-standard）
+    resourceId?: string;      // 资源 ID（X-Api-Resource-Id: seed-tts-2.0）
+    format?: string;          // 音频格式（pcm/ogg_opus/mp3）
+    sampleRate?: number;      // 采样率（默认 24000）
+    speed?: number;           // 语速（speech_rate: -50~100）
+    volume?: number;          // 音量（loudness_rate: -50~100）
+    pitch?: number;           // 音调（post_process.pitch: -12~12）
   };
   
   // 通用配置
@@ -28,27 +29,27 @@ export interface TTSConfig {
   volume?: number;
 }
 
-// 启源TTS配置（使用Web Speech API，浏览器自带，最简单）
+// 默认 TTS 配置（使用豆包 TTS 2.0 WebSocket v3）
 export const DEFAULT_TTS_CONFIG: TTSConfig = {
-  type: 'web-speech',  // 使用Web Speech API（浏览器自带，最简单）
+  type: 'volcengine',  // 默认使用豆包 TTS 2.0 WebSocket v3
   
-  // 火山引擎TTS配置（已保留代码，需要时再启用）
+  // 豆包 TTS 2.0 配置（WebSocket v3 双向流式）
   volcengine: {
-    appId: '5259888408',  // 应用ID
-    token: 'ApoHiCrmTcLARDXwa-TKCvV1ludiFKZZ',  // Token
-    apiUrl: 'https://openspeech.bytedance.com/api/v3/tts/unidirectional',
-    voice: 'zh_female_xiaoyi',  // 音色：晓伊
-    model: 'doubao-tts-1.0',  // 模型
-    resourceId: 'volc.service_type.10029',  // 资源ID
-    encoding: 'wav',
-    sampleRate: 16000,
-    speed: 1.0,
-    volume: 1.0,
-    pitch: 1.0
+    appId: '3206095607',  // 应用 ID（X-Api-App-Key）
+    accessToken: 'PabCghuQaDa8CcI9mP0XNImQeZ3auelD',  // Access Token（从 TTS 标签页获取的新 Token）
+    apiUrl: 'wss://openspeech.bytedance.com/api/v3/tts/bidirection',  // WebSocket 双向流式接口
+    voice: 'zh_female_vv_uranus_bigtts',  // 音色：Vivi 2.0（TTS 2.0 专属音色，表现力强）
+    model: 'seed-tts-2.0-expressive',  // 模型：表现力强版本（推荐）
+    resourceId: 'seed-tts-2.0',  // 资源 ID（TTS 2.0 固定值，不是实例名！）
+    format: 'pcm',  // 音频格式（pcm/ogg_opus/mp3）
+    sampleRate: 24000,  // 采样率（默认 24000）
+    speed: 0,  // 语速（-50~100，0 为正常）
+    volume: 0,  // 音量（-50~100，0 为正常）
+    pitch: 0   // 音调（-12~12，0 为正常）
   },
   
   // 通用配置
-  speed: 1.0,   // 语速: 0.5-2.0
-  pitch: 1.0,   // 音调: 0.5-2.0
-  volume: 1.0   // 音量: 0.0-1.0
+  speed: 1.0,   // 语速：0.5-2.0
+  pitch: 1.0,   // 音调：0.5-2.0
+  volume: 1.0   // 音量：0.0-1.0
 };

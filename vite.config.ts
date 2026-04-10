@@ -18,7 +18,22 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: '127.0.0.1'
+    host: '127.0.0.1',
+    open: false,  // 禁止自动打开浏览器
+    proxy: {
+      // 代理豆包 API
+      '/api': {
+        target: 'https://ark.cn-beijing.volces.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '/api/v3')
+      },
+      // 代理 SearXNG 搜索
+      '/searxng': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/searxng/, '')
+      }
+    }
   },
   resolve: {
     alias: {

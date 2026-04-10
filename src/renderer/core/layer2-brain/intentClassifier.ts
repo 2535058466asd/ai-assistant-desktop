@@ -73,19 +73,28 @@ export class IntentClassifier {
     }
 
     prompt += `可用的意图类型：
-- CHAT：闲聊、聊天、情感交流、打招呼、问问题等
+
+【系统控制意图】
 - OPEN_APP：打开某个应用程序（如浏览器、计算器、记事本等）
 - OPEN_FOLDER：打开某个文件夹（如桌面、文档、下载、图片、音乐、视频、我的电脑等）
 - LOCK_SCREEN：锁定屏幕/锁屏
-// 暂时禁用：- ADJUST_VOLUME：调节音量（调大、调小、设置具体值）
-// 暂时禁用：- MUTE_VOLUME：静音或取消静音
-- CHECK_TIME：查询时间、日期、星期几
-- SEARCH_WEB：搜索网页、百度一下、查资料
 - SHUTDOWN_COMPUTER：关机、关闭电脑
 - RESTART_COMPUTER：重启电脑、重新启动
 - CANCEL_SHUTDOWN：取消关机、取消重启
 - SLEEP_COMPUTER：休眠电脑
 - EMPTY_RECYCLE_BIN：清空回收站
+
+【查询时间】
+- CHECK_TIME：查询时间、日期、星期几
+
+【搜索网页】
+- SEARCH_WEB：搜索网页、百度一下、查资料
+
+【查询天气】
+- CHECK_WEATHER：查询天气、天气预报、温度、空气质量
+
+【其他】
+- CHAT：闲聊、聊天、情感交流、打招呼、问问题等（不涉及具体操作）
 
 请严格按照以下JSON格式返回结果，不要有其他文字：
 
@@ -99,7 +108,8 @@ export class IntentClassifier {
     "volume": 数字（音量值0-100，如果是ADJUST_VOLUME）,
     "volumeDirection": "up或down（音量方向，如果是ADJUST_VOLUME）",
     "muteAction": "mute或unmute（静音动作，如果是MUTE_VOLUME）",
-    "query": "搜索关键词（如果是SEARCH_WEB）"
+    "query": "搜索关键词（如果是SEARCH_WEB）",
+    "location": "城市名或地点（如果是CHECK_WEATHER，如：北京、上海、深圳）"
   },
   "confidence": 0.95
 }
@@ -149,7 +159,32 @@ export class IntentClassifier {
   }
 
   /**
-   * 解析LLM返回的JSON（支持多意图）
+   * 将豆包返回的大写意图转为小写（适配 TypeScript 类型定义）
+   */
+  private convertIntentToLowercase(intent: string): Intent {
+    const intentMap: Record<string, Intent> = {
+      'CHAT': 'chat',
+      'OPEN_APP': 'open_app',
+      'OPEN_FOLDER': 'open_folder',
+      'LOCK_SCREEN': 'lock_screen',
+      'ADJUST_VOLUME': 'adjust_volume',
+      'MUTE_VOLUME': 'mute_volume',
+      'CHECK_TIME': 'check_time',
+      'CHECK_WEATHER': 'check_weather',
+      'SEARCH_WEB': 'search_web',
+      'SHUTDOWN_COMPUTER': 'shutdown_computer',
+      'RESTART_COMPUTER': 'restart_computer',
+      'CANCEL_SHUTDOWN': 'cancel_shutdown',
+      'SLEEP_COMPUTER': 'sleep_computer',
+      'EMPTY_RECYCLE_BIN': 'empty_recycle_bin',
+      'UNKNOWN': 'unknown'
+    };
+    
+    return intentMap[intent.toUpperCase()] || 'chat';
+  }
+
+  /**
+   * 解析 LLM 返回的 JSON（支持多意图，自动转换大小写）
    */
   private parseLLMResponse(response: string): { 
     intent: Intent; 
@@ -159,48 +194,55 @@ export class IntentClassifier {
     isMultiIntent: boolean;
   } {
     try {
-      // 尝试提取JSON部分
+      // 尝试提取 JSON 部分
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        throw new Error('无法找到JSON');
+        throw new Error('无法找到 JSON');
       }
       
       const parsed = JSON.parse(jsonMatch[0]);
       
-      // 验证意图是否有效
-      const validIntents: Intent[] = [
+      // 验证意图是否有效（支持大写和小写）
+      const validIntentsUpper = [
         'CHAT', 'OPEN_APP', 'OPEN_FOLDER', 'LOCK_SCREEN', 
-        // 暂时禁用：'ADJUST_VOLUME', 'MUTE_VOLUME', 
-        'CHECK_TIME', 
-        'SEARCH_WEB', 'SHUTDOWN_COMPUTER', 'RESTART_COMPUTER', 
+        'CHECK_TIME', 'CHECK_WEATHER', 'SEARCH_WEB', 'SHUTDOWN_COMPUTER', 'RESTART_COMPUTER', 
         'CANCEL_SHUTDOWN', 'SLEEP_COMPUTER', 'EMPTY_RECYCLE_BIN', 'UNKNOWN'
       ];
       
       // 检查是否为多意图
       let isMultiIntent = parsed.isMultiIntent === true;
       
-      // 验证主意图
-      if (!validIntents.includes(parsed.intent)) {
-        parsed.intent = 'CHAT'; // 无效意图当闲聊处理
+      // 验证主意图（转为大写后验证）
+      const upperIntent = parsed.intent.toUpperCase();
+      if (!validIntentsUpper.includes(upperIntent)) {
+        parsed.intent = 'chat'; // 无效意图当闲聊处理
+      } else {
+        // 转换为小写（适配 TypeScript 类型）
+        parsed.intent = this.convertIntentToLowercase(upperIntent);
       }
       
       // 暂时禁用音量控制功能，把音量控制意图改成闲聊
-      if (parsed.intent === 'ADJUST_VOLUME' || parsed.intent === 'MUTE_VOLUME') {
-        parsed.intent = 'CHAT';
+      if (upperIntent === 'ADJUST_VOLUME' || upperIntent === 'MUTE_VOLUME') {
+        parsed.intent = 'chat';
       }
       
       // 如果是多意图，验证每个子意图
       if (isMultiIntent && parsed.intents && Array.isArray(parsed.intents)) {
-        parsed.intents = parsed.intents.filter((item: any) => {
-          if (!validIntents.includes(item.intent)) {
-            return false;
+        parsed.intents = parsed.intents.map((item: any) => {
+          const upperItemIntent = item.intent.toUpperCase();
+          // 验证并转换
+          if (!validIntentsUpper.includes(upperItemIntent)) {
+            return null; // 无效意图过滤掉
           }
           // 暂时禁用音量控制功能
-          if (item.intent === 'ADJUST_VOLUME' || item.intent === 'MUTE_VOLUME') {
-            return false;
+          if (upperItemIntent === 'ADJUST_VOLUME' || upperItemIntent === 'MUTE_VOLUME') {
+            return null;
           }
-          return true;
-        });
+          return {
+            ...item,
+            intent: this.convertIntentToLowercase(upperItemIntent)
+          };
+        }).filter((item: any) => item !== null);
         
         // 如果过滤后没有意图了，改为单意图
         if (parsed.intents.length === 0) {
@@ -217,9 +259,9 @@ export class IntentClassifier {
       };
       
     } catch (error) {
-      console.error('❌ 解析LLM响应失败:', error);
+      console.error('❌ 解析 LLM 响应失败:', error);
       return {
-        intent: 'CHAT',
+        intent: 'chat',
         slots: {},
         confidence: 0.5,
         isMultiIntent: false
@@ -228,35 +270,44 @@ export class IntentClassifier {
   }
 
   /**
-   * 降级方案：关键词匹配（当LLM失败时使用）
+   * 降级方案：关键词匹配（当 LLM 失败时使用）
    */
   private fallbackToKeywordMatching(text: string): { intent: Intent; slots: Slots; confidence: number } {
     const normalizedText = text.toLowerCase();
     
-    // 简单的关键词匹配
+    // 简单的关键词匹配（使用小写意图）
     if (normalizedText.includes('关机') || normalizedText.includes('关闭电脑')) {
-      return { intent: 'SHUTDOWN_COMPUTER', slots: {}, confidence: 0.8 };
+      return { intent: 'shutdown_computer', slots: {}, confidence: 0.8 };
     }
     if (normalizedText.includes('重启') || normalizedText.includes('重新启动')) {
-      return { intent: 'RESTART_COMPUTER', slots: {}, confidence: 0.8 };
+      return { intent: 'restart_computer', slots: {}, confidence: 0.8 };
     }
     if (normalizedText.includes('取消关机') || normalizedText.includes('取消重启')) {
-      return { intent: 'CANCEL_SHUTDOWN', slots: {}, confidence: 0.8 };
+      return { intent: 'cancel_shutdown', slots: {}, confidence: 0.8 };
     }
     if (normalizedText.includes('休眠')) {
-      return { intent: 'SLEEP_COMPUTER', slots: {}, confidence: 0.8 };
+      return { intent: 'sleep_computer', slots: {}, confidence: 0.8 };
     }
     if (normalizedText.includes('清空回收站') || normalizedText.includes('清理回收站')) {
-      return { intent: 'EMPTY_RECYCLE_BIN', slots: {}, confidence: 0.8 };
+      return { intent: 'empty_recycle_bin', slots: {}, confidence: 0.8 };
     }
     if (normalizedText.includes('搜索') || normalizedText.includes('百度') || normalizedText.includes('查一下')) {
-      return { intent: 'SEARCH_WEB', slots: { query: text }, confidence: 0.7 };
+      return { intent: 'search_web', slots: { query: text }, confidence: 0.7 };
     }
     if (normalizedText.includes('几点') || normalizedText.includes('时间') || normalizedText.includes('日期') || normalizedText.includes('星期')) {
-      return { intent: 'CHECK_TIME', slots: {}, confidence: 0.8 };
+      return { intent: 'check_time', slots: {}, confidence: 0.8 };
+    }
+    if (normalizedText.includes('天气') || normalizedText.includes('温度') || normalizedText.includes('预报')) {
+      const locationMatch = text.match(/(.+?)的天气|(.+?)的温度|(.+?)预报/);
+      const location = locationMatch ? (locationMatch[1] || locationMatch[2] || locationMatch[3]).trim() : '';
+      return { 
+        intent: 'check_weather', 
+        slots: { location: location }, 
+        confidence: 0.8 
+      };
     }
     if (normalizedText.includes('锁屏') || normalizedText.includes('锁定屏幕')) {
-      return { intent: 'LOCK_SCREEN', slots: {}, confidence: 0.8 };
+      return { intent: 'lock_screen', slots: {}, confidence: 0.8 };
     }
     if (normalizedText.includes('打开') && (normalizedText.includes('桌面') || normalizedText.includes('文档') || normalizedText.includes('下载'))) {
       const folderMap: Record<string, string> = {
@@ -265,21 +316,21 @@ export class IntentClassifier {
       };
       for (const [key, value] of Object.entries(folderMap)) {
         if (normalizedText.includes(key)) {
-          return { intent: 'OPEN_FOLDER', slots: { folderName: value }, confidence: 0.8 };
+          return { intent: 'open_folder', slots: { folderName: value }, confidence: 0.8 };
         }
       }
     }
     if (normalizedText.includes('打开')) {
       const appMatch = text.match(/打开(.+)/);
       return { 
-        intent: 'OPEN_APP', 
+        intent: 'open_app', 
         slots: { appName: appMatch ? appMatch[1].trim() : '' }, 
         confidence: 0.7 
       };
     }
     
     // 默认当作闲聊
-    return { intent: 'CHAT', slots: {}, confidence: 0.6 };
+    return { intent: 'chat', slots: {}, confidence: 0.6 };
   }
 
   /**
@@ -310,14 +361,16 @@ export class IntentClassifier {
    */
   private checkNeedAsk(intent: Intent, slots: Slots): boolean {
     switch (intent) {
-      case 'OPEN_APP':
+      case 'open_app':
         return !slots.appName;
-      case 'OPEN_FOLDER':
+      case 'open_folder':
         return !slots.folderName;
-      // 暂时禁用：case 'ADJUST_VOLUME':
+      // 暂时禁用：case 'adjust_volume':
       // 暂时禁用：  return !slots.volume && !slots.volumeDirection;
-      case 'SEARCH_WEB':
+      case 'search_web':
         return !slots.query;
+      case 'check_weather':
+        return !slots.location;
       default:
         return false;
     }
@@ -328,14 +381,16 @@ export class IntentClassifier {
    */
   private generateAskQuestion(intent: Intent, slots: Slots): string {
     switch (intent) {
-      case 'OPEN_APP':
+      case 'open_app':
         return '你想打开哪个应用呢？';
-      case 'OPEN_FOLDER':
+      case 'open_folder':
         return '你想打开哪个文件夹呢？（桌面/文档/下载/图片/音乐/视频）';
-      // 暂时禁用：case 'ADJUST_VOLUME':
-      // 暂时禁用：  return '你想把音量调到多少呢？（例如：音量调到50%）';
-      case 'SEARCH_WEB':
+      // 暂时禁用：case 'adjust_volume':
+      // 暂时禁用：  return '你想把音量调到多少呢？（例如：音量调到 50%）';
+      case 'search_web':
         return '你想搜索什么呢？';
+      case 'check_weather':
+        return '你想查询哪个城市的天气呢？（例如：北京、上海）';
       default:
         return '我需要更多信息才能帮到你~';
     }

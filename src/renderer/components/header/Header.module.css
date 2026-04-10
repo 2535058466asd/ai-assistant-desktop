@@ -1,0 +1,298 @@
+/**
+ * Header 顶栏组件样式
+ * 功能：显示品牌信息、模型选择器、操作按钮
+ * 采用毛玻璃效果（backdrop-filter）
+ */
+
+/* ===== 顶栏容器 ===== */
+.header {
+  height: var(--header-height);
+  padding: 0 16px; /* 更紧凑的内边距 */
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* 左右两端对齐 */
+  border-bottom: 1px solid var(--border-color);
+  /* 毛玻璃半透明背景 - 根据主题动态变化 */
+  background: var(--bg-secondary);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px); /* 兼容 Safari */
+  flex-shrink: 0; /* 防止被压缩 */
+  z-index: 10; /* 确保在内容之上 */
+  transition: background 0.3s ease; /* 主题切换时的过渡动画 */
+}
+
+/* ===== 左侧区域：Logo + 品牌名 + 模型选择器 ===== */
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* 更紧凑的间距 */
+}
+
+/* 侧边栏切换按钮 - 更紧凑 */
+.sidebarToggleBtn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sidebarToggleBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sidebarToggleBtnSvg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Logo 图标 - 渐变圆角方块 + 发光阴影 */
+.logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px; /* 更小的圆角 */
+  background: var(--gradient-logo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-logo);
+  flex-shrink: 0;
+}
+
+.logoSvg {
+  width: 16px;
+  height: 16px;
+  color: white;
+}
+
+/* 品牌名称 - 渐变文字效果 */
+.brandName {
+  font-size: 16px;
+  font-weight: 700;
+  /* 使用渐变作为文字填充色 */
+  background: linear-gradient(135deg, #06b6d4, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  user-select: none;
+}
+
+/* ===== 模型选择器 ===== */
+.modelSelector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.modelSelector:hover {
+  border-color: var(--border-focus);
+}
+
+/* 在线状态小绿点 */
+.modelDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  flex-shrink: 0;
+}
+
+.modelSelectorArrow {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* ===== 右侧区域：操作按钮组 ===== */
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 通用头部按钮样式 */
+.headerBtn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.headerBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.headerBtnSvg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ===== 模型选择器下拉菜单 ===== */
+.modelSelectorWrapper {
+  position: relative;
+}
+
+/* 箭头旋转动画（展开时） */
+.modelSelectorArrowOpen {
+  transform: rotate(180deg);
+}
+
+/* 下拉面板 - 绝对定位在模型选择器下方 */
+.modelDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  z-index: 100;
+  animation: dropdownFadeIn 0.15s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 下拉选项 */
+.modelDropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: left;
+  font-family: inherit;
+}
+
+.modelDropdownItem:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* 当前选中项高亮 */
+.modelDropdownItemActive {
+  background: rgba(6, 182, 212, 0.08);
+  color: var(--accent-cyan);
+}
+
+.modelDropdownItemName {
+  flex: 1;
+}
+
+/* 离线模型灰点 */
+.modelDotOffline {
+  background: var(--text-muted);
+}
+
+/* 勾选图标 */
+.modelCheckIcon {
+  width: 14px;
+  height: 14px;
+  color: var(--accent-cyan);
+  flex-shrink: 0;
+}
+
+/* ===== 更多菜单（三点）===== */
+.moreMenuWrapper {
+  position: relative;
+}
+
+.moreMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 150px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  z-index: 100;
+  animation: dropdownFadeIn 0.15s ease;
+}
+
+.moreMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: left;
+  font-family: inherit;
+}
+
+.moreMenuItem:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.moreMenuItem svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* ==========================================
+   语音对话模式按钮样式
+   ========================================== */
+
+/* 语音对话模式按钮激活状态 */
+.voiceChatActive {
+  background: rgba(37, 99, 235, 0.15) !important;
+  color: var(--accent-blue) !important;
+  border-color: var(--accent-blue) !important;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.3);
+}
+
+.voiceChatActive .headerBtnSvg {
+  color: var(--accent-blue) !important;
+  animation: voiceChatPulse 2s infinite ease-in-out;
+}
+
+@keyframes voiceChatPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}

@@ -7,6 +7,8 @@ import doubaoApi from './services/doubaoApi'
 import { getSystemControlService } from './services/systemControl'
 import { getMemoryService } from './services/memoryService'
 import { getScreenshotService } from './services/screenshotService'
+import openclawAuth from './services/openclawAuth'
+import { getTTSService, getASRService } from './services/volcengineWebSocketService'
 
 class WhisperService {
   whisper: any;
@@ -257,16 +259,16 @@ ipcMain.handle('http-proxy', async (_event, options: any) => {
         headers: options.headers || {}
       };
 
-      console.log('🌐 HTTP代理请求:', requestOptions.method, options.url, '二进制:', isBinary);
+      console.log('🌐 HTTP 代理请求:', requestOptions.method, options.url, '二进制:', isBinary);
       console.log('📋 请求头:', requestOptions.headers);
-      console.log('📤 请求体数据:', options.data);
+      console.log('📤 请求体数据:', options.body);
       
-      if (options.data) {
+      if (options.body) {
         try {
-          const parsed = JSON.parse(options.data);
+          const parsed = JSON.parse(options.body);
           console.log('📝 解析后的请求体:', JSON.stringify(parsed, null, 2));
         } catch (e) {
-          console.log('⚠️  请求体不是JSON:', options.data);
+          console.log('⚠️  请求体不是 JSON:', options.body);
         }
       }
 
@@ -303,15 +305,15 @@ ipcMain.handle('http-proxy', async (_event, options: any) => {
       });
 
       req.on('error', (error) => {
-        console.error('❌ HTTP代理请求失败:', error);
+        console.error('❌ HTTP 代理请求失败:', error);
         resolve({
           success: false,
           error: error.message
         });
       });
 
-      if (options.data) {
-        req.write(options.data);
+      if (options.body) {
+        req.write(options.body);
       }
       
       req.end();
@@ -399,6 +401,229 @@ ipcMain.handle('memory-get-prompt', async () => {
 
 ipcMain.handle('screenshot-take', async () => {
   return await screenshotService.takeScreenshot();
+});
+
+// ========== OpenClaw 设备认证 IPC ==========
+ipcMain.handle('openclaw-get-device-identity', async () => {
+  try {
+    const identity = openclawAuth.getOrCreateDeviceIdentity();
+    // 只返回 renderer 需要的信息（私钥绝不暴露给 renderer）
+    return {
+      success: true,
+      identity: {
+        id: identity.id,
+        publicKeyBase64: openclawAuth.getPublicKeyBase64(),
+        createdAt: identity.createdAt
+      }
+    };
+  } catch (error) {
+    console.error('❌ [Main] 获取设备身份失败:', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('openclaw-sign-challenge', async (_event, nonce: string, ts: number) => {
+  try {
+    console.log('🔐 [Main] 收到签名请求, nonce长度:', nonce?.length);
+    const signature = openclawAuth.signChallenge(nonce, ts);
+    return { success: true, signature };
+  } catch (error) {
+    console.error('❌ [Main] 签名失败:', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+// ========== 豆包语音 TTS WebSocket v3 IPC ==========
+ipcMain.handle('tts-v3-connect', async (_event, config: any) => {
+  try {
+    const window = BrowserWindow.getAllWindows()[0]
+    if (!window) {
+      return { success: false, error: '没有找到主窗口' }
+    }
+    const ttsService = getTTSService(config, window)
+    await ttsService.connect()
+    return { success: true }
+  } catch (error) {
+    console.error('❌ [Main] TTS 连接失败:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('tts-v3-synthesize', async (_event, config: any, text: string, options?: { sessionId?: string }) => {
+  try {
+    const window = BrowserWindow.getAllWindows()[0]
+    if (!window) {
+      return { success: false, error: '没有找到主窗口' }
+    }
+    const ttsService = getTTSService(config, window)
+    const sessionId = await ttsService.synthesize(text, options?.sessionId)
+    return { success: true, sessionId }
+  } catch (error) {
+    console.error('❌ [Main] TTS 合成失败:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('tts-v3-disconnect', async () => {
+  try {
+    const window = BrowserWindow.getAllWindows()[0]
+    if (!window) {
+      return { success: true }
+    }
+    const ttsService = getTTSService({} as any, window)
+    ttsService.disconnect()
+    return { success: true }
+  } catch (error) {
+    console.error('❌ [Main] TTS 断开连接失败:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// ========== TTS 持久化缓存 IPC ==========
+// 使用 Node.js 内置的 crypto
+const crypto = require('crypto')
+
+// 获取 TTS 缓存目录
+const getTTSCacheDir = () => {
+  const cacheDir = path.join(app.getPath('userData'), 'tts-cache')
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true })
+  }
+  return cacheDir
+}
+
+// 生成缓存文件名（基于文本和音色的 MD5 hash）
+const getCacheFileName = (text: string, voice: string): string => {
+  const hash = crypto.createHash('md5').update(`${text}_${voice}`).digest('hex')
+  return `${hash}.wav`
+}
+
+// 检查本地缓存是否存在
+ipcMain.handle('tts-cache-check', async (_event, text: string, voice: string) => {
+  try {
+    const cacheDir = getTTSCacheDir()
+    const fileName = getCacheFileName(text, voice)
+    const filePath = path.join(cacheDir, fileName)
+    
+    if (fs.existsSync(filePath)) {
+      console.log('💾 [Main] TTS 缓存命中:', fileName)
+      const audioData = fs.readFileSync(filePath)
+      return { exists: true, audioData: audioData.toString('base64') }
+    }
+    
+    console.log('📭 [Main] TTS 缓存未命中')
+    return { exists: false }
+  } catch (error) {
+    console.error('❌ [Main] TTS 缓存检查失败:', error)
+    return { exists: false }
+  }
+})
+
+// 保存音频到本地缓存
+ipcMain.handle('tts-cache-save', async (_event, text: string, voice: string, audioBase64: string) => {
+  try {
+    const cacheDir = getTTSCacheDir()
+    const fileName = getCacheFileName(text, voice)
+    const filePath = path.join(cacheDir, fileName)
+    
+    const audioBuffer = Buffer.from(audioBase64, 'base64')
+    fs.writeFileSync(filePath, audioBuffer)
+    
+    console.log('💾 [Main] TTS 缓存已保存:', fileName, '大小:', audioBuffer.length, 'bytes')
+    return { success: true, filePath }
+  } catch (error) {
+    console.error('❌ [Main] TTS 缓存保存失败:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// 获取缓存列表
+ipcMain.handle('tts-cache-list', async () => {
+  try {
+    const cacheDir = getTTSCacheDir()
+    const files = fs.readdirSync(cacheDir)
+    return { success: true, count: files.length, files }
+  } catch (error) {
+    console.error('❌ [Main] TTS 缓存列表获取失败:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// 清除所有缓存
+ipcMain.handle('tts-cache-clear', async () => {
+  try {
+    const cacheDir = getTTSCacheDir()
+    const files = fs.readdirSync(cacheDir)
+    for (const file of files) {
+      fs.unlinkSync(path.join(cacheDir, file))
+    }
+    console.log('🗑️ [Main] TTS 缓存已清除，共', files.length, '个文件')
+    return { success: true, deletedCount: files.length }
+  } catch (error) {
+    console.error('❌ [Main] TTS 缓存清除失败:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// ========== 豆包语音 ASR WebSocket v3 IPC ==========
+ipcMain.handle('asr-v3-connect', async (_event, config: any) => {
+  try {
+    const window = BrowserWindow.getAllWindows()[0]
+    if (!window) {
+      return { success: false, error: '没有找到主窗口' }
+    }
+    const asrService = getASRService(config, window)
+    await asrService.connect()
+    return { success: true }
+  } catch (error) {
+    console.error('❌ [Main] ASR 连接失败:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('asr-v3-start-recognition', async (_event, config: any) => {
+  try {
+    const window = BrowserWindow.getAllWindows()[0]
+    if (!window) {
+      return { success: false, error: '没有找到主窗口' }
+    }
+    const asrService = getASRService(config, window)
+    await asrService.startRecognition()
+    return { success: true }
+  } catch (error) {
+    console.error('❌ [Main] ASR 开始识别失败:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('asr-v3-send-audio', async (_event, config: any, audioBase64: string, isLast: boolean) => {
+  try {
+    const window = BrowserWindow.getAllWindows()[0]
+    if (!window) {
+      return { success: false, error: '没有找到主窗口' }
+    }
+    const asrService = getASRService(config, window)
+    await asrService.sendAudioChunk(audioBase64, isLast)
+    return { success: true }
+  } catch (error) {
+    console.error('❌ [Main] ASR 发送音频失败:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('asr-v3-stop-recognition', async (_event, config: any) => {
+  try {
+    const window = BrowserWindow.getAllWindows()[0]
+    if (!window) {
+      return { success: true }
+    }
+    const asrService = getASRService(config, window)
+    asrService.stopRecognition()
+    return { success: true }
+  } catch (error) {
+    console.error('❌ [Main] ASR 停止识别失败:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
 });
 
 app.whenReady().then(() => {

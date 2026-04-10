@@ -17,10 +17,11 @@ export class IntentRegistry {
 
   /**
    * 初始化意图规划器
+   * 注意：意图类型统一使用小写（与 types/index.ts 中的 Intent 类型定义一致）
    */
   private initializePlanners(): void {
     // 闲聊意图 - 直接调用 LLM
-    this.planners.set('CHAT', (intent) => ({
+    this.planners.set('chat', (intent) => ({
       taskId: this.generateTaskId(),
       sessionId: intent.sessionId,
       intent: intent.intent,
@@ -39,31 +40,31 @@ export class IntentRegistry {
       failureResponse: '抱歉，我现在有点累了，等会儿再聊吧~'
     }));
 
-    // 播放音乐意图
-    this.planners.set('PLAY_MUSIC', (intent) => ({
-      taskId: this.generateTaskId(),
-      sessionId: intent.sessionId,
-      intent: intent.intent,
-      steps: [
-        {
-          step: 1,
-          service: 'musicService',
-          func: 'playSong',
-          params: {
-            songName: intent.slots.songName,
-            artist: intent.slots.artist
-          },
-          retryCount: 0,
-          maxRetries: 2,
-          skipOnFailure: false
-        }
-      ],
-      responseTemplate: `好的，为你播放${intent.slots.songName ? intent.slots.songName : '音乐'}～🎵`,
-      failureResponse: '抱歉，播放音乐失败了，请稍后再试~'
-    }));
+    // 播放音乐意图（暂时禁用）
+    // this.planners.set('play_music', (intent) => ({
+    //   taskId: this.generateTaskId(),
+    //   sessionId: intent.sessionId,
+    //   intent: intent.intent,
+    //   steps: [
+    //     {
+    //       step: 1,
+    //       service: 'musicService',
+    //       func: 'playSong',
+    //       params: {
+    //         songName: intent.slots.songName,
+    //         artist: intent.slots.artist
+    //       },
+    //       retryCount: 0,
+    //       maxRetries: 2,
+    //       skipOnFailure: false
+    //     }
+    //   ],
+    //   responseTemplate: `好的，为你播放${intent.slots.songName ? intent.slots.songName : '音乐'}～🎵`,
+    //   failureResponse: '抱歉，播放音乐失败了，请稍后再试~'
+    // }));
 
     // 打开应用意图
-    this.planners.set('OPEN_APP', (intent) => ({
+    this.planners.set('open_app', (intent) => ({
       taskId: this.generateTaskId(),
       sessionId: intent.sessionId,
       intent: intent.intent,
@@ -83,7 +84,7 @@ export class IntentRegistry {
     }));
 
     // 打开文件夹意图
-    this.planners.set('OPEN_FOLDER', (intent) => ({
+    this.planners.set('open_folder', (intent) => ({
       taskId: this.generateTaskId(),
       sessionId: intent.sessionId,
       intent: intent.intent,
@@ -103,7 +104,7 @@ export class IntentRegistry {
     }));
 
     // 锁定屏幕意图
-    this.planners.set('LOCK_SCREEN', (intent) => ({
+    this.planners.set('lock_screen', (intent) => ({
       taskId: this.generateTaskId(),
       sessionId: intent.sessionId,
       intent: intent.intent,
@@ -123,7 +124,7 @@ export class IntentRegistry {
     }));
 
     // 暂时禁用：调节音量意图
-    // this.planners.set('ADJUST_VOLUME', (intent) => ({
+    // this.planners.set('adjust_volume', (intent) => ({
     //   taskId: this.generateTaskId(),
     //   sessionId: intent.sessionId,
     //   intent: intent.intent,
@@ -132,16 +133,16 @@ export class IntentRegistry {
     //       step: 1,
     //       service: 'systemService',
     //       func: 'adjustVolume',
-    //       params: { 
-    //         volume: intent.slots.volume, 
-    //         direction: intent.slots.volumeDirection 
+    //       params: {
+    //         volume: intent.slots.volume,
+    //         direction: intent.slots.volumeDirection
     //       },
     //       retryCount: 0,
     //       maxRetries: 2,
     //       skipOnFailure: false
     //     }
     //   ],
-    //   responseTemplate: intent.slots.volume 
+    //   responseTemplate: intent.slots.volume
     //     ? `好的，正在将音量调至${intent.slots.volume}%～`
     //     : intent.slots.volumeDirection === 'up'
     //     ? '好的，正在增大音量～'
@@ -150,7 +151,7 @@ export class IntentRegistry {
     // }));
 
     // 暂时禁用：静音意图
-    // this.planners.set('MUTE_VOLUME', (intent) => ({
+    // this.planners.set('mute_volume', (intent) => ({
     //   taskId: this.generateTaskId(),
     //   sessionId: intent.sessionId,
     //   intent: intent.intent,
@@ -165,8 +166,8 @@ export class IntentRegistry {
     //       skipOnFailure: false
     //     }
     //   ],
-    //   responseTemplate: intent.slots.muteAction === 'mute' 
-    //     ? '好的，正在静音～' 
+    //   responseTemplate: intent.slots.muteAction === 'mute'
+    //     ? '好的，正在静音～'
     //     : intent.slots.muteAction === 'unmute'
     //     ? '好的，正在取消静音～'
     //     : '好的，正在切换静音状态～',
@@ -174,7 +175,7 @@ export class IntentRegistry {
     // }));
 
     // 查询时间意图
-    this.planners.set('CHECK_TIME', (intent) => ({
+    this.planners.set('check_time', (intent) => ({
       taskId: this.generateTaskId(),
       sessionId: intent.sessionId,
       intent: intent.intent,
@@ -194,7 +195,7 @@ export class IntentRegistry {
     }));
 
     // 搜索网页意图
-    this.planners.set('SEARCH_WEB', (intent) => ({
+    this.planners.set('search_web', (intent) => ({
       taskId: this.generateTaskId(),
       sessionId: intent.sessionId,
       intent: intent.intent,
@@ -213,8 +214,28 @@ export class IntentRegistry {
       failureResponse: '抱歉，搜索失败了，请稍后再试~'
     }));
 
+    // 查询天气意图
+    this.planners.set('check_weather', (intent) => ({
+      taskId: this.generateTaskId(),
+      sessionId: intent.sessionId,
+      intent: intent.intent,
+      steps: [
+        {
+          step: 1,
+          service: 'systemService',
+          func: 'checkWeather',
+          params: { location: intent.slots.location },
+          retryCount: 0,
+          maxRetries: 2,
+          skipOnFailure: false
+        }
+      ],
+      responseTemplate: `好的，正在查询${intent.slots.location}的天气～`,
+      failureResponse: '抱歉，查询天气失败了，请稍后再试~'
+    }));
+
     // 关机意图
-    this.planners.set('SHUTDOWN_COMPUTER', (intent) => ({
+    this.planners.set('shutdown_computer', (intent) => ({
       taskId: this.generateTaskId(),
       sessionId: intent.sessionId,
       intent: intent.intent,
@@ -234,7 +255,7 @@ export class IntentRegistry {
     }));
 
     // 重启意图
-    this.planners.set('RESTART_COMPUTER', (intent) => ({
+    this.planners.set('restart_computer', (intent) => ({
       taskId: this.generateTaskId(),
       sessionId: intent.sessionId,
       intent: intent.intent,
@@ -254,7 +275,7 @@ export class IntentRegistry {
     }));
 
     // 取消关机意图
-    this.planners.set('CANCEL_SHUTDOWN', (intent) => ({
+    this.planners.set('cancel_shutdown', (intent) => ({
       taskId: this.generateTaskId(),
       sessionId: intent.sessionId,
       intent: intent.intent,
@@ -274,7 +295,7 @@ export class IntentRegistry {
     }));
 
     // 休眠意图
-    this.planners.set('SLEEP_COMPUTER', (intent) => ({
+    this.planners.set('sleep_computer', (intent) => ({
       taskId: this.generateTaskId(),
       sessionId: intent.sessionId,
       intent: intent.intent,
@@ -294,7 +315,7 @@ export class IntentRegistry {
     }));
 
     // 清空回收站意图
-    this.planners.set('EMPTY_RECYCLE_BIN', (intent) => ({
+    this.planners.set('empty_recycle_bin', (intent) => ({
       taskId: this.generateTaskId(),
       sessionId: intent.sessionId,
       intent: intent.intent,
@@ -314,10 +335,10 @@ export class IntentRegistry {
     }));
 
     // 默认处理（未知意图当闲聊处理）
-    this.planners.set('UNKNOWN', (intent) => ({
+    this.planners.set('unknown', (intent) => ({
       taskId: this.generateTaskId(),
       sessionId: intent.sessionId,
-      intent: 'CHAT',
+      intent: 'chat',
       steps: [
         {
           step: 1,
@@ -338,7 +359,7 @@ export class IntentRegistry {
    * 获取执行计划
    */
   getPlan(intent: StructuredIntent): ExecutionPlan {
-    const planner = this.planners.get(intent.intent) || this.planners.get('UNKNOWN');
+    const planner = this.planners.get(intent.intent) || this.planners.get('unknown');
     if (!planner) {
       throw new Error('No planner found for intent: ' + intent.intent);
     }

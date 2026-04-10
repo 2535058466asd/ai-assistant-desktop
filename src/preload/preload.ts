@@ -95,6 +95,69 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 截图服务 - 截取屏幕
   screenshotTake: async () => {
     return ipcRenderer.invoke('screenshot-take');
+  },
+  // OpenClaw 设备认证 - 获取设备身份（Ed25519 密钥对）
+  openclawGetDeviceIdentity: async () => {
+    return ipcRenderer.invoke('openclaw-get-device-identity');
+  },
+  // OpenClaw 设备认证 - 签名 challenge
+  openclawSignChallenge: async (nonce: string, ts: number) => {
+    return ipcRenderer.invoke('openclaw-sign-challenge', nonce, ts);
+  },
+  
+  // ========== TTS 持久化缓存 ==========
+  // 检查本地缓存是否存在
+  ttsCacheCheck: async (text: string, voice: string) => {
+    return ipcRenderer.invoke('tts-cache-check', text, voice);
+  },
+  // 保存音频到本地缓存
+  ttsCacheSave: async (text: string, voice: string, audioBase64: string) => {
+    return ipcRenderer.invoke('tts-cache-save', text, voice, audioBase64);
+  },
+  // 获取缓存列表
+  ttsCacheList: async () => {
+    return ipcRenderer.invoke('tts-cache-list');
+  },
+  // 清除所有缓存
+  ttsCacheClear: async () => {
+    return ipcRenderer.invoke('tts-cache-clear');
+  },
+
+  // ========== 通用 IPC 方法（用于 TTS/ASR 等模块化服务）==========
+  
+  // 通用调用（用于 invoke 模式）
+  invoke: (channel: string, ...args: any[]) => {
+    return ipcRenderer.invoke(channel, ...args);
+  },
+  
+  // 监听主进程消息（用于 on 模式）
+  on: (channel: string, callback: (...args: any[]) => void) => {
+    console.log('[Preload] 注册监听器 channel:', channel)
+    ipcRenderer.on(channel, (_event, ...args) => {
+      console.log('[Preload] 收到 ipcRenderer 事件, channel:', channel, 'args.length:', args.length)
+      if (args.length > 0) {
+        console.log('[Preload] 第一个参数:', typeof args[0], args[0] ? '有值' : 'null/undefined')
+        if (args[0] && typeof args[0] === 'object') {
+          const obj = args[0] as any
+          console.log('[Preload] 对象 keys:', Object.keys(obj))
+          if (obj.audioBase64) {
+            console.log('[Preload] audioBase64 长度:', obj.audioBase64.length)
+          }
+        }
+      }
+      callback(...args)
+    })
+  },
+  
+  // 移除指定频道的所有监听器（防止 HMR 热更新时监听器堆积）
+  removeAllListeners: (channel: string) => {
+    console.log('[Preload] 移除所有监听器 channel:', channel)
+    ipcRenderer.removeAllListeners(channel)
+  },
+  
+  // 移除监听器
+  removeListener: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.removeListener(channel, callback);
   }
 })
 
@@ -125,6 +188,18 @@ declare global {
       memoryGetAllMemories: () => Promise<any[]>;
       memoryGetPrompt: () => Promise<string>;
       screenshotTake: () => Promise<{ success: boolean; imageData?: string; error?: string }>;
-    };
+      // OpenClaw 设备认证
+      openclawGetDeviceIdentity: () => Promise<{ success: boolean; identity?: { id: string; publicKeyBase64: string; createdAt: number }; error?: string }>;
+      openclawSignChallenge: (nonce: string, ts: number) => Promise<{ success: boolean; signature?: string; error?: string }>;
+      // TTS 持久化缓存
+      ttsCacheCheck: (text: string, voice: string) => Promise<{ exists: boolean; audioData?: string }>;
+      ttsCacheSave: (text: string, voice: string, audioBase64: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+      ttsCacheList: () => Promise<{ success: boolean; count?: number; files?: string[]; error?: string }>;
+      ttsCacheClear: () => Promise<{ success: boolean; deletedCount?: number; error?: string }>;
+      // 通用 IPC 方法（用于 TTS/ASR 等模块化服务）
+      invoke: (channel: string, ...args: any[]) => Promise<any>;
+      on: (channel: string, callback: (...args: any[]) => void) => void;
+      removeListener: (channel: string, callback: (...args: any[]) => void) => void;
+  };
   }
 }

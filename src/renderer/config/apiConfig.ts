@@ -21,9 +21,9 @@ export interface ApiConfig {
 // 豆包 API 配置
 // 请根据你的实际情况修改以下配置
 export const DOUBAO_CONFIG: ApiConfig = {
-  apiKey: 'your-api-key-here', // 请替换为你的豆包 API Key
-  apiUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-  model: 'doubao-seed-2-0-lite-260215',
+  apiKey: '16042349-2aaa-433a-b774-d9c416d08165', // 豆包 API Key
+  apiUrl: '/api/chat/completions',
+  model: 'doubao-seed-2-0-pro-260215',
   temperature: 0.8,
   topP: 0.95,
   maxTokens: 1024,

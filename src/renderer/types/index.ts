@@ -72,26 +72,24 @@ export interface TTSResult {
 // ==========================================
 
 /**
- * 意图类型
+ * 意图类型（豆包 LLM 识别的意图，只包含启源 AI 原生功能）
  */
 export type Intent =
-  | 'CHAT'              // 闲聊、情感交流
-  | 'OPEN_APP'          // 打开应用
-  | 'OPEN_FOLDER'       // 打开文件夹
-  | 'LOCK_SCREEN'       // 锁定屏幕
-  | 'ADJUST_VOLUME'     // 调节音量
-  | 'MUTE_VOLUME'       // 静音
-  | 'CHECK_TIME'        // 查询时间
-  | 'PLAY_MUSIC'        // 播放音乐
-  | 'SEARCH_WEB'        // 搜索网页
-  | 'CHECK_WEATHER'     // 查询天气
-  | 'SET_REMINDER'      // 设置提醒
-  | 'SHUTDOWN_COMPUTER' // 关机
-  | 'RESTART_COMPUTER'  // 重启
-  | 'CANCEL_SHUTDOWN'   // 取消关机/重启
-  | 'SLEEP_COMPUTER'    // 休眠
-  | 'EMPTY_RECYCLE_BIN' // 清空回收站
-  | 'UNKNOWN';          // 未知意图
+  | 'chat'              // 闲聊、情感交流
+  | 'open_app'          // 打开应用
+  | 'open_folder'       // 打开文件夹
+  | 'lock_screen'       // 锁定屏幕
+  | 'adjust_volume'     // 调节音量（暂时禁用）
+  | 'mute_volume'       // 静音（暂时禁用）
+  | 'check_time'        // 查询时间
+  | 'check_weather'     // 查询天气
+  | 'search_web'        // 搜索网页
+  | 'shutdown_computer' // 关机
+  | 'restart_computer'  // 重启
+  | 'cancel_shutdown'   // 取消关机/重启
+  | 'sleep_computer'    // 休眠
+  | 'empty_recycle_bin' // 清空回收站
+  | 'unknown';          // 未知意图
 
 /**
  * 槽位（关键信息）
@@ -341,6 +339,7 @@ export interface Message {
   timestamp: Timestamp;
   sessionId: SessionId;
   isTTS?: boolean;          // 是否需要语音合成
+  isStreaming?: boolean;    // 是否正在流式输出（打字机效果）
   intent?: Intent;           // 关联的意图
 }
 

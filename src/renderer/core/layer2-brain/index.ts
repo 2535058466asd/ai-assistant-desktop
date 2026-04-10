@@ -79,16 +79,16 @@ export class BrainManager {
     
     // 根据意图类型补充槽位
     switch (currentIntent) {
-      case 'OPEN_APP':
+      case 'open_app':
         newSlots.appName = text;
         break;
-      case 'OPEN_FOLDER':
+      case 'open_folder':
         newSlots.folderName = text;
         break;
-      case 'SEARCH_WEB':
+      case 'search_web':
         newSlots.query = text;
         break;
-      case 'ADJUST_VOLUME':
+      case 'adjust_volume':
         // 尝试提取音量
         const volumeMatch = text.match(/(\d{1,3})%?/);
         if (volumeMatch) {

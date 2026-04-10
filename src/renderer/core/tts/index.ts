@@ -1,9 +1,9 @@
 // ==========================================
 // TTS 服务入口
+// 豆包语音 2.0 WebSocket v3 + 浏览器语音（降级备用）
 // ==========================================
 
 export * from './ttsInterface';
 export * from './webSpeechTTS';
-export * from './volcengineTTS';
-export * from './edgeTTS';
+export * from './volcengineTTSV3';
 export * from './ttsManager';

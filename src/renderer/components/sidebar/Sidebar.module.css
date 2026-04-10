@@ -1,0 +1,278 @@
+/**
+ * Sidebar 侧边栏组件样式
+ * 包含：新建对话按钮、搜索框、对话列表（分组）、用户信息
+ * 使用 CSS Modules 实现作用域隔离
+ */
+
+/* ===== 侧边栏容器 ===== */
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--transition-slow) var(--ease-smooth), width var(--transition-slow);
+  flex-shrink: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 侧边栏收起状态（通过 JS 类名控制） */
+.sidebar.collapsed {
+  width: 0;
+  border-right: none;
+}
+
+/* ===== 侧边栏头部 - 新建对话按钮区域 ===== */
+.sidebarHeader {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+/* 新建对话按钮 - 虚线边框风格 */
+.newChatBtn {
+  width: 100%;
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px dashed rgba(148, 163, 184, 0.2);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all var(--transition-normal);
+  font-family: inherit;
+}
+
+.newChatBtn:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.05);
+}
+
+.newChatBtnIcon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* ===== 搜索区域 ===== */
+.sidebarSearch {
+  padding: 12px 16px;
+  flex-shrink: 0;
+}
+
+/* 搜索框容器（用于定位图标） */
+.searchWrapper {
+  position: relative;
+}
+
+/* 搜索图标 - 绝对定位在输入框左侧 */
+.searchIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  pointer-events: none; /* 让点击穿透到输入框 */
+}
+
+/* 搜索输入框 */
+.searchInput {
+  width: 100%;
+  padding: 8px 12px 8px 36px; /* 左侧留出图标空间 */
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: all var(--transition-normal);
+  font-family: inherit;
+}
+
+/* 聚焦态 - 发光边框效果 */
+.searchInput:focus {
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-glow);
+}
+
+/* 占位符文字颜色 */
+.searchInput::placeholder {
+  color: var(--text-muted);
+}
+
+/* ===== 对话列表区域 ===== */
+.chatList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  /* 使用侧边栏专用细滚动条 */
+}
+
+/* 分组标签文字（今天/昨天/更早） */
+.chatGroupLabel {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
+/* 单个对话项 */
+.chatItem {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+
+/* 悬停效果 */
+.chatItem:hover {
+  background: var(--bg-hover);
+}
+
+/* 当前选中态 */
+.chatItemActive {
+  background: var(--bg-active) !important;
+}
+
+/* 对话项图标（emoji 容器） */
+.chatItemIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+/* 对话项内容区 */
+.chatItemContent {
+  flex: 1;
+  min-width: 0; /* 允许文本截断 */
+}
+
+/* 对话标题 */
+.chatItemTitle {
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 对话预览文本 */
+.chatItemPreview {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+/* ===== 侧边栏底部 - 用户信息区 ===== */
+.sidebarFooter {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* 用户头像 - 圆形渐变背景 */
+.userAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--gradient-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  color: white;
+}
+
+/* 用户信息文字 */
+.userInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 用户名 */
+.userName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* 套餐等级 */
+.userPlan {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* 设置按钮 */
+.settingsBtn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.settingsBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.settingsBtnSvg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ===== 响应式：移动端侧边栏隐藏 ===== */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+  }
+
+  .sidebarOpen {
+    transform: translateX(0);
+  }
+}

@@ -31,7 +31,7 @@ export class DoubaoApiService {
   private apiKey: string;
   private apiUrl: string;
 
-  constructor(apiKey: string = 'your-api-key-here', apiUrl: string = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions') {
+  constructor(apiKey: string = '16042349-2aaa-433a-b774-d9c416d08165', apiUrl: string = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions') {
     this.apiKey = apiKey;
     this.apiUrl = apiUrl;
   }
@@ -44,7 +44,7 @@ export class DoubaoApiService {
   async sendMessage(messages: Message[]): Promise<string> {
     try {
       const requestData: DoubaoRequest = {
-        model: 'doubao-seed-2-0-lite-260215', // 使用用户指定的模型
+        model: 'doubao-seed-2-0-pro-260215', // 使用用户指定的模型
         messages,
         temperature: 0.7,
         top_p: 0.95,
