@@ -16,7 +16,7 @@ import { getBrainManager } from './layer2-brain';
 import { getTaskPlannerManager } from './layer3-planner';
 import { getTaskExecutorManager } from './layer4-executor';
 import { getQiyuanSystemPrompt, DEFAULT_QIYUAN_SETTINGS } from './qiyuanSettings';
-import { sendMessageToDoubao, sendMessageToDoubaoStream } from '../services/doubaoApi';
+import { sendMessageToDoubao, sendMessageToDoubaoStream } from '../services/doubaoApiClient';
 import { getOpenClawBridge } from './openclawBridge';
 
 /**

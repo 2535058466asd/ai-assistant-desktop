@@ -4,7 +4,7 @@
 // ==========================================
 
 import type { Intent, StructuredIntent, Slots, SessionId, SingleIntent } from '../../types';
-import { sendMessageToDoubao } from '../../services/doubaoApi';
+import { sendMessageToDoubao } from '../../services/doubaoApiClient';
 import { getMemoryService } from '../../services/memoryService';
 
 /**

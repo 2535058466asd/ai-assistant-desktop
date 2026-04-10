@@ -4,7 +4,7 @@
 // ==========================================
 
 import type { ExecutionPlan, StructuredIntent, SingleIntent, Intent, Slots } from '../../types';
-import { sendMessageToDoubao } from '../../services/doubaoApi';
+import { sendMessageToDoubao } from '../../services/doubaoApiClient';
 import { getBrainManager } from '../layer2-brain';
 import { getQiyuanSystemPrompt } from '../qiyuanSettings';
 import { getMemoryService } from '../../services/memoryService';
