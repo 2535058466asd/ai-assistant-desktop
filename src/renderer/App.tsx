@@ -178,12 +178,20 @@ function AppContent() {
     console.log('🧹 [App] 已清理 spokenMessageIds');
   }, []);
 
+  const handleSetMessages = useCallback((newMessages: Message[]) => {
+    setMessages(newMessages);
+    // 清理 spokenMessageIds，避免内存泄漏
+    spokenMessageIds.current.clear();
+    console.log('🔄 [App] 已设置新的消息列表');
+  }, []);
+
   return (
     <AppLayout
       messages={messages}
       isLoading={isLoading}
       onSendMessage={handleSendMessage}
       onClearMessages={handleClearMessages}
+      onSetMessages={handleSetMessages}
       showToast={showToast}
       theme={theme}
       onToggleTheme={handleToggleTheme}

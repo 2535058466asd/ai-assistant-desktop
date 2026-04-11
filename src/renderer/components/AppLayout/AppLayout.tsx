@@ -62,6 +62,8 @@ interface AppLayoutProps {
   onSendMessage: SendMessageHandler;
   /** 清空消息列表回调（新建对话时调用）*/
   onClearMessages: () => void;
+  /** 设置消息列表回调（切换对话时调用）*/
+  onSetMessages?: (messages: Message[]) => void;
   /** 显示 Toast 提示回调 */
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   /** 当前主题 */
@@ -182,6 +184,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   isLoading,
   onSendMessage,
   onClearMessages,
+  onSetMessages,
   showToast,
   theme,
   onToggleTheme,
@@ -195,12 +198,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   const [activeChatId, setActiveChatId] = useState<string | null>(() => {
     /* 从 localStorage 恢复上次选中的对话 */
     return localStorage.getItem(STORAGE_KEY_ACTIVE_CHAT) || null;
-  });
-
-  /** 当前对话的消息列表 */
-  const [currentMessages, setCurrentMessages] = useState<Message[]>(() => {
-    const chatId = localStorage.getItem(STORAGE_KEY_ACTIVE_CHAT);
-    return chatId ? getMessagesForChat(chatId) : [];
   });
 
   /** 侧边栏是否展开（移动端使用）*/
@@ -261,25 +258,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 监听消息变化，保存到当前对话的 localStorage
    */
   useEffect(() => {
-    if (activeChatId && currentMessages.length > 0) {
-      saveMessagesForChat(activeChatId, currentMessages);
+    if (activeChatId && messages.length > 0) {
+      saveMessagesForChat(activeChatId, messages);
     }
-  }, [activeChatId, currentMessages]);
-
-  /* ===== 从 props 的 messages 同步到 currentMessages ===== */
-  useEffect(() => {
-    /* 当 Orchestrator 产生新消息时，追加到当前对话 */
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      setCurrentMessages((prev) => {
-        /* 避免重复添加 */
-        if (prev.some(m => m.id === lastMessage.id)) {
-          return prev;
-        }
-        return [...prev, lastMessage];
-      });
-    }
-  }, [messages]);
+  }, [activeChatId, messages]);
 
   /* ===== 事件处理函数 ===== */
 
@@ -313,8 +295,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       setChatList((prev) => [newChat, ...prev]);
       setActiveChatId(newChat.id);
       currentChatId = newChat.id;
-      /* 新对话清空消息 */
-      setCurrentMessages([]);
+
     }
 
     await onSendMessage(content);
@@ -344,9 +325,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    */
   const handleSelectChat = (chatId: string) => {
     setActiveChatId(chatId);
-    /* 加载该对话的历史消息 */
-    const messages = getMessagesForChat(chatId);
-    setCurrentMessages(messages);
+    /* 加载该对话的历史消息并通知App.tsx */
+    const chatMessages = getMessagesForChat(chatId);
+    onSetMessages?.(chatMessages);
   };
 
   /**
@@ -448,9 +429,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
           /* 无对话时显示欢迎页 */
           <WelcomeScreen onSuggestionClick={handleSuggestionClick} />
         ) : (
-          /* 有对话时显示聊天区（使用当前对话的消息）*/
+          /* 有对话时显示聊天区（使用props.messages）*/
           <ChatArea
-            messages={currentMessages.map(convertToUIMessage)}
+            messages={messages.map(convertToUIMessage)}
             isLoading={isLoading}
             showToast={showToast}
           />
