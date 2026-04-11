@@ -14,6 +14,7 @@ import styles from './ChatArea.module.css';
 import type { UIMessage } from '../../types/chat';
 import { getTTSManager } from '../../core/tts/ttsManager';
 import { DEFAULT_TTS_CONFIG } from '../../config/ttsConfig';
+import DOMPurify from 'dompurify';
 
 /**
  * PCM 音频数据转 WAV 格式
@@ -259,8 +260,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
     if (/<\/?[a-z][\s\S]*>/i.test(content)) {
       return (
         <span
-          dangerouslySetInnerHTML={{ __html: content }}
-          /* 实际项目应使用 DOMPurify.sanitize(content) 进行消毒 */
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }}
         />
       );
     }
