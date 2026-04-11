@@ -24,7 +24,6 @@
     "axios": "^1.13.6",
     "edge-tts": "^1.0.1",
     "emojis-list": "^3.0.0",
-    "framer-motion": "^12.34.3",
     "mime-db": "^1.54.0",
     "node-whisper": "^2024.11.13",
     "openclaw-client": "^2.1.1",
