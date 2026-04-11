@@ -42,7 +42,7 @@ export class VoiceChatMode {
   
   // 静音检测相关
   private lastText: string = '';
-  private silenceTimer: number | null = null;
+  private silenceTimer: NodeJS.Timeout | null = null;
   private readonly SILENCE_TIMEOUT = 1500; // 1.5 秒静音后自动发送
 
   // 防重复调用锁：TTS 播放中不再触发新的播放
