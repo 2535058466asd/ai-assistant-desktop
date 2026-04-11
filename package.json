@@ -22,6 +22,7 @@
   "dependencies": {
     "@types/ws": "^8.18.1",
     "axios": "^1.13.6",
+    "dompurify": "^3.1.6",
     "edge-tts": "^1.0.1",
     "emojis-list": "^3.0.0",
     "mime-db": "^1.54.0",
@@ -36,6 +37,7 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.0.5",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.2.0",
