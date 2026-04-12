@@ -12,7 +12,6 @@ import fs from 'fs'
 import { getSystemControlService } from './services/systemControl'
 import { getMemoryService } from './services/memoryServiceBackend'
 import { getScreenshotService } from './services/screenshotService'
-import openclawAuth from './services/openclawAuth'
 import { getTTSService } from './services/tts/volcengineTTSWebSocketService'
 import { getASRService } from './services/asr/volcengineASRWebSocketService'
 
@@ -410,36 +409,6 @@ ipcMain.handle('memory-clear-all-memories', async () => {
 
 ipcMain.handle('screenshot-take', async () => {
   return await screenshotService.takeScreenshot();
-});
-
-// ========== OpenClaw 设备认证 IPC ==========
-ipcMain.handle('openclaw-get-device-identity', async () => {
-  try {
-    const identity = openclawAuth.getOrCreateDeviceIdentity();
-    // 只返回 renderer 需要的信息（私钥绝不暴露给 renderer）
-    return {
-      success: true,
-      identity: {
-        id: identity.id,
-        publicKeyBase64: openclawAuth.getPublicKeyBase64(),
-        createdAt: identity.createdAt
-      }
-    };
-  } catch (error) {
-    console.error('❌ [Main] 获取设备身份失败:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
-  }
-});
-
-ipcMain.handle('openclaw-sign-challenge', async (_event, nonce: string, ts: number) => {
-  try {
-    console.log('🔐 [Main] 收到签名请求, nonce长度:', nonce?.length);
-    const signature = openclawAuth.signChallenge(nonce, ts);
-    return { success: true, signature };
-  } catch (error) {
-    console.error('❌ [Main] 签名失败:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
-  }
 });
 
 // ========== 豆包语音 TTS WebSocket v3 IPC ==========

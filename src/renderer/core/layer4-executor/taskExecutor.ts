@@ -9,7 +9,7 @@ import { getBrainManager } from '../layer2-brain';
 import { getQiyuanSystemPrompt } from '../qiyuanSettings';
 import { getMemoryService } from '../../services/memoryServiceClient';
 import { tryExtractAndSaveMemory } from '../utils/memoryExtractor';
-import { getOpenClawBridge } from '../bridge/openclawBridge';
+
 
 // 导入新的技能系统
 import { initSkills, executeSkill as executeNewSkill } from '../skills';
@@ -21,7 +21,6 @@ import { initSkills, executeSkill as executeNewSkill } from '../skills';
 export class TaskExecutor {
   private brainManager = getBrainManager();
   private memoryService = getMemoryService();
-  private openclawBridge = getOpenClawBridge();
 
   constructor() {
     console.log('⚙️  执行层初始化成功（支持多意图）');
@@ -155,62 +154,14 @@ export class TaskExecutor {
         'search_web', 'shutdown_computer', 'restart_computer', 'cancel_shutdown', 
         'sleep_computer', 'empty_recycle_bin'].includes(intent)) {
       // 执行系统控制，但不发送消息
-      const result = await this.handleSystemControlIntentNoMessage(simpleIntent);
-      return result;
+      const result = await this.executeSystemControl(simpleIntent);
+      return result.success ? '操作完成' : '操作失败';
     }
 
     return null;
   }
 
-  /**
-   * 处理系统控制意图（不发送消息，返回结果）
-   */
-  private async handleSystemControlIntentNoMessage(
-    intent: StructuredIntent
-  ): Promise<string> {
-    try {
-      // 把意图映射到 OpenClaw 工具
-      const openclawRequest = this.mapIntentToOpenClawTool(intent);
 
-      if (openclawRequest) {
-        // 调用 OpenClaw 工具
-        const result = await this.openclawBridge.executeSkill(openclawRequest);
-
-        if (result.success) {
-          // 返回简化的结果描述
-          switch (intent.intent) {
-            case 'open_app':
-              return `打开${intent.slots.appName}`;
-            case 'open_folder':
-              return '打开文件夹';
-            case 'lock_screen':
-              return '锁屏';
-            case 'search_web':
-              return `搜索${intent.slots.query}`;
-            case 'shutdown_computer':
-              return '关机';
-            case 'restart_computer':
-              return '重启';
-            case 'cancel_shutdown':
-              return '取消关机';
-            case 'sleep_computer':
-              return '休眠';
-            case 'empty_recycle_bin':
-              return '清空回收站';
-            default:
-              return '操作完成';
-          }
-        } else {
-          return '操作失败';
-        }
-      }
-
-      return '操作完成';
-    } catch (error) {
-      console.error('❌ 系统控制执行失败:', error);
-      return '操作失败';
-    }
-  }
 
   /**
    * 执行单意图（原有逻辑）
@@ -369,51 +320,7 @@ export class TaskExecutor {
     }
   }
 
-  /**
-   * 执行 OpenClaw 工具（通过 OpenClaw 桥接层）
-   */
-  private async executeOpenClawTool(intent: StructuredIntent): Promise<{ success: boolean; message: string }> {
-    try {
-      console.log('🔧 通过 OpenClaw 执行工具:', intent.intent);
 
-      // 把意图转换为 OpenClaw 工具请求
-      const openclawRequest = this.mapIntentToOpenClawTool(intent);
-
-      let result;
-      
-      if (openclawRequest) {
-        // 有 OpenClaw 工具映射，调用 OpenClaw
-        console.log('📡 调用 OpenClaw 工具:', openclawRequest.skillId);
-        result = await this.openclawBridge.executeSkill(openclawRequest);
-      } else {
-        // 没有 OpenClaw 工具映射，直接调用本地实现
-        console.log('🏠 调用本地实现:', intent.intent);
-        
-        // 把启源意图名映射到本地工具名
-        const localSkillMap: Record<string, string> = {
-          'check_weather': 'weather',
-          'search_web': 'search_web'
-        };
-        
-        const localSkillId = localSkillMap[intent.intent] || intent.intent;
-        const localParams = intent.slots || {};
-        
-        result = await this.openclawBridge.executeSkill({
-          skillId: localSkillId,
-          params: localParams
-        });
-      }
-
-      if (result.success) {
-        return { success: true, message: result.data || '操作完成' };
-      } else {
-        return { success: false, message: result.error || '操作失败' };
-      }
-    } catch (error: any) {
-      console.error('❌ OpenClaw 工具执行失败:', error);
-      return { success: false, message: `执行失败：${error.message || '请稍后重试'}` };
-    }
-  }
 
   /**
    * 通过新的技能系统执行技能（推荐方式）
@@ -484,39 +391,7 @@ export class TaskExecutor {
     }
   }
 
-  /**
-   * 把意图转换为 OpenClaw 工具请求
-   * 启源 AI 意图名 → OpenClaw 工具名 的映射
-   */
-  private mapIntentToOpenClawTool(intent: StructuredIntent): { skillId: string; params: Record<string, any> } | null {
-    // 意图名到 OpenClaw 工具名的映射
-    // 注意：只有 OpenClaw 的 tools 可以通过 HTTP API 调用
-    // skills 不能通过 HTTP API 调用，需要用本地实现
-    // search_web 直接用本地 SearXNG（OpenClaw web_search 需要 API Key）
-    const intentToToolMap: Record<string, string> = {
-      // 'search_web': 'web_search',  // 暂时不用，需要 Brave API Key
-    };
 
-    const skillId = intentToToolMap[intent.intent];
-    
-    // 如果没有映射，返回 null（表示用本地实现）
-    if (!skillId) {
-      return null;
-    }
-    
-    // 对于搜索，把 query 参数传给 OpenClaw
-    let params = intent.slots || {};
-    
-    // OpenClaw web_search 工具需要 query 参数
-    if (intent.intent === 'search_web' && intent.slots.query) {
-      params = { query: intent.slots.query };
-    }
-
-    return {
-      skillId,
-      params
-    };
-  }
 
   /**
    * 处理闲聊意图

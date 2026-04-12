@@ -19,7 +19,7 @@ import { getQiyuanSystemPrompt, DEFAULT_QIYUAN_SETTINGS } from './qiyuanSettings
 import { sendMessageToDoubao, sendMessageToDoubaoStream } from '../services/doubaoApiClient';
 import { getMemoryService } from '../services/memoryServiceClient';
 import { tryExtractAndSaveMemory } from './utils/memoryExtractor';
-import { getOpenClawBridge } from './bridge/openclawBridge';
+
 
 /**
  * 流式回调接口
@@ -43,12 +43,10 @@ export class Orchestrator {
   private taskPlanner = getTaskPlannerManager();
   private taskExecutor = getTaskExecutorManager();
   private memoryService = getMemoryService();
-  private openclawBridge = getOpenClawBridge();
   private sessionId: SessionId;
   private onMessageCallback: ((message: Message) => void) | null = null;
   private streamCallbacks: StreamCallbacks | null = null; // 流式回调
   private isVoiceMode: boolean = false;
-  private isOpenClawEnabled: boolean = false;
 
   constructor() {
     this.sessionId = this.generateSessionId();
@@ -64,17 +62,6 @@ export class Orchestrator {
     this.voiceGateway.initialize(this.sessionId);
     this.brain.initialize(this.sessionId);
     this.taskPlanner.initialize();
-
-    const openclawAvailable = this.openclawBridge.checkAvailability();
-    if (openclawAvailable) {
-      this.isOpenClawEnabled = true;
-      console.log('✅ OpenClaw 已启用');
-      const skills = this.openclawBridge.getAvailableSkills();
-      console.log(`📦 OpenClaw 可用工具：${skills.length}个`);
-    } else {
-      this.isOpenClawEnabled = false;
-      console.warn('⚠️ OpenClaw 未启用，使用本地工具');
-    }
 
     // 设置语音消息回调
     this.voiceGateway.onMessage((text) => {

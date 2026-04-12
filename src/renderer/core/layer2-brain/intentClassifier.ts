@@ -105,9 +105,6 @@ export class IntentClassifier {
   "slots": {
     "appName": "应用名（如果是OPEN_APP）",
     "folderName": "文件夹名（如果是OPEN_FOLDER，可选值：desktop/documents/downloads/pictures/music/videos/mycomputer/explorer）",
-    "volume": 数字（音量值0-100，如果是ADJUST_VOLUME）,
-    "volumeDirection": "up或down（音量方向，如果是ADJUST_VOLUME）",
-    "muteAction": "mute或unmute（静音动作，如果是MUTE_VOLUME）",
     "query": "搜索关键词（如果是SEARCH_WEB）",
     "location": "城市名或地点（如果是CHECK_WEATHER，如：北京、上海、深圳）"
   },
@@ -167,8 +164,6 @@ export class IntentClassifier {
       'OPEN_APP': 'open_app',
       'OPEN_FOLDER': 'open_folder',
       'LOCK_SCREEN': 'lock_screen',
-      'ADJUST_VOLUME': 'adjust_volume',
-      'MUTE_VOLUME': 'mute_volume',
       'CHECK_TIME': 'check_time',
       'CHECK_WEATHER': 'check_weather',
       'SEARCH_WEB': 'search_web',
@@ -221,11 +216,6 @@ export class IntentClassifier {
         parsed.intent = this.convertIntentToLowercase(upperIntent);
       }
       
-      // 暂时禁用音量控制功能，把音量控制意图改成闲聊
-      if (upperIntent === 'ADJUST_VOLUME' || upperIntent === 'MUTE_VOLUME') {
-        parsed.intent = 'chat';
-      }
-      
       // 如果是多意图，验证每个子意图
       if (isMultiIntent && parsed.intents && Array.isArray(parsed.intents)) {
         parsed.intents = parsed.intents.map((item: any) => {
@@ -233,10 +223,6 @@ export class IntentClassifier {
           // 验证并转换
           if (!validIntentsUpper.includes(upperItemIntent)) {
             return null; // 无效意图过滤掉
-          }
-          // 暂时禁用音量控制功能
-          if (upperItemIntent === 'ADJUST_VOLUME' || upperItemIntent === 'MUTE_VOLUME') {
-            return null;
           }
           return {
             ...item,
@@ -365,8 +351,6 @@ export class IntentClassifier {
         return !slots.appName;
       case 'open_folder':
         return !slots.folderName;
-      // 暂时禁用：case 'adjust_volume':
-      // 暂时禁用：  return !slots.volume && !slots.volumeDirection;
       case 'search_web':
         return !slots.query;
       case 'check_weather':
@@ -385,8 +369,6 @@ export class IntentClassifier {
         return '你想打开哪个应用呢？';
       case 'open_folder':
         return '你想打开哪个文件夹呢？（桌面/文档/下载/图片/音乐/视频）';
-      // 暂时禁用：case 'adjust_volume':
-      // 暂时禁用：  return '你想把音量调到多少呢？（例如：音量调到 50%）';
       case 'search_web':
         return '你想搜索什么呢？';
       case 'check_weather':
