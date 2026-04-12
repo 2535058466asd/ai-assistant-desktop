@@ -22,6 +22,24 @@
   position: relative;
 }
 
+/* 亮色主题 */
+[data-theme="light"] .header {
+  background: rgba(255, 255, 255, 0.8);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+[data-theme="light"] .modelDropdown {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 20px rgba(8, 145, 178, 0.08);
+}
+
+[data-theme="light"] .moreMenu {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 20px rgba(8, 145, 178, 0.08);
+}
+
 /* ===== 左侧区域：Logo + 品牌名 + 模型选择器 ===== */
 .headerLeft {
   display: flex;

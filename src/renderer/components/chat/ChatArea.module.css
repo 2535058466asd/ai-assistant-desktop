@@ -148,6 +148,17 @@
   z-index: 1;
 }
 
+/* 亮色主题 */
+[data-theme="light"] .aiBubble {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+[data-theme="light"] .aiBubble:hover {
+  box-shadow: var(--shadow-md), 0 0 20px rgba(8, 145, 178, 0.1);
+  border-color: rgba(8, 145, 178, 0.2);
+}
+
 /* AI 气泡悬停效果：添加渐变边框和阴影 */
 .aiBubble:hover {
   box-shadow: var(--shadow-md), var(--shadow-glow);

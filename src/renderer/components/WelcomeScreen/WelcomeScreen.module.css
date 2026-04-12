@@ -79,12 +79,23 @@
   color: inherit;
 }
 
-/* 卡片悬停效果：边框高亮 + 轻微上浮 */
 .welcomeCard:hover {
   border-color: rgba(6, 182, 212, 0.3);
   background: rgba(6, 182, 212, 0.08);
   transform: translateY(-4px);
   box-shadow: 0 8px 24px rgba(6, 182, 212, 0.12);
+}
+
+/* 亮色主题 */
+[data-theme="light"] .welcomeCard {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+[data-theme="light"] .welcomeCard:hover {
+  border-color: rgba(8, 145, 178, 0.3);
+  background: rgba(8, 145, 178, 0.08);
+  box-shadow: 0 8px 24px rgba(8, 145, 178, 0.12);
 }
 
 /* 卡片图标 emoji */

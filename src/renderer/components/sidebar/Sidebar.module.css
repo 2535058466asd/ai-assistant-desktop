@@ -21,6 +21,24 @@
   z-index: 2;
 }
 
+/* 亮色主题 */
+[data-theme="light"] .sidebar {
+  background: rgba(255, 255, 255, 0.8);
+  border-right: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+[data-theme="light"] .chatItem:hover {
+  background: rgba(8, 145, 178, 0.06);
+  border-left: 2px solid var(--accent-cyan);
+}
+
+[data-theme="light"] .newChatBtn:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  background: rgba(8, 145, 178, 0.08);
+  box-shadow: 0 0 12px rgba(8, 145, 178, 0.15);
+}
+
 /* 侧边栏收起状态（通过 JS 类名控制） */
 .sidebar.collapsed {
   width: 0;
