@@ -17,17 +17,16 @@
 
 /* ===== Logo 图标（大号 + 脉冲发光动画）===== */
 .welcomeLogo {
-  width: 72px;
-  height: 72px;
-  border-radius: 20px;
+  width: 80px;
+  height: 80px;
+  border-radius: 22px;
   background: var(--gradient-logo);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 20px;
-  /* 呼吸灯发光效果 */
-  box-shadow: var(--shadow-welcome);
   animation: logoPulse 3s infinite ease-in-out;
+  box-shadow: 0 0 30px rgba(6, 182, 212, 0.3), 0 0 60px rgba(6, 182, 212, 0.1);
 }
 
 .welcomeLogoSvg {
@@ -58,34 +57,34 @@
 
 /* ===== 快捷建议卡片网格 ===== */
 .welcomeCards {
-  /* 三列等宽网格布局 */
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 520px;
   gap: 12px;
-  max-width: 600px;
   width: 100%;
 }
 
 /* 单张建议卡片 */
 .welcomeCard {
-  padding: 16px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background: rgba(17, 24, 39, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(148, 163, 184, 0.08);
   border-radius: var(--radius-md);
+  padding: 16px;
+  text-align: left;
   cursor: pointer;
-  transition: all var(--transition-normal);
-  text-align: left; /* 卡片内容左对齐 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: inherit;
   color: inherit;
-  border: none; /* 移除 button 默认边框，用下面的 border */
-  border: 1px solid var(--border-color); /* 重新声明 */
 }
 
 /* 卡片悬停效果：边框高亮 + 轻微上浮 */
 .welcomeCard:hover {
   border-color: rgba(6, 182, 212, 0.3);
-  background: var(--bg-tertiary);
-  transform: translateY(-2px);
+  background: rgba(6, 182, 212, 0.08);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(6, 182, 212, 0.12);
 }
 
 /* 卡片图标 emoji */
