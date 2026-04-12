@@ -7,9 +7,12 @@
  * - AI 消息：左对齐带头像 + 操作按钮（复制/收起）
  * - 时间分割线：按时间段分组显示
  * - 打字指示器：AI 思考中的动画效果
+ * 
+ * 性能优化：
+ * - 虚拟滚动：只渲染可视区域内的消息，提高长列表性能
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './ChatArea.module.css';
 import type { UIMessage } from '../../types/chat';
 import { getTTSManager } from '../../core/tts/ttsManager';
@@ -110,6 +113,8 @@ const shouldShowTimestamp = (current: number, previous: number): boolean => {
  * @returns JSX 聊天区域元素
  */
 const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) => {
+  /* 消息列表容器 ref，用于虚拟滚动 */
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   /* 消息列表底部的 ref，用于自动滚动 */
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -120,6 +125,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null); // 正在播放的消息 ID
   const ttsManagerRef = useRef(getTTSManager(DEFAULT_TTS_CONFIG)); // TTS 管理器实例
   const audioRef = useRef<HTMLAudioElement | null>(null); // 音频元素引用
+
+  /** 虚拟滚动相关状态 */
+  const [visibleStartIndex, setVisibleStartIndex] = useState(0);
+  const [visibleEndIndex, setVisibleEndIndex] = useState(10); // 初始显示 10 条消息
+  const [messageHeights, setMessageHeights] = useState<Map<string, number>>(new Map());
 
   // 初始化 TTS
   useEffect(() => {
@@ -134,6 +144,67 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages.length, isLoading]);
+
+  /**
+   * 计算消息高度并更新
+   */
+  const updateMessageHeight = useCallback((messageId: string, height: number) => {
+    setMessageHeights(prev => new Map(prev).set(messageId, height));
+  }, []);
+
+  /**
+   * 处理滚动事件，更新可视区域消息索引
+   */
+  const handleScroll = useCallback(() => {
+    if (!chatContainerRef.current) return;
+
+    const container = chatContainerRef.current;
+    const scrollTop = container.scrollTop;
+    const containerHeight = container.clientHeight;
+
+    // 计算可视区域开始和结束的消息索引
+    let start = 0;
+    let end = messages.length - 1;
+    let currentHeight = 0;
+
+    // 找到开始索引
+    for (let i = 0; i < messages.length; i++) {
+      const messageHeight = messageHeights.get(messages[i].id) || 100; // 默认高度 100px
+      if (currentHeight + messageHeight > scrollTop) {
+        start = Math.max(0, i - 2); // 多渲染 2 条消息作为缓冲
+        break;
+      }
+      currentHeight += messageHeight;
+    }
+
+    // 找到结束索引
+    currentHeight = 0;
+    for (let i = 0; i < messages.length; i++) {
+      const messageHeight = messageHeights.get(messages[i].id) || 100;
+      currentHeight += messageHeight;
+      if (currentHeight > scrollTop + containerHeight) {
+        end = Math.min(messages.length - 1, i + 2); // 多渲染 2 条消息作为缓冲
+        break;
+      }
+    }
+
+    setVisibleStartIndex(start);
+    setVisibleEndIndex(end);
+  }, [messages, messageHeights]);
+
+  // 监听滚动事件
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [handleScroll]);
+
+  // 当消息变化时，重新计算可视区域
+  useEffect(() => {
+    setTimeout(handleScroll, 100); // 延迟执行，确保 DOM 已更新
+  }, [messages, handleScroll]);
 
   /**
    * 复制 AI 回复内容到剪贴板
@@ -273,100 +344,159 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
     return null;
   }
 
+  /**
+   * 计算消息列表的总高度
+   */
+  const totalHeight = messages.reduce((height, message) => {
+    return height + (messageHeights.get(message.id) || 100);
+  }, 0);
+
+  /**
+   * 计算可视区域之前的消息总高度
+   */
+  const offsetTop = messages.slice(0, visibleStartIndex).reduce((height, message) => {
+    return height + (messageHeights.get(message.id) || 100);
+  }, 0);
+
   return (
-    <div className={styles.chatArea}>
-      <div className={styles.messageGroup}>
-        {/* ===== 遍历消息列表进行渲染 ===== */}
-        {messages.map((message, index) => {
-          /* 获取前一条消息的时间戳，用于判断是否需要时间分割线 */
-          const prevTimestamp = index > 0 ? messages[index - 1].timestamp : null;
+    <div className={styles.chatArea} ref={chatContainerRef}>
+      <div 
+        className={styles.messageGroup}
+        style={{
+          height: totalHeight,
+          position: 'relative'
+        }}
+      >
+        {/* 可视区域内的消息 */}
+        <div 
+          style={{
+            position: 'absolute',
+            top: offsetTop,
+            left: 0,
+            right: 0
+          }}
+        >
+          {/* ===== 遍历可视区域内的消息进行渲染 ===== */}
+          {messages.slice(visibleStartIndex, visibleEndIndex + 1).map((message, index) => {
+            const actualIndex = visibleStartIndex + index;
+            /* 获取前一条消息的时间戳，用于判断是否需要时间分割线 */
+            const prevTimestamp = actualIndex > 0 ? messages[actualIndex - 1].timestamp : null;
 
-          return (
-            <React.Fragment key={message.id}>
-              {/* ===== 时间分割线（间隔 >5min 时显示）===== */}
-              {shouldShowTimestamp(message.timestamp, prevTimestamp || 0) && (
-                <div className={styles.timestampDivider}>
-                  今天 {formatTime(message.timestamp)}
-                </div>
-              )}
-
-              {/* ===== 用户消息（右侧对齐）===== */}
-              {message.role === 'user' && (
-                <div className={styles.messageUser}>
-                  <div className={styles.userBubbleWrapper}>
-                    {/* 消息气泡 */}
-                    <div className={styles.userBubble}>
-                      {renderMessageContent(message.content)}
+            return (
+              <div 
+                key={message.id}
+                ref={(el) => {
+                  if (el) {
+                    const height = el.offsetHeight;
+                    updateMessageHeight(message.id, height);
+                  }
+                }}
+              >
+                <React.Fragment>
+                  {/* ===== 时间分割线（间隔 >5min 时显示）===== */}
+                  {shouldShowTimestamp(message.timestamp, prevTimestamp || 0) && (
+                    <div className={styles.timestampDivider}>
+                      今天 {formatTime(message.timestamp)}
                     </div>
-                    {/* 时间戳 */}
-                    <div className={styles.userBubbleTime}>
-                      {formatTime(message.timestamp)}
+                  )}
+
+                  {/* ===== 用户消息（右侧对齐）===== */}
+                  {message.role === 'user' && (
+                    <div className={styles.messageUser}>
+                      <div className={styles.userBubbleWrapper}>
+                        {/* 消息气泡 */}
+                        <div className={styles.userBubble}>
+                          {renderMessageContent(message.content)}
+                        </div>
+                        {/* 时间戳 */}
+                        <div className={styles.userBubbleTime}>
+                          {formatTime(message.timestamp)}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )}
+                  )}
 
-              {/* ===== AI 消息（左侧对齐 + 头像 + 操作按钮）===== */}
-              {message.role === 'assistant' && (
-                <div className={styles.messageAi}>
-                  {/* AI 头像 */}
-                  <div className={styles.aiAvatar} title="启源 AI">
-                    <svg
-                      className={styles.aiAvatarSvg}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                    </svg>
-                  </div>
+                  {/* ===== AI 消息（左侧对齐 + 头像 + 操作按钮）===== */}
+                  {message.role === 'assistant' && (
+                    <div className={styles.messageAi}>
+                      {/* AI 头像 */}
+                      <div className={styles.aiAvatar} title="启源 AI">
+                        <svg
+                          className={styles.aiAvatarSvg}
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                        </svg>
+                      </div>
 
-                  {/* 消息内容区 */}
-                  <div className={styles.aiContent}>
-                    {/* 消息气泡（支持收起/展开 + 流式光标） */}
-                    <div 
-                      className={`${styles.aiBubble} ${message.isStreaming ? styles.streamingBubble : ''}`}
-                      style={collapsedIds.has(message.id) ? { maxHeight: '60px', overflow: 'hidden' } : undefined}
-                    >
-                      {renderMessageContent(message.content)}
-                      {/* 流式输出时的闪烁光标 */}
-                      {message.isStreaming && (
-                        <span className={styles.streamingCursor}>|</span>
-                      )}
-                      {collapsedIds.has(message.id) && (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '12px', marginLeft: '8px' }}>...已收起</span>
-                      )}
-                    </div>
+                      {/* 消息内容区 */}
+                      <div className={styles.aiContent}>
+                        {/* 消息气泡（支持收起/展开 + 流式光标） */}
+                        <div 
+                          className={`${styles.aiBubble} ${message.isStreaming ? styles.streamingBubble : ''}`}
+                          style={collapsedIds.has(message.id) ? { maxHeight: '60px', overflow: 'hidden' } : undefined}
+                        >
+                          {renderMessageContent(message.content)}
+                          {/* 流式输出时的闪烁光标 */}
+                          {message.isStreaming && (
+                            <span className={styles.streamingCursor}>|</span>
+                          )}
+                          {collapsedIds.has(message.id) && (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '12px', marginLeft: '8px' }}>...已收起</span>
+                          )}
+                        </div>
 
-                    {/* 操作按钮（默认隐藏，悬停显示）*/}
-                    <div className={styles.aiActions}>
-                      {/* 语音播放按钮 */}
-                      <button
-                        className={`${styles.aiActionBtn} ${playingMessageId === message.id ? styles.playingBtn : ''}`}
-                        onClick={() => handlePlayTTS(message)}
-                        title={playingMessageId === message.id ? '停止播放' : '播放语音'}
-                      >
-                        {playingMessageId === message.id ? (
-                          <>
-                            {/* 停止图标 */}
-                            <svg
-                              className={styles.aiActionBtnSvg}
-                              viewBox="0 0 24 24"
-                              fill="currentColor"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            >
-                              <rect x="6" y="4" width="4" height="16" rx="1" />
-                              <rect x="14" y="4" width="4" height="16" rx="1" />
-                            </svg>
-                            停止
-                          </>
-                        ) : (
-                          <>
-                            {/* 播放图标 */}
+                        {/* 操作按钮（默认隐藏，悬停显示）*/}
+                        <div className={styles.aiActions}>
+                          {/* 语音播放按钮 */}
+                          <button
+                            className={`${styles.aiActionBtn} ${playingMessageId === message.id ? styles.playingBtn : ''}`}
+                            onClick={() => handlePlayTTS(message)}
+                            title={playingMessageId === message.id ? '停止播放' : '播放语音'}
+                          >
+                            {playingMessageId === message.id ? (
+                              <>
+                                {/* 停止图标 */}
+                                <svg
+                                  className={styles.aiActionBtnSvg}
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                >
+                                  <rect x="6" y="4" width="4" height="16" rx="1" />
+                                  <rect x="14" y="4" width="4" height="16" rx="1" />
+                                </svg>
+                                停止
+                              </>
+                            ) : (
+                              <>
+                                {/* 播放图标 */}
+                                <svg
+                                  className={styles.aiActionBtnSvg}
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                >
+                                  <polygon points="11 5 6 9 2 9 2 15 6 19 11 15 19 20 8 15 5" />
+                                </svg>
+                                播放
+                              </>
+                            )}
+                          </button>
+
+                          {/* 复制按钮 */}
+                          <button
+                            className={styles.aiActionBtn}
+                            onClick={() => handleCopy(message.content, message.id)}
+                            title="复制回复内容"
+                          >
                             <svg
                               className={styles.aiActionBtnSvg}
                               viewBox="0 0 24 24"
@@ -374,93 +504,75 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
                               stroke="currentColor"
                               strokeWidth="2"
                             >
-                              <polygon points="11 5 6 9 2 9 2 15 6 19 11 15 19 20 8 15 5" />
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                             </svg>
-                            播放
-                          </>
-                        )}
-                      </button>
+                            {collapsedIds.has(message.id) ? '展开' : '复制'}
+                          </button>
 
-                      {/* 复制按钮 */}
-                      <button
-                        className={styles.aiActionBtn}
-                        onClick={() => handleCopy(message.content, message.id)}
-                        title="复制回复内容"
-                      >
-                        <svg
-                          className={styles.aiActionBtnSvg}
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
-                        {collapsedIds.has(message.id) ? '展开' : '复制'}
-                      </button>
-
-                      {/* 收起/展开按钮 */}
-                      <button
-                        className={styles.aiActionBtn}
-                        onClick={() => handleToggleCollapse(message.id)}
-                        title={collapsedIds.has(message.id) ? '展开消息' : '收起这条消息'}
-                      >
-                        <svg
-                          className={styles.aiActionBtnSvg}
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          {collapsedIds.has(message.id) ? (
-                            <>
-                              <path d="M7 14l5-5 5 5" /> {/* 向下箭头 = 展开 */}
-                            </>
-                          ) : (
-                            <>
-                              <path d="M7 10l5-5 5 5" /> {/* 向上箭头 = 收起 */}
-                            </>
-                          )}
-                        </svg>
-                        {collapsedIds.has(message.id) ? '展开' : '收起'}
-                      </button>
+                          {/* 收起/展开按钮 */}
+                          <button
+                            className={styles.aiActionBtn}
+                            onClick={() => handleToggleCollapse(message.id)}
+                            title={collapsedIds.has(message.id) ? '展开消息' : '收起这条消息'}
+                          >
+                            <svg
+                              className={styles.aiActionBtnSvg}
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              {collapsedIds.has(message.id) ? (
+                                <>
+                                  <path d="M7 14l5-5 5 5" /> {/* 向下箭头 = 展开 */}
+                                </>
+                              ) : (
+                                <>
+                                  <path d="M7 10l5-5 5 5" /> {/* 向上箭头 = 收起 */}
+                                </>
+                              )}
+                            </svg>
+                            {collapsedIds.has(message.id) ? '展开' : '收起'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )}
-            </React.Fragment>
-          );
-        })}
+                  )}
+                </React.Fragment>
+              </div>
+            );
+          })}
 
-        {/* ===== 打字指示器（AI 正在思考/生成回复时显示）===== */}
-        {isLoading && (
-          <div className={styles.typingIndicator}>
-            {/* AI 头像 */}
-            <div className={styles.aiAvatar} title="启源 AI">
-              <svg
-                className={styles.aiAvatarSvg}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
+          {/* ===== 打字指示器（AI 正在思考/生成回复时显示）===== */}
+          {isLoading && (
+            <div className={styles.typingIndicator}>
+              {/* AI 头像 */}
+              <div className={styles.aiAvatar} title="启源 AI">
+                <svg
+                  className={styles.aiAvatarSvg}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                </svg>
+              </div>
+              {/* 三个跳动的小圆点 */}
+              <div className={styles.typingDots}>
+                <div className={styles.typingDot}></div>
+                <div className={styles.typingDot}></div>
+                <div className={styles.typingDot}></div>
+              </div>
             </div>
-            {/* 三个跳动的小圆点 */}
-            <div className={styles.typingDots}>
-              <div className={styles.typingDot}></div>
-              <div className={styles.typingDot}></div>
-              <div className={styles.typingDot}></div>
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* 滚动锚点元素 - 用于自动滚动到底部 */}
-        <div ref={messagesEndRef} />
+          {/* 滚动锚点元素 - 用于自动滚动到底部 */}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
     </div>
   );

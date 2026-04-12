@@ -13,7 +13,8 @@ import { getSystemControlService } from './services/systemControl'
 import { getMemoryService } from './services/memoryServiceBackend'
 import { getScreenshotService } from './services/screenshotService'
 import openclawAuth from './services/openclawAuth'
-import { getTTSService, getASRService } from './services/volcengineWebSocketService'
+import { getTTSService } from './services/tts/volcengineTTSWebSocketService'
+import { getASRService } from './services/asr/volcengineASRWebSocketService'
 
 class WhisperService {
   whisper: any;
