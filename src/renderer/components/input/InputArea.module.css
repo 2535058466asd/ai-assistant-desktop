@@ -65,7 +65,7 @@
 /* 聚焦态 - 发光边框效果 */
 .inputContainerFocusWithin {
   border-color: var(--border-focus);
-  box-shadow: var(--shadow-glow);
+  box-shadow: 0 0 20px rgba(6,182,212,0.15), 0 0 40px rgba(6,182,212,0.05);
 }
 
 /* ===== 左侧附件/功能按钮组 ===== */
