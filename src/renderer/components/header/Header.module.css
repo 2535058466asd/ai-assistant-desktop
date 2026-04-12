@@ -11,14 +11,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between; /* 左右两端对齐 */
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
   /* 毛玻璃半透明背景 - 根据主题动态变化 */
-  background: var(--bg-secondary);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px); /* 兼容 Safari */
+  background: rgba(17, 24, 39, 0.5);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px); /* 兼容 Safari */
   flex-shrink: 0; /* 防止被压缩 */
   z-index: 10; /* 确保在内容之上 */
   transition: background 0.3s ease; /* 主题切换时的过渡动画 */
+  position: relative;
 }
 
 /* ===== 左侧区域：Logo + 品牌名 + 模型选择器 ===== */
@@ -102,7 +103,9 @@
 }
 
 .modelSelector:hover {
-  border-color: var(--border-focus);
+  border-color: rgba(6, 182, 212, 0.4);
+  background: rgba(6, 182, 212, 0.08);
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.15);
 }
 
 /* 在线状态小绿点 */
@@ -168,10 +171,12 @@
   top: calc(100% + 6px);
   left: 0;
   min-width: 180px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background: rgba(17, 24, 39, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(148, 163, 184, 0.12);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(6, 182, 212, 0.08);
   padding: 4px;
   z-index: 100;
   animation: dropdownFadeIn 0.15s ease;
@@ -238,10 +243,12 @@
   top: calc(100% + 6px);
   right: 0;
   min-width: 150px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background: rgba(17, 24, 39, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(148, 163, 184, 0.12);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(6, 182, 212, 0.08);
   padding: 4px;
   z-index: 100;
   animation: dropdownFadeIn 0.15s ease;
