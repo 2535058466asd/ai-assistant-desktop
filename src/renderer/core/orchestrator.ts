@@ -147,7 +147,33 @@ export class Orchestrator {
     executionPlan: ExecutionPlan,
     structuredIntent: StructuredIntent
   ): Promise<void> {
-    // 创建空的助手消息（用于流式显示）
+    const executionIntents = [
+      'open_app', 'open_folder', 'lock_screen', 'check_time',
+      'check_weather', 'search_web', 'shutdown_computer', 'restart_computer',
+      'cancel_shutdown', 'sleep_computer', 'empty_recycle_bin'
+    ];
+
+    if (executionIntents.includes(structuredIntent.intent)) {
+      await this.taskExecutor.executePlan(
+        executionPlan,
+        structuredIntent,
+        async (msg: string) => {
+          await this.sendAssistantMessage(msg);
+        }
+      );
+      if (structuredIntent.rawText) {
+        try {
+          const lastMessage = this.brain.getHistory(this.sessionId).slice(-1)[0];
+          if (lastMessage && lastMessage.role === 'assistant') {
+            await tryExtractAndSaveMemory(structuredIntent.rawText, lastMessage.content);
+          }
+        } catch (memoryError) {
+          console.error('❌ 提取记忆失败:', memoryError);
+        }
+      }
+      return;
+    }
+
     const messageId = this.generateMessageId();
     let accumulatedContent = '';
 
