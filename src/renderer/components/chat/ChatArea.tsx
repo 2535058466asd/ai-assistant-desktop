@@ -130,6 +130,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
   const [visibleStartIndex, setVisibleStartIndex] = useState(0);
   const [visibleEndIndex, setVisibleEndIndex] = useState(10); // 初始显示 10 条消息
   const [messageHeights, setMessageHeights] = useState<Map<string, number>>(new Map());
+  
+  /** 用于 ResizeObserver 的引用 */
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const observedHeights = useRef<Map<string, number>>(new Map());
 
   // 初始化 TTS
   useEffect(() => {
@@ -205,6 +209,30 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
   useEffect(() => {
     setTimeout(handleScroll, 100); // 延迟执行，确保 DOM 已更新
   }, [messages, handleScroll]);
+
+  // 使用 ResizeObserver 监听消息元素高度变化
+  useEffect(() => {
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const messageId = entry.target.getAttribute('data-message-id');
+        if (messageId) {
+          const newHeight = entry.contentRect.height;
+          const oldHeight = observedHeights.current.get(messageId);
+          if (oldHeight !== newHeight) {
+            observedHeights.current.set(messageId, newHeight);
+            setMessageHeights(prev => new Map(prev).set(messageId, newHeight));
+          }
+        }
+      }
+    });
+
+    // 观察所有已注册的消息元素
+    messageRefs.current.forEach((el) => {
+      observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [messages.length]); // 只在消息数量变化时重新创建 observer
 
   /**
    * 复制 AI 回复内容到剪贴板
@@ -385,10 +413,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
             return (
               <div 
                 key={message.id}
+                data-message-id={message.id}
                 ref={(el) => {
                   if (el) {
-                    const height = el.offsetHeight;
-                    updateMessageHeight(message.id, height);
+                    messageRefs.current.set(message.id, el);
+                  } else {
+                    messageRefs.current.delete(message.id);
                   }
                 }}
               >
