@@ -58,99 +58,57 @@ export class IntentClassifier {
    * 构建意图分类的提示词（包含用户记忆，支持多意图）
    */
   private async buildIntentClassificationPrompt(userText: string): Promise<string> {
-    // 获取用户记忆
     const memoryPrompt = await this.memoryService.getMemoryPrompt();
     
     let prompt = `你是一个专业的意图识别助手。请分析用户输入的文本，判断用户的意图，并提取关键信息（槽位）。
 
-【重要！】如果用户的一句话里包含多个动作或请求（比如"打开记事本，然后告诉我现在几点"、"打开QQ音乐，再把音量调大"），这就是多个意图，必须设置isMultiIntent为true，并按顺序识别所有意图！
+【多意图识别】如果用户的一句话里包含多个动作或请求（如"打开记事本，然后告诉我现在几点"），设置isMultiIntent为true，并按顺序识别所有意图！
 
 `;
 
-    // 如果有用户记忆，加进去
     if (memoryPrompt) {
       prompt += `${memoryPrompt}\n\n`;
     }
 
-    prompt += `可用的意图类型：
-
-【系统控制意图】
-- OPEN_APP：打开某个应用程序（如浏览器、计算器、记事本等）
-- OPEN_FOLDER：打开某个文件夹（如桌面、文档、下载、图片、音乐、视频、我的电脑等）
-- LOCK_SCREEN：锁定屏幕/锁屏
-- SHUTDOWN_COMPUTER：关机、关闭电脑
-- RESTART_COMPUTER：重启电脑、重新启动
-- CANCEL_SHUTDOWN：取消关机、取消重启
-- SLEEP_COMPUTER：休眠电脑
+    prompt += `可用意图类型：
+- OPEN_APP：打开应用程序
+- OPEN_FOLDER：打开文件夹
+- LOCK_SCREEN：锁定屏幕
+- SHUTDOWN_COMPUTER：关机
+- RESTART_COMPUTER：重启
+- CANCEL_SHUTDOWN：取消关机
+- SLEEP_COMPUTER：休眠
 - EMPTY_RECYCLE_BIN：清空回收站
+- CHECK_TIME：查询时间/日期
+- SEARCH_WEB：搜索网页
+- CHECK_WEATHER：查询天气
+- CHAT：闲聊
 
-【查询时间】
-- CHECK_TIME：查询时间、日期、星期几
-
-【搜索网页】
-- SEARCH_WEB：搜索网页、百度一下、查资料
-
-【查询天气】
-- CHECK_WEATHER：查询天气、天气预报、温度、空气质量
-
-【其他】
-- CHAT：闲聊、聊天、情感交流、打招呼、问问题等（不涉及具体操作）
-
-请严格按照以下JSON格式返回结果，不要有其他文字：
-
-如果是单个意图：
+请严格按照以下JSON格式返回：
 {
   "isMultiIntent": false,
   "intent": "意图类型",
   "slots": {
-    "appName": "应用名（如果是OPEN_APP）",
-    "folderName": "文件夹名（如果是OPEN_FOLDER，可选值：desktop/documents/downloads/pictures/music/videos/mycomputer/explorer）",
-    "query": "搜索关键词（如果是SEARCH_WEB）",
-    "location": "城市名或地点（如果是CHECK_WEATHER，如：北京、上海、深圳）"
+    "appName": "应用名（OPEN_APP）",
+    "folderName": "文件夹名（OPEN_FOLDER）",
+    "query": "搜索关键词（SEARCH_WEB）",
+    "location": "城市名（CHECK_WEATHER）"
   },
-  "confidence": 0.95
-}
-
-如果是多个意图（按执行顺序排列，非常重要！）：
-{
-  "isMultiIntent": true,
-  "intent": "主意图类型（第一个意图）",
-  "slots": {第一个意图的槽位},
   "confidence": 0.95,
   "intents": [
-    {
-      "intent": "第一个意图",
-      "slots": {第一个意图的槽位},
-      "confidence": 0.95,
-      "order": 1
-    },
-    {
-      "intent": "第二个意图",
-      "slots": {第二个意图的槽位},
-      "confidence": 0.95,
-      "order": 2
-    }
+    {"intent": "意图", "slots": {}, "confidence": 0.95, "order": 1}
   ]
 }
 
-【多意图识别示例】
-输入："打开记事本，然后告诉我现在几点"
-输出：isMultiIntent=true, intents包含OPEN_APP和CHECK_TIME
-
-输入："打开QQ音乐，再把音量调大"
-输出：isMultiIntent=true, intents包含OPEN_APP和ADJUST_VOLUME(volumeDirection="up")
-
-输入："打开浏览器，搜索B站"
-输出：isMultiIntent=true, intents包含OPEN_APP和SEARCH_WEB
+示例：输入"打开浏览器，搜索B站" → isMultiIntent=true, intents包含OPEN_APP和SEARCH_WEB
 
 注意：
-1. 如果不确定具体的槽位值，可以留空或不包含该字段
-2. confidence范围0-1，越接近1表示越确定
-3. 只返回JSON，不要有其他说明文字
-4. 如果用户有多个意图，必须设置isMultiIntent=true，并按顺序识别，order从1开始
-5. 只要用户的话里有多个动作或请求，就是多意图！
+1. 不确定的槽位留空
+2. confidence范围0-1
+3. 只返回JSON
+4. 多意图时order从1开始
 
-现在分析用户输入："${userText}"`;
+现在分析："${userText}"`;
 
     return prompt;
   }

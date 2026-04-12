@@ -39,6 +39,8 @@ export class MemoryService {
   private memoriesPath: string;
   private preferences: UserPreferences;
   private memories: ImportantMemory[];
+  
+  private static readonly MAX_MEMORIES = 200;
 
   constructor() {
     this.dataDir = path.join(app.getPath('userData'), 'qiyuan-memory');
@@ -136,15 +138,64 @@ export class MemoryService {
    * @param category 记忆类别（默认为 fact）
    */
   addMemory(content: string, category: ImportantMemory['category'] = 'fact'): void {
+    const trimmedContent = content.trim();
+    
+    const isDuplicate = this.memories.some(memory => {
+      const existingContent = memory.content.toLowerCase();
+      const newContent = trimmedContent.toLowerCase();
+      return existingContent.includes(newContent) || newContent.includes(existingContent);
+    });
+    
+    if (isDuplicate) {
+      console.log('🔍 检测到相似记忆，跳过添加');
+      return;
+    }
+    
     const memory: ImportantMemory = {
       id: Date.now().toString(36) + Math.random().toString(36).substring(2),
-      content,
+      content: trimmedContent,
       timestamp: Date.now(),
       category
     };
     
     this.memories.push(memory);
+    
+    this.applyMemoryLimit();
+    
     this.saveMemories();
+  }
+  
+  /**
+   * 应用记忆数量限制
+   */
+  private applyMemoryLimit(): void {
+    if (this.memories.length <= MemoryService.MAX_MEMORIES) {
+      return;
+    }
+    
+    console.log('📊 记忆数量超限，开始清理...');
+    
+    const importantEvents = this.memories.filter(m => m.category === 'important_event');
+    const preferences = this.memories.filter(m => m.category === 'preference').slice(-50);
+    const facts = this.memories.filter(m => m.category === 'fact').slice(-50);
+    const others = this.memories.filter(m => 
+      m.category !== 'important_event' && 
+      m.category !== 'preference' && 
+      m.category !== 'fact'
+    );
+    
+    const totalNeeded = MemoryService.MAX_MEMORIES;
+    let newMemories = [...importantEvents, ...preferences, ...facts];
+    
+    if (newMemories.length < totalNeeded) {
+      const remaining = totalNeeded - newMemories.length;
+      newMemories = [...newMemories, ...others.slice(-remaining)];
+    }
+    
+    newMemories.sort((a, b) => a.timestamp - b.timestamp);
+    this.memories = newMemories;
+    
+    console.log(`✅ 记忆清理完成，当前数量: ${this.memories.length}`);
   }
 
   /**
@@ -201,10 +252,18 @@ export class MemoryService {
       }
     }
     
-    const recentMemories = this.memories.slice(-10);
-    if (recentMemories.length > 0) {
+    const importantEvents = this.memories.filter(m => m.category === 'important_event');
+    const preferences = this.memories.filter(m => m.category === 'preference').slice(-15);
+    const facts = this.memories.filter(m => m.category === 'fact').slice(-15);
+    
+    let selectedMemories = [...importantEvents, ...preferences, ...facts];
+    if (selectedMemories.length > 20) {
+      selectedMemories = selectedMemories.slice(-20);
+    }
+    
+    if (selectedMemories.length > 0) {
       parts.push('【重要记忆】');
-      recentMemories.forEach(memory => {
+      selectedMemories.forEach(memory => {
         const date = new Date(memory.timestamp).toLocaleDateString('zh-CN');
         parts.push(`- [${date}] ${memory.content}`);
       });
