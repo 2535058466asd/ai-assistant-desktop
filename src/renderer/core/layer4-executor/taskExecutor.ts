@@ -277,43 +277,12 @@ export class TaskExecutor {
   }
 
   /**
-   * 执行系统控制（调用 Electron 主进程）
+   * 执行系统控制（通过新的技能系统）
    */
   private async executeSystemControl(intent: StructuredIntent): Promise<{ success: boolean; message: string }> {
     try {
-      switch (intent.intent) {
-        case 'open_app':
-          return await (window as any).electronAPI.systemOpenApp(intent.slots.appName);
-        
-        case 'open_folder':
-          return await (window as any).electronAPI.systemOpenFolder(intent.slots.folderName);
-        
-        case 'lock_screen':
-          return await (window as any).electronAPI.systemLockScreen();
-        
-        case 'shutdown_computer':
-          return await (window as any).electronAPI.systemShutdown();
-        
-        case 'restart_computer':
-          return await (window as any).electronAPI.systemRestart();
-        
-        case 'cancel_shutdown':
-          return await (window as any).electronAPI.systemCancelShutdown();
-        
-        case 'sleep_computer':
-          return await (window as any).electronAPI.systemSleep();
-        
-        case 'empty_recycle_bin':
-          return await (window as any).electronAPI.systemEmptyRecycleBin();
-        
-        // 使用新的技能系统（搜索网页、查询天气）
-        case 'search_web':
-        case 'check_weather':
-          return await this.executeSkillViaNewSystem(intent);
-        
-        default:
-          return { success: false, message: '不支持的操作' };
-      }
+      // 所有系统控制意图都通过新的技能系统执行
+      return await this.executeSkillViaNewSystem(intent);
     } catch (error) {
       console.error('❌ 系统控制执行失败:', error);
       return { success: false, message: '执行失败' };
@@ -337,7 +306,15 @@ export class TaskExecutor {
       // 意图名到技能 ID 的映射
       const intentToSkillMap: Record<string, string> = {
         'search_web': 'search-web',        // 网页搜索（SearXNG）
-        'check_weather': 'weather'         // 天气查询（wttr.in）
+        'check_weather': 'weather',        // 天气查询（wttr.in）
+        'open_app': 'system-control',      // 打开应用
+        'open_folder': 'system-control',   // 打开文件夹
+        'lock_screen': 'system-control',   // 锁定屏幕
+        'shutdown_computer': 'system-control', // 关机
+        'restart_computer': 'system-control',  // 重启
+        'cancel_shutdown': 'system-control',   // 取消关机
+        'sleep_computer': 'system-control',    // 休眠
+        'empty_recycle_bin': 'system-control'  // 清空回收站
       };
 
       const skillId = intentToSkillMap[intent.intent];
@@ -356,6 +333,28 @@ export class TaskExecutor {
       
       if (intent.intent === 'check_weather') {
         params.location = intent.slots.location || '北京';
+      }
+
+      // 系统控制意图的参数映射
+      if (skillId === 'system-control') {
+        const actionMap: Record<string, string> = {
+          'open_app': 'open-app',
+          'open_folder': 'open-folder',
+          'lock_screen': 'lock-screen',
+          'shutdown_computer': 'shutdown',
+          'restart_computer': 'restart',
+          'cancel_shutdown': 'cancel-shutdown',
+          'sleep_computer': 'sleep',
+          'empty_recycle_bin': 'empty-recycle'
+        };
+        
+        params.action = actionMap[intent.intent];
+        
+        if (intent.intent === 'open_app') {
+          params.target = intent.slots.appName;
+        } else if (intent.intent === 'open_folder') {
+          params.target = intent.slots.folderName;
+        }
       }
 
       console.log(`📡 调用技能: ${skillId}`, params);

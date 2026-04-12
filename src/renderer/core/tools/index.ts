@@ -360,6 +360,370 @@ export const wttrWeatherTool: ToolDefinition = {
 };
 
 // ============================================================
+// 系统控制工具
+// ============================================================
+
+/**
+ * 打开应用
+ */
+export const openAppTool: ToolDefinition = {
+  id: 'system.open-app',
+  name: '打开应用',
+  description: '通过系统命令打开指定的应用程序',
+  category: 'system',
+  params: [
+    {
+      name: 'appName',
+      type: 'string',
+      required: true,
+      description: '应用名称'
+    }
+  ],
+  execute: async (params) => {
+    const startTime = Date.now();
+    
+    try {
+      const appName = params.appName;
+      
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.systemOpenApp) {
+        const result = await (window as any).electronAPI.systemOpenApp(appName);
+        
+        return {
+          success: result.success,
+          data: { appName, result },
+          executionTime: Date.now() - startTime
+        };
+      } else {
+        return {
+          success: false,
+          error: '系统控制 API 不可用',
+          executionTime: Date.now() - startTime
+        };
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || '打开应用失败',
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
+};
+
+/**
+ * 打开文件夹
+ */
+export const openFolderTool: ToolDefinition = {
+  id: 'system.open-folder',
+  name: '打开文件夹',
+  description: '打开指定的文件夹',
+  category: 'system',
+  params: [
+    {
+      name: 'folderName',
+      type: 'string',
+      required: true,
+      description: '文件夹名称'
+    }
+  ],
+  execute: async (params) => {
+    const startTime = Date.now();
+    
+    try {
+      const folderName = params.folderName;
+      
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.systemOpenFolder) {
+        const result = await (window as any).electronAPI.systemOpenFolder(folderName);
+        
+        return {
+          success: result.success,
+          data: { folderName, result },
+          executionTime: Date.now() - startTime
+        };
+      } else {
+        return {
+          success: false,
+          error: '系统控制 API 不可用',
+          executionTime: Date.now() - startTime
+        };
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || '打开文件夹失败',
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
+};
+
+/**
+ * 锁定屏幕
+ */
+export const lockScreenTool: ToolDefinition = {
+  id: 'system.lock-screen',
+  name: '锁定屏幕',
+  description: '锁定当前用户的屏幕',
+  category: 'system',
+  params: [],
+  execute: async () => {
+    const startTime = Date.now();
+    
+    try {
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.systemLockScreen) {
+        const result = await (window as any).electronAPI.systemLockScreen();
+        
+        return {
+          success: result.success,
+          data: { result },
+          executionTime: Date.now() - startTime
+        };
+      } else {
+        return {
+          success: false,
+          error: '系统控制 API 不可用',
+          executionTime: Date.now() - startTime
+        };
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || '锁定屏幕失败',
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
+};
+
+/**
+ * 关机
+ */
+export const shutdownTool: ToolDefinition = {
+  id: 'system.shutdown',
+  name: '关机',
+  description: '关闭电脑',
+  category: 'system',
+  params: [],
+  execute: async () => {
+    const startTime = Date.now();
+    
+    try {
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.systemShutdown) {
+        const result = await (window as any).electronAPI.systemShutdown();
+        
+        return {
+          success: result.success,
+          data: { result },
+          executionTime: Date.now() - startTime
+        };
+      } else {
+        return {
+          success: false,
+          error: '系统控制 API 不可用',
+          executionTime: Date.now() - startTime
+        };
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || '关机失败',
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
+};
+
+/**
+ * 重启
+ */
+export const restartTool: ToolDefinition = {
+  id: 'system.restart',
+  name: '重启',
+  description: '重启电脑',
+  category: 'system',
+  params: [],
+  execute: async () => {
+    const startTime = Date.now();
+    
+    try {
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.systemRestart) {
+        const result = await (window as any).electronAPI.systemRestart();
+        
+        return {
+          success: result.success,
+          data: { result },
+          executionTime: Date.now() - startTime
+        };
+      } else {
+        return {
+          success: false,
+          error: '系统控制 API 不可用',
+          executionTime: Date.now() - startTime
+        };
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || '重启失败',
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
+};
+
+/**
+ * 取消关机
+ */
+export const cancelShutdownTool: ToolDefinition = {
+  id: 'system.cancel-shutdown',
+  name: '取消关机',
+  description: '取消正在进行的关机或重启操作',
+  category: 'system',
+  params: [],
+  execute: async () => {
+    const startTime = Date.now();
+    
+    try {
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.systemCancelShutdown) {
+        const result = await (window as any).electronAPI.systemCancelShutdown();
+        
+        return {
+          success: result.success,
+          data: { result },
+          executionTime: Date.now() - startTime
+        };
+      } else {
+        return {
+          success: false,
+          error: '系统控制 API 不可用',
+          executionTime: Date.now() - startTime
+        };
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || '取消关机失败',
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
+};
+
+/**
+ * 休眠
+ */
+export const sleepTool: ToolDefinition = {
+  id: 'system.sleep',
+  name: '休眠',
+  description: '使电脑进入休眠状态',
+  category: 'system',
+  params: [],
+  execute: async () => {
+    const startTime = Date.now();
+    
+    try {
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.systemSleep) {
+        const result = await (window as any).electronAPI.systemSleep();
+        
+        return {
+          success: result.success,
+          data: { result },
+          executionTime: Date.now() - startTime
+        };
+      } else {
+        return {
+          success: false,
+          error: '系统控制 API 不可用',
+          executionTime: Date.now() - startTime
+        };
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || '休眠失败',
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
+};
+
+/**
+ * 清空回收站
+ */
+export const emptyRecycleBinTool: ToolDefinition = {
+  id: 'system.empty-recycle',
+  name: '清空回收站',
+  description: '清空系统回收站',
+  category: 'system',
+  params: [],
+  execute: async () => {
+    const startTime = Date.now();
+    
+    try {
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.systemEmptyRecycleBin) {
+        const result = await (window as any).electronAPI.systemEmptyRecycleBin();
+        
+        return {
+          success: result.success,
+          data: { result },
+          executionTime: Date.now() - startTime
+        };
+      } else {
+        return {
+          success: false,
+          error: '系统控制 API 不可用',
+          executionTime: Date.now() - startTime
+        };
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || '清空回收站失败',
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
+};
+
+/**
+ * 截图
+ */
+export const screenshotTool: ToolDefinition = {
+  id: 'system.screenshot',
+  name: '截图',
+  description: '截取当前屏幕的截图',
+  category: 'system',
+  params: [],
+  execute: async () => {
+    const startTime = Date.now();
+    
+    try {
+      if (typeof window !== 'undefined' && (window as any).electronAPI?.screenshotTake) {
+        const result = await (window as any).electronAPI.screenshotTake();
+        
+        return {
+          success: result.success,
+          data: { result },
+          executionTime: Date.now() - startTime
+        };
+      } else {
+        return {
+          success: false,
+          error: '系统控制 API 不可用',
+          executionTime: Date.now() - startTime
+        };
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || '截图失败',
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
+};
+
+// ============================================================
 // 导出所有工具
 // ============================================================
 
@@ -374,7 +738,18 @@ export const allTools: ToolDefinition[] = [
   // 网络工具
   httpGetTool,
   searxngSearchTool,
-  wttrWeatherTool
+  wttrWeatherTool,
+  
+  // 系统工具
+  openAppTool,
+  openFolderTool,
+  lockScreenTool,
+  shutdownTool,
+  restartTool,
+  cancelShutdownTool,
+  sleepTool,
+  emptyRecycleBinTool,
+  screenshotTool
 ];
 
 /**

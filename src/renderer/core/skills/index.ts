@@ -33,11 +33,13 @@ async function getSkills(): Promise<SkillDefinition[]> {
     const searchWebModule = await import('./search-web/index');
     const weatherModule = await import('./weather/index');
     const universalControlModule = await import('./universal-control/index');
+    const systemControlModule = await import('./system-control/index');
     
     const searchBrowserSkill = searchBrowserModule.default || searchBrowserModule.searchBrowserSkill;
     const searchWebSkill = searchWebModule.default || searchWebModule.searchWebSkill;
     const weatherSkill = weatherModule.default || weatherModule.weatherSkill;
     const universalControlSkill = universalControlModule.default || universalControlModule.universalControlSkill;
+    const systemControlSkill = systemControlModule.default || systemControlModule.systemControlSkill;
     
     allSkills = [
       // 搜索相关技能
@@ -46,6 +48,9 @@ async function getSkills(): Promise<SkillDefinition[]> {
       
       // 天气相关技能
       weatherSkill,
+      
+      // 系统控制技能
+      systemControlSkill,
       
       // 🎮 通用应用控制技能（替代多个独立技能）
       universalControlSkill
