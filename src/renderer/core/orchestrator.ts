@@ -1,24 +1,21 @@
 // ==========================================
 // 核心协调器
-// 整合四层架构，处理完整的交互流程
+// 实现 Function Calling 架构的 Agent 循环
 // 支持流式输出（打字机效果）
 // ==========================================
 
 import type {
   Message,
-  SessionId,
-  StructuredIntent,
-  ExecutionPlan
+  SessionId
 } from '../types';
 
 import { getVoiceGatewayManager } from './layer1-gateway';
 import { getBrainManager } from './layer2-brain';
-import { getTaskPlannerManager } from './layer3-planner';
-import { getTaskExecutorManager } from './layer4-executor';
 import { getQiyuanSystemPrompt, DEFAULT_QIYUAN_SETTINGS } from './qiyuanSettings';
-import { sendMessageToDoubao, sendMessageToDoubaoStream } from '../services/doubaoApiClient';
 import { getMemoryService } from '../services/memoryServiceClient';
 import { tryExtractAndSaveMemory } from './utils/memoryExtractor';
+import { toolDefinitions } from './tools/toolDefinitions';
+import { executeTool } from './tools/toolExecutor';
 
 
 /**
@@ -40,13 +37,12 @@ export interface StreamCallbacks {
 export class Orchestrator {
   private voiceGateway = getVoiceGatewayManager();
   private brain = getBrainManager();
-  private taskPlanner = getTaskPlannerManager();
-  private taskExecutor = getTaskExecutorManager();
   private memoryService = getMemoryService();
   private sessionId: SessionId;
   private onMessageCallback: ((message: Message) => void) | null = null;
   private streamCallbacks: StreamCallbacks | null = null; // 流式回调
   private isVoiceMode: boolean = false;
+  private conversationHistory: any[] = [];
 
   constructor() {
     this.sessionId = this.generateSessionId();
@@ -54,14 +50,13 @@ export class Orchestrator {
   }
 
   /**
-   * 初始化所有层
+   * 初始化
    */
   private async initialize(): Promise<void> {
     console.log('🚀 启源 AI 助手启动中...');
     
     this.voiceGateway.initialize(this.sessionId);
     this.brain.initialize(this.sessionId);
-    this.taskPlanner.initialize();
 
     // 设置语音消息回调
     this.voiceGateway.onMessage((text) => {
@@ -87,7 +82,7 @@ export class Orchestrator {
   }
 
   /**
-   * 处理文本输入（默认使用流式输出）
+   * 处理文本输入（使用 Function Calling 架构）
    * @param text 用户输入的文本
    * @param isTextInput 是否是文字输入（默认为true）
    */
@@ -116,123 +111,80 @@ export class Orchestrator {
     }
 
     try {
-      // 2. 大脑层处理 - 意图识别
-      const structuredIntent = await this.brain.processInput(text, this.sessionId);
+      // 2. 构建消息历史
+      this.conversationHistory.push({ role: 'user', content: text });
 
-      if (!structuredIntent) {
-        await this.sendAssistantMessage('抱歉，我无法理解您的请求，请尝试重新表述。');
-        return;
+      // 3. Agent 循环（Function Calling）
+      const messageId = this.generateMessageId();
+      let accumulatedContent = '';
+
+      const assistantMessage: Message = {
+        id: messageId,
+        role: 'assistant',
+        content: '', // 初始为空
+        timestamp: Date.now(),
+        sessionId: this.sessionId,
+        isTTS: true,
+        isStreaming: true // 标记为流式消息
+      };
+
+      // 通知 UI：流式开始
+      if (this.streamCallbacks) {
+        this.streamCallbacks.onStreamStart(assistantMessage);
+      } else if (this.onMessageCallback) {
+        // 如果没有设置流式回退到普通回调
+        this.onMessageCallback(assistantMessage);
       }
 
-      if (structuredIntent.needAsk && structuredIntent.askQuestion) {
-        await this.sendAssistantMessage(structuredIntent.askQuestion);
-        return;
-      }
+      // 4. 执行 Agent 循环
+      const MAX_TOOL_ROUNDS = 5;
+      let round = 0;
+      let finalResponse = '';
 
-      // 3. 清单层 - 创建执行计划
-      const executionPlan = this.taskPlanner.createPlan(structuredIntent);
+      while (round < MAX_TOOL_ROUNDS) {
+        round++;
 
-      // 4. 执行计划（使用流式输出）
-      await this.executePlanWithStream(executionPlan, structuredIntent);
-    } catch (error) {
-      console.error('❌ 处理输入失败:', error);
-      await this.sendAssistantMessage('处理您的请求时出现错误，请稍后重试。');
-    }
-  }
+        // 调用豆包 API（带工具定义）
+        const response = await this.callDoubaoWithTools();
 
-  /**
-   * 使用流式方式执行计划并输出回复
-   */
-  private async executePlanWithStream(
-    executionPlan: ExecutionPlan,
-    structuredIntent: StructuredIntent
-  ): Promise<void> {
-    const executionIntents = [
-      'open_app', 'open_folder', 'lock_screen', 'check_time',
-      'check_weather', 'search_web', 'shutdown_computer', 'restart_computer',
-      'cancel_shutdown', 'sleep_computer', 'empty_recycle_bin'
-    ];
+        // 检查是否有工具调用
+        const message = response.choices[0].message;
+        this.conversationHistory.push(message);
 
-    if (executionIntents.includes(structuredIntent.intent)) {
-      await this.taskExecutor.executePlan(
-        executionPlan,
-        structuredIntent,
-        async (msg: string) => {
-          await this.sendAssistantMessage(msg);
+        if (!message.tool_calls) {
+          // 没有工具调用 → 返回最终文本回复
+          finalResponse = message.content || '';
+          break;
         }
-      );
-      if (structuredIntent.rawText) {
-        try {
-          const lastMessage = this.brain.getHistory(this.sessionId).slice(-1)[0];
-          if (lastMessage && lastMessage.role === 'assistant') {
-            await tryExtractAndSaveMemory(structuredIntent.rawText, lastMessage.content);
-          }
-        } catch (memoryError) {
-          console.error('❌ 提取记忆失败:', memoryError);
+
+        // 执行所有工具调用
+        for (const toolCall of message.tool_calls) {
+          const toolName = toolCall.function.name;
+          const toolArgs = JSON.parse(toolCall.function.arguments);
+
+          console.log(`🔧 执行工具: ${toolName}(${JSON.stringify(toolArgs)})`);
+
+          const result = await executeTool(toolName, toolArgs);
+          console.log(`🔧 工具结果: ${result.success ? '成功' : '失败'} - ${result.data || result.error}`);
+
+          // 将工具结果回传
+          this.conversationHistory.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(result)
+          });
         }
       }
-      return;
-    }
 
-    const messageId = this.generateMessageId();
-    let accumulatedContent = '';
+      // 流式输出最终回复
+      accumulatedContent = finalResponse || '抱歉，处理超时了，请再试一次。';
 
-    const assistantMessage: Message = {
-      id: messageId,
-      role: 'assistant',
-      content: '', // 初始为空
-      timestamp: Date.now(),
-      sessionId: this.sessionId,
-      isTTS: true,
-      isStreaming: true // 标记为流式消息
-    };
-
-    // 通知 UI：流式开始
-    if (this.streamCallbacks) {
-      this.streamCallbacks.onStreamStart(assistantMessage);
-    } else if (this.onMessageCallback) {
-      // 如果没有设置流式回退到普通回调
-      this.onMessageCallback(assistantMessage);
-    }
-
-    try {
-      // 获取历史消息用于 LLM 调用
-      const history = this.brain.getHistory(this.sessionId)
-        .filter(m => m.role !== 'system')
-        .map(m => ({ role: m.role, content: m.content }));
-
-      // 使用流式 API 调用豆包
-      let systemPrompt = getQiyuanSystemPrompt();
-      const userInput = structuredIntent.rawText || '';
-
-      // 获取用户记忆并添加到系统提示词中
-      const memoryPrompt = await this.memoryService.getMemoryPrompt();
-      if (memoryPrompt) {
-        systemPrompt = `${systemPrompt}\n\n【用户记忆（重要！请务必参考）】\n${memoryPrompt}`;
-      }
-
-      if (!userInput.trim()) {
-        throw new Error('空输入');
-      }
-
-      for await (const chunk of sendMessageToDoubaoStream(
-        userInput,
-        history,
-        systemPrompt
-      )) {
-        accumulatedContent += chunk;
-
-        // 通知 UI：收到新的 token
-        if (this.streamCallbacks) {
-          this.streamCallbacks.onStreamChunk(messageId, accumulatedContent);
-        }
+      // 通知 UI：收到新的 token
+      if (this.streamCallbacks) {
+        this.streamCallbacks.onStreamChunk(messageId, accumulatedContent);
       }
 
       // 流式结束，保存完整消息
-      if (!accumulatedContent.trim()) {
-        accumulatedContent = '抱歉，我无法生成回复，请稍后重试。';
-      }
-
       assistantMessage.content = accumulatedContent;
       delete (assistantMessage as any).isStreaming; // 移除流式标记
       
@@ -248,34 +200,78 @@ export class Orchestrator {
 
       // 尝试从对话中提取重要信息并存入记忆
       try {
-        await tryExtractAndSaveMemory(structuredIntent.rawText || '', accumulatedContent);
+        await tryExtractAndSaveMemory(text, accumulatedContent);
       } catch (memoryError) {
         console.error('❌ 提取记忆失败:', memoryError);
         // 提取记忆失败不影响聊天，所以不抛出错误
       }
 
     } catch (error) {
-      console.error('❌ 流式执行失败，尝试非流式模式:', error);
-      
-      // 通知 UI 流式结束（出错）
-      if (this.streamCallbacks) {
-        this.streamCallbacks.onStreamEnd(messageId);
-      }
-      
-      // 降级为非流式模式
-      try {
-        await this.taskExecutor.executePlan(
-          executionPlan,
-          structuredIntent,
-          async (content: string) => {
-            await this.sendAssistantMessage(content);
-          }
-        );
-      } catch (execError) {
-        console.error('❌ 非流式执行也失败:', execError);
-        await this.sendAssistantMessage('处理您的请求时出现错误，请稍后重试。');
-      }
+      console.error('❌ 处理输入失败:', error);
+      await this.sendAssistantMessage('处理您的请求时出现错误，请稍后重试。');
     }
+  }
+
+  /**
+   * 调用豆包 API（带 Function Calling）
+   */
+  private async callDoubaoWithTools(): Promise<any> {
+    const systemPrompt = await this.buildSystemPrompt();
+
+    // 豆包 API 地址（Function Calling）
+    const ARK_API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
+
+    // 获取 API Key 和 Model ID（从配置或环境变量）
+    const getApiKey = () => {
+      // 这里应该从配置中获取，暂时返回空字符串
+      return '';
+    };
+
+    const getModelId = () => {
+      // 这里应该从配置中获取，暂时返回默认值
+      return 'ep-20260412181248-2j5fc';
+    };
+
+    const response = await fetch(ARK_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getApiKey()}`
+      },
+      body: JSON.stringify({
+        model: getModelId(),
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...this.conversationHistory
+        ],
+        tools: toolDefinitions,
+        stream: false
+      })
+    });
+
+    return await response.json();
+  }
+
+  /**
+   * 构建系统提示词（技能描述 + 用户记忆）
+   */
+  private async buildSystemPrompt(): Promise<string> {
+    const memoryPrompt = await this.memoryService.getMemoryPrompt();
+
+    return `${getQiyuanSystemPrompt()}
+
+${memoryPrompt || ''}
+
+【工具使用指引】
+你可以使用以下工具来帮助用户：
+- exec_command：执行系统命令（打开/关闭应用、查看进程、系统信息等）
+- read_file / write_file：读写文件
+- web_search：搜索互联网
+- clipboard_read / clipboard_write：读写剪贴板
+- screenshot：截取屏幕
+- open_app：打开应用或网页
+
+根据用户需求选择合适的工具。不需要工具时直接回复。工具执行失败时友好地告诉用户。`;
   }
 
   /**

@@ -10,6 +10,38 @@ contextBridge.exposeInMainWorld('electronAPI', {
   httpProxy: async (options: any) => {
     return ipcRenderer.invoke('http-proxy', options);
   },
+  // 执行系统命令
+  execCommand: async (command: string) => {
+    return ipcRenderer.invoke('exec-command', command);
+  },
+  // 读取文件
+  readFile: async (path: string) => {
+    return ipcRenderer.invoke('read-file', path);
+  },
+  // 写入文件
+  writeFile: async (path: string, content: string) => {
+    return ipcRenderer.invoke('write-file', path, content);
+  },
+  // 网页搜索
+  webSearch: async (query: string) => {
+    return ipcRenderer.invoke('web-search', query);
+  },
+  // 读取剪贴板
+  clipboardRead: async () => {
+    return ipcRenderer.invoke('clipboard-read');
+  },
+  // 写入剪贴板
+  clipboardWrite: async (text: string) => {
+    return ipcRenderer.invoke('clipboard-write', text);
+  },
+  // 屏幕截图
+  screenshot: async () => {
+    return ipcRenderer.invoke('screenshot');
+  },
+  // 打开应用
+  openApp: async (target: string) => {
+    return ipcRenderer.invoke('open-app', target);
+  },
   // 系统控制 - 打开应用
   systemOpenApp: async (appName: string) => {
     return ipcRenderer.invoke('system-open-app', appName);
@@ -120,6 +152,15 @@ declare global {
   interface Window {
     electronAPI: {
       httpProxy: (options: any) => Promise<{ success: boolean; status?: number; headers?: any; data?: string; error?: string; isBinary?: boolean }>;
+      // 新的工具 API
+      execCommand: (command: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      readFile: (path: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      writeFile: (path: string, content: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      webSearch: (query: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      clipboardRead: () => Promise<{ success: boolean; data?: string; error?: string }>;
+      clipboardWrite: (text: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      screenshot: () => Promise<{ success: boolean; data?: string; error?: string }>;
+      openApp: (target: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       systemOpenApp: (appName: string) => Promise<{ success: boolean; message: string }>;
       systemOpenFolder: (folderName: string) => Promise<{ success: boolean; message: string }>;
       systemLockScreen: () => Promise<{ success: boolean; message: string }>;

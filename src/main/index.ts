@@ -4,7 +4,8 @@ if (process.env.NODE_ENV === 'development') {
     require('electron-reloader')(module);
   } catch (_) {}
 }
-import { app, BrowserWindow, Menu, ipcMain } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, clipboard, desktopCapturer, shell } from 'electron'
+import { exec } from 'child_process'
 import path from 'path'
 import http from 'http'
 import https from 'https'
@@ -617,6 +618,123 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
+
+// ========== 新的工具 IPC Handler ==========
+
+// exec_command — 执行系统命令（带安全限制和超时）
+ipcMain.handle('exec-command', async (_event, command: string) => {
+  // 危险命令黑名单
+  const blocked = ['format ', 'del /f', 'del /s', 'rm -rf', 'rd /s', 'diskpart', 'mkfs'];
+  const cmdLower = command.toLowerCase();
+  if (blocked.some(b => cmdLower.includes(b))) {
+    return { success: false, error: `命令被安全策略拦截: ${command}` };
+  }
+
+  return new Promise((resolve) => {
+    exec(command, { timeout: 15000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        resolve({ success: false, error: stderr || error.message });
+      } else {
+        resolve({ success: true, data: stdout.trim() });
+      }
+    });
+  });
+});
+
+// read_file — 读取文件
+ipcMain.handle('read-file', async (_event, filePath: string) => {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return { success: true, data: content };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// write_file — 写入文件
+ipcMain.handle('write-file', async (_event, filePath: string, content: string) => {
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return { success: true, data: `文件已保存: ${filePath}` };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// web_search — 搜索网页（使用 SearXNG 或百度搜索）
+ipcMain.handle('web-search', async (_event, query: string) => {
+  try {
+    // 优先用 SearXNG，失败则用百度搜索
+    try {
+      const response = await fetch(`http://localhost:8888/search?q=${encodeURIComponent(query)}&format=json`);
+      const data = await response.json();
+      const results = (data.results || []).slice(0, 5)
+        .map((r: any) => `${r.title}: ${r.content || r.url}`)
+        .join('\n');
+      return { success: true, data: results || '未找到相关结果' };
+    } catch {
+      // SearXNG 不可用，打开浏览器搜索
+      shell.openExternal(`https://www.bing.com/search?q=${encodeURIComponent(query)}`);
+      return { success: true, data: `已在浏览器中打开搜索: ${query}` };
+    }
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// clipboard_read — 读取剪贴板
+ipcMain.handle('clipboard-read', async () => {
+  try {
+    const text = clipboard.readText();
+    return { success: true, data: text || '剪贴板为空' };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// clipboard_write — 写入剪贴板
+ipcMain.handle('clipboard-write', async (_event, text: string) => {
+  try {
+    clipboard.writeText(text);
+    return { success: true, data: '已复制到剪贴板' };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// screenshot — 屏幕截图
+ipcMain.handle('screenshot', async () => {
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1280, height: 720 }
+    });
+    const image = sources[0].thumbnail.toDataURL('image/png');
+    return { success: true, data: image };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// open_app — 打开应用或网页
+ipcMain.handle('open-app', async (_event, target: string) => {
+  try {
+    // 检查是否为 URL
+    if (target.startsWith('http://') || target.startsWith('https://')) {
+      await shell.openExternal(target);
+      return { success: true, data: `已打开网页: ${target}` };
+    } else {
+      // 否则尝试打开应用
+      const systemControlService = getSystemControlService();
+      const result = await systemControlService.openApp(target);
+      return { success: result.success, data: result.message };
+    }
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
 
 app.on('activate', () => {
   if (mainWindow === null) {
