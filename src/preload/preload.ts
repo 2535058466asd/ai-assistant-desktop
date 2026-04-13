@@ -42,38 +42,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openApp: async (target: string) => {
     return ipcRenderer.invoke('open-app', target);
   },
-  // 系统控制 - 打开应用
-  systemOpenApp: async (appName: string) => {
-    return ipcRenderer.invoke('system-open-app', appName);
-  },
-  // 系统控制 - 打开文件夹
-  systemOpenFolder: async (folderName: string) => {
-    return ipcRenderer.invoke('system-open-folder', folderName);
-  },
-  // 系统控制 - 锁定屏幕
-  systemLockScreen: async () => {
-    return ipcRenderer.invoke('system-lock-screen');
-  },
-  // 系统控制 - 关机
-  systemShutdown: async () => {
-    return ipcRenderer.invoke('system-shutdown');
-  },
-  // 系统控制 - 重启
-  systemRestart: async () => {
-    return ipcRenderer.invoke('system-restart');
-  },
-  // 系统控制 - 取消关机/重启
-  systemCancelShutdown: async () => {
-    return ipcRenderer.invoke('system-cancel-shutdown');
-  },
-  // 系统控制 - 休眠
-  systemSleep: async () => {
-    return ipcRenderer.invoke('system-sleep');
-  },
-  // 系统控制 - 清空回收站
-  systemEmptyRecycleBin: async () => {
-    return ipcRenderer.invoke('system-empty-recycle-bin');
-  },
   // 记忆服务 - 设置偏好
   memorySetPreference: async (key: string, value: any) => {
     return ipcRenderer.invoke('memory-set-preference', key, value);
@@ -161,14 +129,6 @@ declare global {
       clipboardWrite: (text: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       screenshot: () => Promise<{ success: boolean; data?: string; error?: string }>;
       openApp: (target: string) => Promise<{ success: boolean; data?: string; error?: string }>;
-      systemOpenApp: (appName: string) => Promise<{ success: boolean; message: string }>;
-      systemOpenFolder: (folderName: string) => Promise<{ success: boolean; message: string }>;
-      systemLockScreen: () => Promise<{ success: boolean; message: string }>;
-      systemShutdown: () => Promise<{ success: boolean; message: string }>;
-      systemRestart: () => Promise<{ success: boolean; message: string }>;
-      systemCancelShutdown: () => Promise<{ success: boolean; message: string }>;
-      systemSleep: () => Promise<{ success: boolean; message: string }>;
-      systemEmptyRecycleBin: () => Promise<{ success: boolean; message: string }>;
       memorySetPreference: (key: string, value: any) => Promise<void>;
       memoryGetPreference: (key: string) => Promise<any>;
       memoryGetAllPreferences: () => Promise<any>;

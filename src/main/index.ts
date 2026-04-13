@@ -6,11 +6,13 @@ if (process.env.NODE_ENV === 'development') {
 }
 import { app, BrowserWindow, Menu, ipcMain, clipboard, desktopCapturer, shell } from 'electron'
 import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 import path from 'path'
 import http from 'http'
 import https from 'https'
 import fs from 'fs'
-import { getSystemControlService } from './services/systemControl'
 import { getMemoryService } from './services/memoryServiceBackend'
 import { getScreenshotService } from './services/screenshotService'
 import { getTTSService } from './services/tts/volcengineTTSWebSocketService'
@@ -324,53 +326,8 @@ ipcMain.handle('http-proxy', async (_event, options: any) => {
   });
 });
 
-const systemControlService = getSystemControlService();
 const memoryService = getMemoryService();
 const screenshotService = getScreenshotService();
-
-ipcMain.handle('system-open-app', async (_event, appName: string) => {
-  return await systemControlService.openApp(appName);
-});
-
-ipcMain.handle('system-open-folder', async (_event, folderName: string) => {
-  return await systemControlService.openFolder(folderName);
-});
-
-ipcMain.handle('system-lock-screen', async () => {
-  return await systemControlService.lockScreen();
-});
-
-ipcMain.handle('system-adjust-volume', async (_event, volume?: number, direction?: 'up' | 'down') => {
-  return await systemControlService.adjustVolume(volume, direction);
-});
-
-ipcMain.handle('system-toggle-mute', async (_event, action?: 'mute' | 'unmute') => {
-  return await systemControlService.toggleMute(action);
-});
-
-ipcMain.handle('system-search-web', async (_event, query: string) => {
-  return await systemControlService.searchWeb(query);
-});
-
-ipcMain.handle('system-shutdown', async () => {
-  return await systemControlService.shutdownComputer();
-});
-
-ipcMain.handle('system-restart', async () => {
-  return await systemControlService.restartComputer();
-});
-
-ipcMain.handle('system-cancel-shutdown', async () => {
-  return await systemControlService.cancelShutdown();
-});
-
-ipcMain.handle('system-sleep', async () => {
-  return await systemControlService.sleepComputer();
-});
-
-ipcMain.handle('system-empty-recycle-bin', async () => {
-  return await systemControlService.emptyRecycleBin();
-});
 
 ipcMain.handle('memory-set-preference', async (_event, key: string, value: any) => {
   memoryService.setPreference(key, value);
@@ -729,16 +686,22 @@ ipcMain.handle('screenshot', async () => {
 // open_app — 打开应用或网页
 ipcMain.handle('open-app', async (_event, target: string) => {
   try {
-    // 检查是否为 URL
+    // 是 URL → 用 shell 打开浏览器
     if (target.startsWith('http://') || target.startsWith('https://')) {
-      await shell.openExternal(target);
+      shell.openExternal(target);
       return { success: true, data: `已打开网页: ${target}` };
-    } else {
-      // 否则尝试打开应用
-      const systemControlService = getSystemControlService();
-      const result = await systemControlService.openApp(target);
-      return { success: result.success, data: result.message };
     }
+
+    // 是应用 → 用系统命令打开
+    const platform = process.platform;
+    if (platform === 'win32') {
+      exec(`start "" "${target}"`);
+    } else if (platform === 'darwin') {
+      exec(`open -a "${target}"`);
+    } else {
+      exec(`xdg-open "${target}"`);
+    }
+    return { success: true, data: `已打开: ${target}` };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
