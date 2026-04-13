@@ -100,6 +100,7 @@ export class SystemControlService {
         # 方法1: 尝试按名称启动
         try {
           Start-Process $appName -ErrorAction Stop
+          Write-Output "SUCCESS: 已成功启动 $appName"
           exit 0
         } catch {}
         
@@ -107,6 +108,7 @@ export class SystemControlService {
         $app = Get-StartApps | Where-Object { $_.Name -like "*$appName*" } | Select-Object -First 1
         if ($app) {
           Start-Process shell:AppsFolder\\$($app.AppId)
+          Write-Output "SUCCESS: 从开始菜单启动 $appName"
           exit 0
         }
         
@@ -115,9 +117,11 @@ export class SystemControlService {
         $shortcut = Get-ChildItem -Path $desktopPath -Filter "*.lnk" | Where-Object { $_.Name -like "*$appName*" } | Select-Object -First 1
         if ($shortcut) {
           Start-Process $shortcut.FullName
+          Write-Output "SUCCESS: 从桌面快捷方式启动 $appName"
           exit 0
         }
         
+        Write-Output "ERROR: 未找到应用 $appName"
         exit 1
       `;
       
@@ -126,8 +130,16 @@ export class SystemControlService {
         { timeout: 10000 }
       );
       
-      console.log('✅ PowerShell 启动成功');
-      return { success: true, message: `已成功打开 ${appName} 😊` };
+      console.log('PowerShell 输出:', stdout);
+      console.log('PowerShell 错误:', stderr);
+      
+      if (stdout.includes('SUCCESS:')) {
+        console.log('✅ PowerShell 启动成功');
+        return { success: true, message: `已成功打开 ${appName} 😊` };
+      } else {
+        console.log('❌ PowerShell 未找到应用');
+        throw new Error(`PowerShell 未找到应用: ${appName}`);
+      }
       
     } catch (e: any) {
       console.log('❌ PowerShell 启动失败:', e.message);
