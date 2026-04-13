@@ -26,22 +26,26 @@ export function registerWebSearch() {
     try {
       // 方案1: SearXNG（本地自建搜索，最佳体验）
       try {
+        console.log(`🔍 [web_search] 方案1: 尝试 SearXNG...`);
         const response = await fetch(`http://localhost:8888/search?q=${encodeURIComponent(query)}&format=json`, {
           signal: AbortSignal.timeout(8000)
         });
+        console.log(`🔍 [web_search] SearXNG 响应状态: ${response.status}`);
         if (response.ok) {
           const data: any = await response.json();
           const results = (data.results || []).slice(0, 8)
             .map((r: any, i: number) => `[${i + 1}] ${r.title}\n    ${r.content || ''}\n    ${r.url}`)
             .join('\n\n');
+          console.log(`🔍 [web_search] SearXNG 返回 ${data.results?.length || 0} 条结果`);
           return { success: true, data: results || '未找到相关结果' };
         }
-      } catch {
-        // SearXNG 不可用，尝试方案2
+      } catch (e: any) {
+        console.log(`🔍 [web_search] SearXNG 失败: ${e.message}`);
       }
 
       // 方案2: 百度搜索抓取（国内最稳定）
       try {
+        console.log(`🔍 [web_search] 方案2: 尝试百度搜索...`);
         const bdResponse = await fetch(`https://www.baidu.com/s?wd=${encodeURIComponent(query)}`, {
           signal: AbortSignal.timeout(10000),
           headers: {
@@ -49,6 +53,7 @@ export function registerWebSearch() {
             'Accept-Language': 'zh-CN,zh;q=0.9',
           }
         });
+        console.log(`🔍 [web_search] 百度响应状态: ${bdResponse.status}`);
         if (bdResponse.ok) {
           const html = await bdResponse.text();
           const results: string[] = [];
@@ -67,12 +72,13 @@ export function registerWebSearch() {
             return { success: true, data: results.join('\n\n') };
           }
         }
-      } catch {
-        // 百度也失败，尝试方案3
+      } catch (e: any) {
+        console.log(`🔍 [web_search] 百度失败: ${e.message}`);
       }
 
       // 方案3: 必应国内版（cn.bing.com，国内可访问）
       try {
+        console.log(`🔍 [web_search] 方案3: 尝试必应国内版...`);
         const bingResponse = await fetch(`https://cn.bing.com/search?q=${encodeURIComponent(query)}`, {
           signal: AbortSignal.timeout(10000),
           headers: {
@@ -95,12 +101,13 @@ export function registerWebSearch() {
             return { success: true, data: results.join('\n\n') };
           }
         }
-      } catch {
-        // 必应也失败
+      } catch (e: any) {
+        console.log(`🔍 [web_search] 必应失败: ${e.message}`);
       }
 
       // 方案4: DuckDuckGo（海外环境兜底）
       try {
+        console.log(`🔍 [web_search] 方案4: 尝试 DuckDuckGo...`);
         const ddgResponse = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`, {
           signal: AbortSignal.timeout(8000),
           headers: { 'User-Agent': 'Mozilla/5.0' }
@@ -122,10 +129,11 @@ export function registerWebSearch() {
           }
           if (result) return { success: true, data: result };
         }
-      } catch {
-        // DuckDuckGo 也失败
+      } catch (e: any) {
+        console.log(`🔍 [web_search] DuckDuckGo 失败: ${e.message}`);
       }
 
+      console.log(`🔍 [web_search] 所有搜索方式均失败`);
       return { success: false, error: '所有搜索方式均失败，请检查网络连接' };
     } catch (error: any) {
       return { success: false, error: error.message };
