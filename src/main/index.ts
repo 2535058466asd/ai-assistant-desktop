@@ -7,6 +7,7 @@ if (process.env.NODE_ENV === 'development') {
 import { app, BrowserWindow, Menu, ipcMain, clipboard, desktopCapturer, shell } from 'electron'
 import { exec, execSync } from 'child_process'
 import { promisify } from 'util'
+import iconv from 'iconv-lite'
 
 const execAsync = promisify(exec)
 import path from 'path'
@@ -717,10 +718,13 @@ ipcMain.handle('open-app', async (_event, target: string) => {
         const userMenu = process.env.APPDATA || '';
         const publicMenu = process.env.ALLUSERSPROFILE || '';
         const searchCmd = `dir /s /b "${userMenu}\\Microsoft\\Windows\\Start Menu\\Programs\\*${target}*.lnk" 2>nul & dir /s /b "${publicMenu}\\Microsoft\\Windows\\Start Menu\\Programs\\*${target}*.lnk" 2>nul`;
-        const lnkResult = execSync(searchCmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+        // Windows cmd 输出是 GBK 编码，需要用 buffer 模式读取后转码
+        const lnkBuffer = execSync(searchCmd, { stdio: ['pipe', 'pipe', 'pipe'] });
+        const lnkResult = iconv.decode(lnkBuffer, 'gbk').trim();
         if (lnkResult) {
           const lnkPath = lnkResult.split('\n')[0].trim();
-          shell.openPath(lnkPath);
+          // 用 start 命令打开 .lnk 文件，避免 shell.openPath 的编码问题
+          execSync(`start "" "${lnkPath}"`, { stdio: 'ignore', timeout: 10000 });
           return { success: true, data: `已打开: ${target}（快捷方式: ${lnkPath}）` };
         }
       } catch {
