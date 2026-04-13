@@ -11,38 +11,53 @@ export interface ToolExecutionResult {
 }
 
 export async function executeTool(name: string, args: Record<string, any>): Promise<ToolExecutionResult> {
+  console.log(`🔧 [工具调用] ${name}(${JSON.stringify(args)})`);
   const api = (window as any).electronAPI;
 
   try {
+    let result: ToolExecutionResult;
+
     switch (name) {
       case 'exec_command':
-        return await api.execCommand(args.command);
+        result = await api.execCommand(args.command);
+        break;
 
       case 'read_file':
-        return await api.readFile(args.path);
+        result = await api.readFile(args.path);
+        break;
 
       case 'write_file':
-        return await api.writeFile(args.path, args.content);
+        result = await api.writeFile(args.path, args.content);
+        break;
 
       case 'web_search':
-        return await api.webSearch(args.query);
+        result = await api.webSearch(args.query);
+        break;
 
       case 'clipboard_read':
-        return await api.clipboardRead();
+        result = await api.clipboardRead();
+        break;
 
       case 'clipboard_write':
-        return await api.clipboardWrite(args.text);
+        result = await api.clipboardWrite(args.text);
+        break;
 
       case 'screenshot':
-        return await api.screenshot();
+        result = await api.screenshot();
+        break;
 
       case 'open_app':
-        return await api.openApp(args.target);
+        result = await api.openApp(args.target);
+        break;
 
       default:
-        return { success: false, error: `未知工具: ${name}` };
+        result = { success: false, error: `未知工具: ${name}` };
     }
+
+    console.log(`🔧 [工具结果] ${name}: ${result.success ? '✅成功' : '❌失败'} - ${JSON.stringify(result)}`);
+    return result;
   } catch (error: any) {
+    console.error(`🔧 [工具异常] ${name}: ${error.message}`);
     return { success: false, error: error.message };
   }
 }

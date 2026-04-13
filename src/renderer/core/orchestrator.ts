@@ -231,24 +231,30 @@ export class Orchestrator {
       return 'doubao-seed-2-0-pro-260215';
     };
 
+    const requestBody = {
+      model: getModelId(),
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...this.conversationHistory
+      ],
+      tools: toolDefinitions,
+      stream: false
+    };
+
+    console.log('📤 发送给豆包的请求:', JSON.stringify(requestBody, null, 2));
+
     const response = await fetch(ARK_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${getApiKey()}`
       },
-      body: JSON.stringify({
-        model: getModelId(),
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...this.conversationHistory
-        ],
-        tools: toolDefinitions,
-        stream: false
-      })
+      body: JSON.stringify(requestBody)
     });
 
-    return await response.json();
+    const responseJson = await response.json();
+    console.log('📥 豆包返回的响应:', JSON.stringify(responseJson, null, 2));
+    return responseJson;
   }
 
   /**

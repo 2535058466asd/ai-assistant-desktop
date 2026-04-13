@@ -633,9 +633,17 @@ ipcMain.handle('exec-command', async (_event, command: string) => {
   return new Promise((resolve) => {
     exec(command, { timeout: 15000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
       if (error) {
-        resolve({ success: false, error: stderr || error.message });
+        resolve({ 
+          success: false, 
+          error: error.message,
+          data: stderr || stdout || ''  // 即使失败也返回已有的输出
+        });
       } else {
-        resolve({ success: true, data: stdout.trim() });
+        resolve({ 
+          success: true, 
+          data: stdout.trim() || '(命令执行成功，无输出)',
+          stderr: stderr.trim() || undefined  // 附带 stderr 信息
+        });
       }
     });
   });
