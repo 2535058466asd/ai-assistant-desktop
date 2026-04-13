@@ -669,7 +669,7 @@ ipcMain.handle('web-search', async (_event, query: string) => {
     // 优先用 SearXNG，失败则用百度搜索
     try {
       const response = await fetch(`http://localhost:8888/search?q=${encodeURIComponent(query)}&format=json`);
-      const data = await response.json();
+      const data: any = await response.json();
       const results = (data.results || []).slice(0, 5)
         .map((r: any) => `${r.title}: ${r.content || r.url}`)
         .join('\n');
@@ -711,7 +711,7 @@ ipcMain.handle('screenshot', async () => {
       types: ['screen'],
       thumbnailSize: { width: 1280, height: 720 }
     });
-    const image = sources[0].thumbnail.toDataURL({ format: 'image/png' });
+    const image = sources[0].thumbnail.toDataURL({ format: 'png' });
     return { success: true, data: image };
   } catch (error: any) {
     return { success: false, error: error.message };
