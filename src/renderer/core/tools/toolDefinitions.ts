@@ -1,7 +1,7 @@
 /**
  * 启源 AI - 工具定义
- * 
- * 定义8个标准工具的JSON Schema，用于豆包API的tools字段
+ *
+ * 定义12个标准工具的JSON Schema，用于豆包API的tools字段
  */
 
 export const toolDefinitions = [
@@ -52,13 +52,72 @@ export const toolDefinitions = [
     type: "function",
     function: {
       name: "web_search",
-      description: "搜索互联网信息。当用户需要查询实时信息、新闻、知识、教程时使用。不适用于查天气。",
+      description: "搜索互联网信息。当用户需要查询实时信息、新闻、天气、知识、教程时使用。后台静默搜索，返回文字结果。",
       parameters: {
         type: "object",
         properties: {
           query: { type: "string", description: "搜索关键词" }
         },
         required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "web_fetch",
+      description: "抓取网页文字内容。当需要读取某个网页的具体内容时使用，传入URL即可获取网页纯文本。",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "网页URL地址" }
+        },
+        required: ["url"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_dir",
+      description: "列出目录中的文件和文件夹。当用户想查看某个文件夹里有什么时使用。",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "目录路径" }
+        },
+        required: ["path"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_files",
+      description: "按文件名搜索文件。当用户想找某个文件但不知道具体路径时使用，支持通配符如 *.txt。",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "搜索的根目录" },
+          pattern: { type: "string", description: "文件名模式，支持 * 和 ? 通配符，如 *.ts 或 report*" }
+        },
+        required: ["path", "pattern"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "grep_content",
+      description: "在文件中搜索指定文字内容。当用户想在文件里找某个关键词、某段代码时使用。",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "搜索的根目录" },
+          keyword: { type: "string", description: "要搜索的关键词" },
+          file_pattern: { type: "string", description: "可选，只搜索特定类型的文件，如 *.ts" }
+        },
+        required: ["path", "keyword"]
       }
     }
   },

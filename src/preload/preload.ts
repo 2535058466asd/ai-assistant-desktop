@@ -26,6 +26,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   webSearch: async (query: string) => {
     return ipcRenderer.invoke('web-search', query);
   },
+  // 抓取网页内容
+  webFetch: async (url: string) => {
+    return ipcRenderer.invoke('web-fetch', url);
+  },
+  // 列出目录内容
+  listDir: async (dirPath: string) => {
+    return ipcRenderer.invoke('list-dir', dirPath);
+  },
+  // 按文件名搜索文件
+  searchFiles: async (dirPath: string, pattern: string) => {
+    return ipcRenderer.invoke('search-files', dirPath, pattern);
+  },
+  // 按内容搜索文件
+  grepContent: async (dirPath: string, keyword: string, filePattern?: string) => {
+    return ipcRenderer.invoke('grep-content', dirPath, keyword, filePattern);
+  },
   // 读取剪贴板
   clipboardRead: async () => {
     return ipcRenderer.invoke('clipboard-read');
@@ -125,6 +141,10 @@ declare global {
       readFile: (path: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       writeFile: (path: string, content: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       webSearch: (query: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      webFetch: (url: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      listDir: (dirPath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      searchFiles: (dirPath: string, pattern: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      grepContent: (dirPath: string, keyword: string, filePattern?: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       clipboardRead: () => Promise<{ success: boolean; data?: string; error?: string }>;
       clipboardWrite: (text: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       screenshot: () => Promise<{ success: boolean; data?: string; error?: string }>;

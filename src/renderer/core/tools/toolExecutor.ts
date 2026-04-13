@@ -34,6 +34,22 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
         result = await api.webSearch(args.query);
         break;
 
+      case 'web_fetch':
+        result = await api.webFetch(args.url);
+        break;
+
+      case 'list_dir':
+        result = await api.listDir(args.path);
+        break;
+
+      case 'search_files':
+        result = await api.searchFiles(args.path, args.pattern);
+        break;
+
+      case 'grep_content':
+        result = await api.grepContent(args.path, args.keyword, args.file_pattern);
+        break;
+
       case 'clipboard_read':
         result = await api.clipboardRead();
         break;
