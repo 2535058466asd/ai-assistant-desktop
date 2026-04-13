@@ -711,7 +711,7 @@ ipcMain.handle('screenshot', async () => {
       types: ['screen'],
       thumbnailSize: { width: 1280, height: 720 }
     });
-    const image = sources[0].thumbnail.toDataURL({ format: 'png' });
+    const image = sources[0].thumbnail.toDataURL();
     return { success: true, data: image };
   } catch (error: any) {
     return { success: false, error: error.message };
