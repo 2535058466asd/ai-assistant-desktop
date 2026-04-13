@@ -683,25 +683,65 @@ ipcMain.handle('screenshot', async () => {
   }
 });
 
-// open_app — 打开应用或网页
+// open_app — 智能打开应用或网页
 ipcMain.handle('open-app', async (_event, target: string) => {
   try {
-    // 是 URL → 用 shell 打开浏览器
+    // 1. 是 URL → 用 shell 打开浏览器
     if (target.startsWith('http://') || target.startsWith('https://')) {
       shell.openExternal(target);
       return { success: true, data: `已打开网页: ${target}` };
     }
 
-    // 是应用 → 用系统命令打开（使用 execSync 确保能捕获错误）
-    const platform = process.platform;
-    if (platform === 'win32') {
-      execSync(`start "" "${target}"`, { stdio: 'ignore', timeout: 10000 });
-    } else if (platform === 'darwin') {
-      execSync(`open -a "${target}"`, { stdio: 'ignore', timeout: 10000 });
+    // 2. 查注册表 App Paths（Windows 专有）
+    if (process.platform === 'win32') {
+      try {
+        const { execSync } = require('child_process');
+        const regResult = execSync(
+          `reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${target}.exe" /ve`,
+          { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
+        );
+        // 从注册表结果中提取路径（格式：    (默认)    REG_SZ    C:\xxx\xxx.exe）
+        const match = regResult.match(/REG_SZ\s+(.+)/);
+        if (match && match[1]) {
+          const appPath = match[1].trim();
+          shell.openPath(appPath);
+          return { success: true, data: `已打开: ${target}（路径: ${appPath}）` };
+        }
+      } catch {
+        // 注册表没找到，继续下一步
+      }
+
+      // 3. 搜索开始菜单快捷方式
+      try {
+        const { execSync } = require('child_process');
+        const userMenu = process.env.APPDATA || '';
+        const publicMenu = process.env.ALLUSERSPROFILE || '';
+        const searchCmd = `dir /s /b "${userMenu}\\Microsoft\\Windows\\Start Menu\\Programs\\*${target}*.lnk" 2>nul & dir /s /b "${publicMenu}\\Microsoft\\Windows\\Start Menu\\Programs\\*${target}*.lnk" 2>nul`;
+        const lnkResult = execSync(searchCmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+        if (lnkResult) {
+          const lnkPath = lnkResult.split('\n')[0].trim();
+          shell.openPath(lnkPath);
+          return { success: true, data: `已打开: ${target}（快捷方式: ${lnkPath}）` };
+        }
+      } catch {
+        // 开始菜单也没找到，继续下一步
+      }
+
+      // 4. 兜底：直接 start
+      try {
+        execSync(`start "" "${target}"`, { stdio: 'ignore', timeout: 10000 });
+        return { success: true, data: `已打开: ${target}` };
+      } catch {
+        // start 也失败了
+      }
     } else {
-      execSync(`xdg-open "${target}"`, { stdio: 'ignore', timeout: 10000 });
+      // Mac / Linux
+      const cmd = process.platform === 'darwin' ? `open -a "${target}"` : `xdg-open "${target}"`;
+      execSync(cmd, { stdio: 'ignore', timeout: 10000 });
+      return { success: true, data: `已打开: ${target}` };
     }
-    return { success: true, data: `已打开: ${target}` };
+
+    return { success: false, error: `找不到应用: ${target}` };
   } catch (error: any) {
     return { success: false, error: `无法打开 "${target}": ${error.message}` };
   }
