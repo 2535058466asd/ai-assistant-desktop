@@ -1,11 +1,40 @@
-import { ipcMain } from 'electron'
+import { ipcMain, app } from 'electron'
 import fs from 'fs'
 import path from 'path'
+
+/**
+ * 解析路径：将常见的简写路径转换为实际路径
+ * ~/Desktop → 用户桌面
+ * ~/Documents → 用户文档
+ * ~/Downloads → 用户下载
+ * ~ → 用户主目录
+ */
+function resolvePath(filePath: string): string {
+  const home = app.getPath('home');
+  const desktop = app.getPath('desktop');
+  const documents = app.getPath('documents');
+  const downloads = app.getPath('downloads');
+
+  if (filePath.startsWith('~/Desktop') || filePath.startsWith('/Desktop')) {
+    return filePath.replace(/^~?\/Desktop/, desktop);
+  }
+  if (filePath.startsWith('~/Documents') || filePath.startsWith('/Documents')) {
+    return filePath.replace(/^~?\/Documents/, documents);
+  }
+  if (filePath.startsWith('~/Downloads') || filePath.startsWith('/Downloads')) {
+    return filePath.replace(/^~?\/Downloads/, downloads);
+  }
+  if (filePath.startsWith('~/')) {
+    return filePath.replace(/^~/, home);
+  }
+  return filePath;
+}
 
 // read_file — 读取文件
 export function registerReadFile() {
   ipcMain.handle('read-file', async (_event, filePath: string) => {
     try {
+      filePath = resolvePath(filePath);
       const content = fs.readFileSync(filePath, 'utf-8');
       return { success: true, data: content };
     } catch (error: any) {
@@ -18,6 +47,7 @@ export function registerReadFile() {
 export function registerWriteFile() {
   ipcMain.handle('write-file', async (_event, filePath: string, content: string) => {
     try {
+      filePath = resolvePath(filePath);
       const dir = path.dirname(filePath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(filePath, content, 'utf-8');
