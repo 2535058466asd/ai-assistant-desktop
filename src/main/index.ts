@@ -723,17 +723,17 @@ ipcMain.handle('open-app', async (_event, target: string) => {
         const lnkResult = iconv.decode(lnkBuffer, 'gbk').trim();
         if (lnkResult) {
           const lnkPath = lnkResult.split('\n')[0].trim();
-          // 用 start 命令打开 .lnk 文件，避免 shell.openPath 的编码问题
-          execSync(`start "" "${lnkPath}"`, { stdio: 'ignore', timeout: 10000 });
+          // 用 start 命令打开 .lnk 文件（stdio 用 pipe 防止弹错误框）
+          execSync(`start "" "${lnkPath}"`, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000 });
           return { success: true, data: `已打开: ${target}（快捷方式: ${lnkPath}）` };
         }
       } catch {
         // 开始菜单也没找到，继续下一步
       }
 
-      // 4. 兜底：直接 start
+      // 4. 兜底：直接 start（stdio 用 pipe 防止 Windows 弹错误框）
       try {
-        execSync(`start "" "${target}"`, { stdio: 'ignore', timeout: 10000 });
+        execSync(`start "" "${target}"`, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000 });
         return { success: true, data: `已打开: ${target}` };
       } catch {
         // start 也失败了
