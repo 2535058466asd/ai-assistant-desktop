@@ -731,9 +731,9 @@ ipcMain.handle('open-app', async (_event, target: string) => {
         // 开始菜单也没找到，继续下一步
       }
 
-      // 4. 兜底：直接 start（stdio 用 pipe 防止 Windows 弹错误框）
+      // 4. 兜底：直接 start（windowsHide 防止弹窗）
       try {
-        execSync(`start "" "${target}"`, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000 });
+        execSync(`start "" "${target}"`, { stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000, windowsHide: true });
         return { success: true, data: `已打开: ${target}` };
       } catch {
         // start 也失败了
