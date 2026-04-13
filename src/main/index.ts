@@ -5,7 +5,7 @@ if (process.env.NODE_ENV === 'development') {
   } catch (_) {}
 }
 import { app, BrowserWindow, Menu, ipcMain, clipboard, desktopCapturer, shell } from 'electron'
-import { exec } from 'child_process'
+import { exec, execSync } from 'child_process'
 import { promisify } from 'util'
 
 const execAsync = promisify(exec)
@@ -692,18 +692,18 @@ ipcMain.handle('open-app', async (_event, target: string) => {
       return { success: true, data: `已打开网页: ${target}` };
     }
 
-    // 是应用 → 用系统命令打开
+    // 是应用 → 用系统命令打开（使用 execSync 确保能捕获错误）
     const platform = process.platform;
     if (platform === 'win32') {
-      exec(`start "" "${target}"`);
+      execSync(`start "" "${target}"`, { stdio: 'ignore', timeout: 10000 });
     } else if (platform === 'darwin') {
-      exec(`open -a "${target}"`);
+      execSync(`open -a "${target}"`, { stdio: 'ignore', timeout: 10000 });
     } else {
-      exec(`xdg-open "${target}"`);
+      execSync(`xdg-open "${target}"`, { stdio: 'ignore', timeout: 10000 });
     }
     return { success: true, data: `已打开: ${target}` };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    return { success: false, error: `无法打开 "${target}": ${error.message}` };
   }
 });
 

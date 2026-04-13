@@ -104,11 +104,11 @@ export const toolDefinitions = [
     type: "function",
     function: {
       name: "open_app",
-      description: "打开应用程序或网页链接。当用户说'打开微信'、'帮我打开百度'时使用。",
+      description: "打开应用程序或网页链接。当用户说'打开微信'、'帮我打开百度'时使用。重要：target 参数必须使用实际的可执行文件名或命令名，不是中文名。例如：微信用 WeChat，记事本用 notepad，计算器用 calc，画图用 mspaint，浏览器用 msedge，文件管理器用 explorer，控制台用 cmd，VS Code 用 code。如果是 URL（以 http 或 https 开头）则直接打开浏览器。如果不确定文件名，可以先用 exec_command 执行 where 命令查找，例如 where WeChat。",
       parameters: {
         type: "object",
         properties: {
-          target: { type: "string", description: "应用名称或URL" }
+          target: { type: "string", description: "应用的可执行文件名（如 WeChat）或完整 URL（如 https://www.baidu.com）" }
         },
         required: ["target"]
       }
