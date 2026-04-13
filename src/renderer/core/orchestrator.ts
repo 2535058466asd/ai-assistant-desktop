@@ -16,6 +16,7 @@ import { getMemoryService } from '../services/memoryServiceClient';
 import { tryExtractAndSaveMemory } from './utils/memoryExtractor';
 import { toolDefinitions } from './tools/toolDefinitions';
 import { executeTool } from './tools/toolExecutor';
+import apiConfig from '../config/apiConfig';
 
 
 /**
@@ -223,13 +224,11 @@ export class Orchestrator {
 
     // 获取 API Key 和 Model ID（从配置或环境变量）
     const getApiKey = () => {
-      // 这里应该从配置中获取，暂时返回空字符串
-      return '16042349-2aaa-433a-b774-d9c416d08165';
+      return apiConfig.apiKey;
     };
 
     const getModelId = () => {
-      // 这里应该从配置中获取，暂时返回默认值
-      return 'ep-20260412181248-2j5fc';
+      return 'doubao-seed-2-0-pro-260215';
     };
 
     const response = await fetch(ARK_API_URL, {
