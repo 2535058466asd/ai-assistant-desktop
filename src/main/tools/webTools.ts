@@ -1,5 +1,25 @@
 import { ipcMain } from 'electron'
 
+/**
+ * 从 HTML 中提取搜索结果的通用函数
+ */
+function extractSearchResults(html: string, maxResults: number = 5): string[] {
+  const results: string[] = [];
+  // 通用正则：匹配 <a> 标签中的标题和链接，以及相邻的文本摘要
+  const regex = /<a[^>]*href="(https?:\/\/[^"]*)"[^>]*>(.*?)<\/a>[\s\S]*?(?:<span[^>]*>(.*?)<\/span>)?/gs;
+  let match;
+  while ((match = regex.exec(html)) !== null && results.length < maxResults) {
+    const url = match[1];
+    const title = match[2].replace(/<[^>]*>/g, '').trim();
+    const snippet = match[3] ? match[3].replace(/<[^>]*>/g, '').trim() : '';
+    // 过滤掉导航链接、空标题等噪音
+    if (title && title.length > 2 && !url.includes('bing.com') && !url.includes('baidu.com/link') && !url.includes('m.baidu.com')) {
+      results.push(`[${results.length + 1}] ${title}\n    ${snippet}\n    ${url}`);
+    }
+  }
+  return results;
+}
+
 // web_search — 后台静默搜索，返回文字结果（不打开浏览器）
 export function registerWebSearch() {
   ipcMain.handle('web-search', async (_event, query: string) => {
@@ -20,7 +40,66 @@ export function registerWebSearch() {
         // SearXNG 不可用，尝试方案2
       }
 
-      // 方案2: DuckDuckGo 即时回答 API（免费，无需 key）
+      // 方案2: 百度搜索抓取（国内最稳定）
+      try {
+        const bdResponse = await fetch(`https://www.baidu.com/s?wd=${encodeURIComponent(query)}`, {
+          signal: AbortSignal.timeout(10000),
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+          }
+        });
+        if (bdResponse.ok) {
+          const html = await bdResponse.text();
+          const results: string[] = [];
+          // 百度搜索结果格式：<h3 class="c-title"><a href="...">标题</a></h3>
+          const bdRegex = /<h3[^>]*class="[^"]*t[^"]*"[^>]*>[\s\S]*?<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h3>[\s\S]*?(?:<span[^>]*class="[^"]*content-right[^"]*"[^>]*>([\s\S]*?)<\/span>)?/gs;
+          let match;
+          while ((match = bdRegex.exec(html)) !== null && results.length < 5) {
+            const url = match[1];
+            const title = match[2].replace(/<[^>]*>/g, '').trim();
+            const snippet = match[3] ? match[3].replace(/<[^>]*>/g, '').trim() : '';
+            if (title && !url.includes('baidu.com/link')) {
+              results.push(`[${results.length + 1}] ${title}\n    ${snippet}\n    ${url}`);
+            }
+          }
+          if (results.length > 0) {
+            return { success: true, data: results.join('\n\n') };
+          }
+        }
+      } catch {
+        // 百度也失败，尝试方案3
+      }
+
+      // 方案3: 必应国内版（cn.bing.com，国内可访问）
+      try {
+        const bingResponse = await fetch(`https://cn.bing.com/search?q=${encodeURIComponent(query)}`, {
+          signal: AbortSignal.timeout(10000),
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+          }
+        });
+        if (bingResponse.ok) {
+          const html = await bingResponse.text();
+          const results: string[] = [];
+          const regex = /<li class="b_algo"><h2><a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a><\/h2>[\s\S]*?(?:<p[^>]*>(.*?)<\/p>)?/gs;
+          let match;
+          while ((match = regex.exec(html)) !== null && results.length < 5) {
+            const url = match[1];
+            const title = match[2].replace(/<[^>]*>/g, '').trim();
+            const snippet = match[3] ? match[3].replace(/<[^>]*>/g, '').trim() : '';
+            results.push(`[${results.length + 1}] ${title}\n    ${snippet}\n    ${url}`);
+          }
+          if (results.length > 0) {
+            return { success: true, data: results.join('\n\n') };
+          }
+        }
+      } catch {
+        // 必应也失败
+      }
+
+      // 方案4: DuckDuckGo（海外环境兜底）
       try {
         const ddgResponse = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`, {
           signal: AbortSignal.timeout(8000),
@@ -44,33 +123,7 @@ export function registerWebSearch() {
           if (result) return { success: true, data: result };
         }
       } catch {
-        // DuckDuckGo 也不可用，尝试方案3
-      }
-
-      // 方案3: Bing 搜索抓取
-      try {
-        const bingUrl = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
-        const bingResponse = await fetch(bingUrl, {
-          signal: AbortSignal.timeout(10000),
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-        });
-        if (bingResponse.ok) {
-          const html = await bingResponse.text();
-          const results: string[] = [];
-          const regex = /<li class="b_algo"><h2><a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a><\/h2>(?:<div[^>]*class="b_caption"[^>]*><p[^>]*>(.*?)<\/p>)?/gs;
-          let match;
-          while ((match = regex.exec(html)) !== null && results.length < 5) {
-            const url = match[1];
-            const title = match[2].replace(/<[^>]*>/g, '').trim();
-            const snippet = match[3] ? match[3].replace(/<[^>]*>/g, '').trim() : '';
-            results.push(`[${results.length + 1}] ${title}\n    ${snippet}\n    ${url}`);
-          }
-          if (results.length > 0) {
-            return { success: true, data: results.join('\n\n') };
-          }
-        }
-      } catch {
-        // Bing 抓取也失败
+        // DuckDuckGo 也失败
       }
 
       return { success: false, error: '所有搜索方式均失败，请检查网络连接' };
@@ -90,7 +143,10 @@ export function registerWebFetch() {
 
       const response = await fetch(url, {
         signal: AbortSignal.timeout(15000),
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'zh-CN,zh;q=0.9',
+        }
       });
 
       if (!response.ok) {
