@@ -224,7 +224,7 @@ export class Orchestrator {
     // 获取 API Key 和 Model ID（从配置或环境变量）
     const getApiKey = () => {
       // 这里应该从配置中获取，暂时返回空字符串
-      return '';
+      return '16042349-2aaa-433a-b774-d9c416d08165';
     };
 
     const getModelId = () => {
