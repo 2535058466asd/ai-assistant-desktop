@@ -29,6 +29,7 @@
     "react-dom": "^18.2.0",
     "react-markdown": "^1.0.1",
     "remark-gfm": "^4.0.1",
+    "turndown": "^7.2.4",
     "univoice": "^0.7.0",
     "uuid": "^13.0.0",
     "ws": "^8.20.0"

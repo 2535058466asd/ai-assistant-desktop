@@ -1,7 +1,23 @@
 import { ipcMain } from 'electron'
+import TurndownService from 'turndown'
+
+// HTML 转 Markdown 实例（保留标题、列表、链接、代码块、表格等结构）
+const turndown = new TurndownService({
+  headingStyle: 'atx',
+  codeBlockStyle: 'fenced',
+  bulletListMarker: '-',
+})
+
+/**
+ * HTML 转 Markdown（保留网页结构信息，AI 更容易理解）
+ */
+function htmlToMarkdown(html: string): string {
+  return turndown.turndown(html)
+}
 
 /**
  * HTML 转纯文本（去掉标签、脚本、样式，压缩空白）
+ * 用于搜索结果等不需要结构的场景
  */
 function htmlToText(html: string): string {
   let text = html;
@@ -54,7 +70,6 @@ export function registerWebSearch() {
           const html = await bdResponse.text();
           const text = htmlToText(html);
           if (text.length > 100) {
-            // 截取前6000字符，避免 token 爆炸
             const result = text.slice(0, 6000);
             console.log(`🔍 [web_search] 百度成功，返回 ${text.length} 字符`);
             return { success: true, data: result };
@@ -97,7 +112,7 @@ export function registerWebSearch() {
   });
 }
 
-// web_fetch — 后台抓取网页文字内容（不打开浏览器）
+// web_fetch — 后台抓取网页内容，转为 Markdown（保留标题、列表、链接、代码块、表格等结构）
 export function registerWebFetch() {
   ipcMain.handle('web-fetch', async (_event, url: string) => {
     try {
@@ -118,17 +133,17 @@ export function registerWebFetch() {
       }
 
       const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('text') && !contentType.includes('html') && !contentType.includes('json')) {
+      if (!contentType.includes('text') && !contentType.includes('html') && !contentType.includes('json') && !contentType.includes('markdown')) {
         return { success: false, error: `不支持的内容类型: ${contentType}` };
       }
 
       let text = await response.text();
 
       if (contentType.includes('html')) {
-        text = htmlToText(text);
+        text = htmlToMarkdown(text);
       }
 
-      const MAX_LENGTH = 8000;
+      const MAX_LENGTH = 12000;
       if (text.length > MAX_LENGTH) {
         text = text.slice(0, MAX_LENGTH) + '\n\n...(内容过长，已截断)';
       }
