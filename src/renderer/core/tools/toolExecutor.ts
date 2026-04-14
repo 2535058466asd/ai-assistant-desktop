@@ -30,10 +30,6 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
         result = await api.writeFile(args.path, args.content);
         break;
 
-      case 'web_search':
-        result = await api.webSearch(args.query);
-        break;
-
       case 'web_fetch':
         result = await api.webFetch(args.url);
         break;

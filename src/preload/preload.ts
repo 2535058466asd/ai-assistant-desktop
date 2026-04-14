@@ -22,10 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeFile: async (path: string, content: string) => {
     return ipcRenderer.invoke('write-file', path, content);
   },
-  // 网页搜索
-  webSearch: async (query: string) => {
-    return ipcRenderer.invoke('web-search', query);
-  },
+
   // 抓取网页内容
   webFetch: async (url: string) => {
     return ipcRenderer.invoke('web-fetch', url);
@@ -140,7 +137,6 @@ declare global {
       execCommand: (command: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       readFile: (path: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       writeFile: (path: string, content: string) => Promise<{ success: boolean; data?: string; error?: string }>;
-      webSearch: (query: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       webFetch: (url: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       listDir: (dirPath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       searchFiles: (dirPath: string, pattern: string) => Promise<{ success: boolean; data?: string; error?: string }>;
