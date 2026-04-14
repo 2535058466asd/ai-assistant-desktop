@@ -17,7 +17,6 @@ function htmlToMarkdown(html: string): string {
 
 /**
  * HTML 转纯文本（去掉标签、脚本、样式，压缩空白）
- * 用于搜索结果等不需要结构的场景
  */
 function htmlToText(html: string): string {
   let text = html;
@@ -28,6 +27,95 @@ function htmlToText(html: string): string {
   text = text.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#\d+;/g, '');
   text = text.replace(/\s+/g, ' ').trim();
   return text;
+}
+
+/**
+ * 从 HTML 中提取纯文本（去掉标签但保留基本结构）
+ */
+function stripTag(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+    .replace(/&#\d+;/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * 解析百度搜索结果，只提取标题、摘要、链接（过滤广告和导航噪音）
+ */
+function parseBaiduResults(html: string): string {
+  const results: string[] = [];
+
+  // 百度搜索结果在 <div class="result ..."> 或 <div class="c-container ..."> 中
+  // 每个结果包含：标题(<h3 class="c-title">)、摘要(<span class="content-right_..."> 或 <div class="c-abstract">)、链接(<a href>)
+  const resultRegex = /<div[^>]*class="[^"]*(?:result|c-container)[^"]*"[^>]*>[\s\S]*?<\/div>\s*(?:<\/div>\s*)*?(?=<div[^>]*class="[^"]*(?:result|c-container)|$)/gi;
+  let match;
+
+  while ((match = resultRegex.exec(html)) !== null && results.length < 8) {
+    const block = match[0];
+
+    // 提取标题
+    const titleMatch = block.match(/<h3[^>]*class="[^"]*c-title[^"]*"[^>]*>([\s\S]*?)<\/h3>/i)
+      || block.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
+    if (!titleMatch) continue;
+
+    const title = stripTag(titleMatch[1]);
+    if (!title || title.length < 2) continue;
+
+    // 提取链接
+    const linkMatch = block.match(/<a[^>]*href="([^"]*)"[^>]*>/);
+    const link = linkMatch ? linkMatch[1] : '';
+
+    // 提取摘要（多种 class 名）
+    const abstractMatch = block.match(/<span[^>]*class="[^"]*content-right[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
+      || block.match(/<div[^>]*class="[^"]*c-abstract[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
+      || block.match(/<div[^>]*class="[^"]*c-span-last[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+    const abstract = abstractMatch ? stripTag(abstractMatch[1]) : '';
+
+    // 过滤广告（百度广告通常没有正常摘要，或包含"广告"字样）
+    if (title.includes('广告') || abstract.includes('广告')) continue;
+
+    results.push(`[${results.length + 1}] ${title}\n    ${abstract}\n    ${link}`);
+  }
+
+  return results.join('\n\n');
+}
+
+/**
+ * 解析必应搜索结果，只提取标题、摘要、链接
+ */
+function parseBingResults(html: string): string {
+  const results: string[] = [];
+
+  // 必应搜索结果在 <li class="b_algo"> 中
+  const resultRegex = /<li[^>]*class="[^"]*b_algo[^"]*"[^>]*>([\s\S]*?)<\/li>/gi;
+  let match;
+
+  while ((match = resultRegex.exec(html)) !== null && results.length < 8) {
+    const block = match[1];
+
+    // 提取标题
+    const titleMatch = block.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+    if (!titleMatch) continue;
+
+    const title = stripTag(titleMatch[1]);
+    if (!title || title.length < 2) continue;
+
+    // 提取链接
+    const linkMatch = block.match(/<a[^>]*href="(https?:\/\/[^"]*)"[^>]*>/);
+    const link = linkMatch ? linkMatch[1] : '';
+
+    // 提取摘要
+    const abstractMatch = block.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    const abstract = abstractMatch ? stripTag(abstractMatch[1]) : '';
+
+    results.push(`[${results.length + 1}] ${title}\n    ${abstract}\n    ${link}`);
+  }
+
+  return results.join('\n\n');
 }
 
 // web_search — 后台静默搜索，返回文字结果（不打开浏览器）
@@ -67,11 +155,10 @@ export function registerWebSearch() {
         });
         if (bdResponse.ok) {
           const html = await bdResponse.text();
-          const text = htmlToText(html);
-          if (text.length > 100) {
-            const result = text.slice(0, 6000);
-            console.log(`🔍 [web_search] 百度成功，返回 ${text.length} 字符`);
-            return { success: true, data: result };
+          const results = parseBaiduResults(html);
+          if (results.length > 50) {
+            console.log(`🔍 [web_search] 百度成功，提取到搜索结果`);
+            return { success: true, data: results };
           }
         }
       } catch (e: any) {
@@ -91,11 +178,10 @@ export function registerWebSearch() {
         });
         if (bingResponse.ok) {
           const html = await bingResponse.text();
-          const text = htmlToText(html);
-          if (text.length > 100) {
-            const result = text.slice(0, 6000);
-            console.log(`🔍 [web_search] 必应成功，返回 ${text.length} 字符`);
-            return { success: true, data: result };
+          const results = parseBingResults(html);
+          if (results.length > 50) {
+            console.log(`🔍 [web_search] 必应成功，提取到搜索结果`);
+            return { success: true, data: results };
           }
         }
       } catch (e: any) {
