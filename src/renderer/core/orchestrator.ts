@@ -44,6 +44,7 @@ export class Orchestrator {
   private streamCallbacks: StreamCallbacks | null = null; // 流式回调
   private isVoiceMode: boolean = false;
   private conversationHistory: any[] = [];
+  private static readonly MAX_HISTORY_MESSAGES = 40; // 最大保留40条消息（约20轮对话）
 
   constructor() {
     this.sessionId = this.generateSessionId();
@@ -114,6 +115,12 @@ export class Orchestrator {
     try {
       // 2. 构建消息历史
       this.conversationHistory.push({ role: 'user', content: text });
+
+      // 裁剪历史，防止 token 超限（保留最近的消息）
+      if (this.conversationHistory.length > Orchestrator.MAX_HISTORY_MESSAGES) {
+        this.conversationHistory = this.conversationHistory.slice(-Orchestrator.MAX_HISTORY_MESSAGES);
+        console.log(`📝 [历史裁剪] 已裁剪至最近 ${Orchestrator.MAX_HISTORY_MESSAGES} 条消息`);
+      }
 
       // 3. Agent 循环（Function Calling）
       const messageId = this.generateMessageId();

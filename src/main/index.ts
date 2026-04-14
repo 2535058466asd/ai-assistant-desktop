@@ -1,8 +1,12 @@
-// 在文件顶部添加
+// 开发环境热重载
 if (process.env.NODE_ENV === 'development') {
-  try {
-    require('electron-reloader')(module);
-  } catch (_) {}
+  import('electron-reloader').then((reloader) => {
+    try {
+      if (reloader && typeof reloader === 'function') {
+        (reloader as any)(module);
+      }
+    } catch (_) {}
+  }).catch(() => {});
 }
 import { app, BrowserWindow, Menu, ipcMain } from 'electron'
 import { exec, execSync } from 'child_process'
@@ -18,58 +22,6 @@ import { getScreenshotService } from './services/screenshotService'
 import { getTTSService } from './services/tts/volcengineTTSWebSocketService'
 import { getASRService } from './services/asr/volcengineASRWebSocketService'
 import { registerAllTools } from './tools'
-
-class WhisperService {
-  whisper: any;
-
-  constructor() {
-    console.log('🎤 Whisper服务初始化中...');
-  }
-
-  async initialize(): Promise<void> {
-    try {
-      this.whisper = await import('node-whisper');
-      console.log('✅ Whisper服务初始化成功');
-    } catch (error) {
-      console.error('❌ Whisper服务初始化失败:', error);
-      throw error;
-    }
-  }
-
-  async transcribe(audioData: Buffer, language: string = 'zh'): Promise<string> {
-    try {
-      console.log('🎤 Whisper开始识别...');
-      
-      const tempDir = path.join(app.getPath('userData'), 'temp');
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-      
-      const tempFile = path.join(tempDir, `audio_${Date.now()}.wav`);
-      fs.writeFileSync(tempFile, audioData);
-      
-      console.log('📝 音频已保存到:', tempFile);
-      
-      const result = await this.whisper.transcribe(tempFile, {
-        language: language,
-        model: 'tiny',
-        verbose: true
-      });
-      
-      console.log('✅ Whisper识别完成:', result);
-      
-      fs.unlinkSync(tempFile);
-      
-      return result.text || '';
-      
-    } catch (error) {
-      console.error('❌ Whisper识别失败:', error);
-      throw error;
-    }
-  }
-}
-
-const whisperService = new WhisperService();
 
 let mainWindow: BrowserWindow | null = null
 
@@ -114,135 +66,6 @@ function createWindow() {
   })
 }
 
-class TtsService {
-  private outputDir: string;
-  private edgeTts: any;
-
-  constructor() {
-    this.outputDir = path.join(app.getPath('userData'), 'output');
-    
-    if (!fs.existsSync(this.outputDir)) {
-      fs.mkdirSync(this.outputDir, { recursive: true });
-    }
-  }
-
-  async synthesize(text: string): Promise<string> {
-    try {
-      console.log('开始语音合成:', text);
-      
-      if (!this.edgeTts) {
-        this.edgeTts = await import('edge-tts/out/index.js');
-      }
-
-      const timestamp = Date.now();
-      const audioPath = path.join(this.outputDir, 'audio_' + timestamp + '.mp3');
-
-      await this.edgeTts.ttsSave(text, audioPath);
-      console.log('语音合成成功，保存路径:', audioPath);
-
-      return audioPath;
-    } catch (error) {
-      console.error('语音合成失败:', error);
-      throw new Error('语音合成失败，请稍后重试');
-    }
-  }
-
-  getOutputDir(): string {
-    return this.outputDir;
-  }
-}
-
-const ttsService = new TtsService();
-
-function startTtsServer() {
-  const server = http.createServer((req, res) => {
-    if (req.url === '/api/tts' && req.method === 'POST') {
-      let body = '';
-      req.on('data', chunk => {
-        body += chunk.toString();
-      });
-      req.on('end', async () => {
-        try {
-          const data = JSON.parse(body);
-          const text = data.text;
-          
-          if (!text) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Text is required' }));
-            return;
-          }
-          
-          const audioPath = await ttsService.synthesize(text);
-          
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          const relativePath = audioPath.replace(/.*\\output\\/, 'output/').replace(/\\/g, '/');
-          res.end(JSON.stringify({ audio_path: relativePath }));
-          console.log('返回音频文件路径:', relativePath);
-        } catch (error) {
-          console.error('TTS server error:', error);
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'TTS service error' }));
-        }
-      });
-    } else if (req.url.startsWith('/output/')) {
-      const filePath = path.join(ttsService.getOutputDir(), req.url.replace('/output/', ''));
-      
-      if (filePath.startsWith(ttsService.getOutputDir())) {
-        const stream = fs.createReadStream(filePath);
-        stream.on('error', () => {
-          res.writeHead(404);
-          res.end();
-        });
-        stream.pipe(res);
-      } else {
-        res.writeHead(403);
-        res.end();
-      }
-    } else {
-      res.writeHead(404);
-      res.end();
-    }
-  });
-  
-  server.listen(3001, function() {
-    console.log('TTS server running on http://localhost:3001');
-  });
-}
-
-ipcMain.handle('text-to-speech', async (_event, text: string) => {
-  try {
-    const audioPath = await ttsService.synthesize(text);
-    return { success: true, audioPath };
-  } catch (error) {
-    console.error('IPC text-to-speech error:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
-  }
-});
-
-
-
-ipcMain.handle('whisper-transcribe', async (_event, audioBase64: string, language: string = 'zh') => {
-  try {
-    console.log('🎤 收到Whisper识别请求');
-    
-    const audioBuffer = Buffer.from(audioBase64, 'base64');
-    
-    if (!whisperService.whisper) {
-      await whisperService.initialize();
-    }
-    
-    const text = await whisperService.transcribe(audioBuffer, language);
-    
-    return { success: true, text };
-  } catch (error) {
-    console.error('❌ Whisper识别失败:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : String(error) 
-    };
-  }
-});
-
 ipcMain.handle('http-proxy', async (_event, options: any) => {
   return new Promise((resolve) => {
     try {
@@ -259,18 +82,7 @@ ipcMain.handle('http-proxy', async (_event, options: any) => {
         headers: options.headers || {}
       };
 
-      console.log('🌐 HTTP 代理请求:', requestOptions.method, options.url, '二进制:', isBinary);
-      console.log('📋 请求头:', requestOptions.headers);
-      console.log('📤 请求体数据:', options.body);
-      
-      if (options.body) {
-        try {
-          const parsed = JSON.parse(options.body);
-          console.log('📝 解析后的请求体:', JSON.stringify(parsed, null, 2));
-        } catch (e) {
-          console.log('⚠️  请求体不是 JSON:', options.body);
-        }
-      }
+      console.log('🌐 HTTP 代理请求:', requestOptions.method, options.url);
 
       const req = client.request(requestOptions, (res) => {
         const chunks: Buffer[] = [];
@@ -566,7 +378,7 @@ ipcMain.handle('asr-v3-stop-recognition', async (_event, config: any) => {
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
   createWindow()
-  startTtsServer()
+  registerAllTools()
 })
 
 
@@ -576,9 +388,6 @@ app.on('window-all-closed', () => {
     app.quit()
   }
 })
-
-// ========== 注册所有工具 ==========
-registerAllTools()
 
 app.on('activate', () => {
   if (mainWindow === null) {
