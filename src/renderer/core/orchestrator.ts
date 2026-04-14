@@ -167,13 +167,6 @@ export class Orchestrator {
 
         // 执行所有工具调用
         for (const toolCall of message.tool_calls) {
-          // 豆包内置工具（如 web_search）没有 function 字段，由豆包服务端自行处理
-          // 不需要我们执行，直接跳过，豆包会在下一轮响应中返回搜索结果
-          if (toolCall.type === 'web_search' || !toolCall.function) {
-            console.log(`🔧 内置工具调用: ${toolCall.type}，由豆包服务端处理`);
-            continue;
-          }
-
           const toolName = toolCall.function.name;
           const toolArgs = JSON.parse(toolCall.function.arguments);
 
@@ -252,6 +245,8 @@ export class Orchestrator {
         ...this.conversationHistory
       ],
       tools: toolDefinitions,
+      // 开启豆包内置联网搜索
+      web_search: { enable: true },
       stream: false
     };
 
@@ -285,7 +280,7 @@ ${memoryPrompt || ''}
 你可以使用以下工具来帮助用户：
 - exec_command：执行系统命令（打开/关闭应用、查看进程、系统信息等）
 - read_file / write_file：读写文件
-- web_search：联网搜索（豆包内置）
+- web_search：联网搜索（已自动开启）
 - clipboard_read / clipboard_write：读写剪贴板
 - screenshot：截取屏幕
 - open_app：打开应用或网页
