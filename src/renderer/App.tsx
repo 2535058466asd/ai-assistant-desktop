@@ -60,15 +60,8 @@ function AppContent() {
         console.log('🎤 [App] AI 回复:', text.substring(0, 50) + '...');
       },
       onSendMessage: async (text) => {
-        const userMessage: Message = {
-          id: Date.now().toString(36) + Math.random().toString(36).substring(2),
-          role: 'user',
-          content: text,
-          timestamp: Date.now(),
-          sessionId: 'voice-chat'
-        };
-        
-        setMessages((prev) => [...prev, userMessage]);
+        // 不手动 setMessages，由 processTextInput 内部的 onMessageCallback 统一添加
+        // 之前这里手动添加了一次，processTextInput 内部又添加了一次，导致语音消息显示两条
         await orchestratorRef.current.processTextInput(text);
       },
       onError: (error) => {
