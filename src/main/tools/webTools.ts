@@ -30,6 +30,86 @@ function htmlToText(html: string): string {
   return text;
 }
 
+// web_search — 后台静默搜索，返回文字结果（不打开浏览器）
+export function registerWebSearch() {
+  ipcMain.handle('web-search', async (_event, query: string) => {
+    try {
+      // 方案1: SearXNG（本地自建搜索，返回干净 JSON）
+      try {
+        console.log(`🔍 [web_search] 方案1: 尝试 SearXNG...`);
+        const response = await fetch(`http://localhost:8888/search?q=${encodeURIComponent(query)}&format=json`, {
+          signal: AbortSignal.timeout(8000)
+        });
+        if (response.ok) {
+          const data: any = await response.json();
+          const results = (data.results || []).slice(0, 8)
+            .map((r: any, i: number) => `[${i + 1}] ${r.title}\n    ${r.content || ''}\n    ${r.url}`)
+            .join('\n\n');
+          if (results) {
+            console.log(`🔍 [web_search] SearXNG 成功，返回 ${data.results?.length || 0} 条结果`);
+            return { success: true, data: results };
+          }
+        }
+      } catch (e: any) {
+        console.log(`🔍 [web_search] SearXNG 失败: ${e.message}`);
+      }
+
+      // 方案2: 百度搜索（HTML 转纯文本）
+      try {
+        console.log(`🔍 [web_search] 方案2: 尝试百度搜索...`);
+        const bdResponse = await fetch(`https://www.baidu.com/s?wd=${encodeURIComponent(query)}&rn=10`, {
+          signal: AbortSignal.timeout(10000),
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml',
+          }
+        });
+        if (bdResponse.ok) {
+          const html = await bdResponse.text();
+          const text = htmlToText(html);
+          if (text.length > 100) {
+            const result = text.slice(0, 6000);
+            console.log(`🔍 [web_search] 百度成功，返回 ${text.length} 字符`);
+            return { success: true, data: result };
+          }
+        }
+      } catch (e: any) {
+        console.log(`🔍 [web_search] 百度失败: ${e.message}`);
+      }
+
+      // 方案3: 必应国内版（HTML 转纯文本）
+      try {
+        console.log(`🔍 [web_search] 方案3: 尝试必应国内版...`);
+        const bingResponse = await fetch(`https://cn.bing.com/search?q=${encodeURIComponent(query)}&count=10`, {
+          signal: AbortSignal.timeout(10000),
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml',
+          }
+        });
+        if (bingResponse.ok) {
+          const html = await bingResponse.text();
+          const text = htmlToText(html);
+          if (text.length > 100) {
+            const result = text.slice(0, 6000);
+            console.log(`🔍 [web_search] 必应成功，返回 ${text.length} 字符`);
+            return { success: true, data: result };
+          }
+        }
+      } catch (e: any) {
+        console.log(`🔍 [web_search] 必应失败: ${e.message}`);
+      }
+
+      console.log(`🔍 [web_search] 所有搜索方式均失败`);
+      return { success: false, error: '所有搜索方式均失败，请检查网络连接' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+}
+
 // web_fetch — 后台抓取网页内容，转为 Markdown（保留标题、列表、链接、代码块、表格等结构）
 export function registerWebFetch() {
   ipcMain.handle('web-fetch', async (_event, url: string) => {

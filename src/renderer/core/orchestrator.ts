@@ -245,8 +245,6 @@ export class Orchestrator {
         ...this.conversationHistory
       ],
       tools: toolDefinitions,
-      // 开启豆包内置联网搜索
-      web_search: { enable: true },
       stream: false
     };
 
@@ -280,7 +278,7 @@ ${memoryPrompt || ''}
 你可以使用以下工具来帮助用户：
 - exec_command：执行系统命令（打开/关闭应用、查看进程、系统信息等）
 - read_file / write_file：读写文件
-- web_search：联网搜索（已自动开启）
+- web_search：搜索互联网
 - clipboard_read / clipboard_write：读写剪贴板
 - screenshot：截取屏幕
 - open_app：打开应用或网页

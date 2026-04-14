@@ -6,7 +6,7 @@
 
 import { registerExecCommand } from './execCommand'
 import { registerReadFile, registerWriteFile, registerListDir, registerSearchFiles, registerGrepContent } from './fileOps'
-import { registerWebFetch } from './webTools'
+import { registerWebSearch, registerWebFetch } from './webTools'
 import { registerClipboardRead, registerClipboardWrite } from './clipboard'
 import { registerScreenshot } from './screenshot'
 import { registerOpenApp } from './openApp'
@@ -23,6 +23,7 @@ export function registerAllTools() {
   registerGrepContent()
 
   // 网络工具
+  registerWebSearch()
   registerWebFetch()
 
   // 剪贴板
@@ -35,5 +36,5 @@ export function registerAllTools() {
   // 打开应用
   registerOpenApp()
 
-  console.log('🛠️ [工具] 11个工具已注册完成');
+  console.log('🛠️ [工具] 12个工具已注册完成');
 }

@@ -150,6 +150,23 @@ export const toolDefinitions = [
   {
     type: "function",
     function: {
+      name: "web_search",
+      description: "搜索互联网信息。当用户需要查询实时信息、新闻、天气、知识、教程时使用。后台静默搜索，返回文字结果。",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "搜索关键词，例如 '今天成都天气'、'React Hooks 教程'、'Electron 打包'"
+          }
+        },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "web_fetch",
       description: "抓取网页文字内容。当需要读取某个网页的具体内容时使用，传入URL即可获取网页纯文本。适用于读取文章、文档、API文档等。",
       parameters: {
