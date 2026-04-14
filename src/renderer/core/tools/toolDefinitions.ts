@@ -5,6 +5,8 @@
  */
 
 export const toolDefinitions = [
+  // 豆包内置工具：联网搜索（官方实现，无需自己写搜索代码）
+  { type: "web_search" },
   {
     type: "function",
     function: {

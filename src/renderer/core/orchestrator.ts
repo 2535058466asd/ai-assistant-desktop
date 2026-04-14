@@ -160,6 +160,13 @@ export class Orchestrator {
 
         // 执行所有工具调用
         for (const toolCall of message.tool_calls) {
+          // 豆包内置工具（如 web_search）没有 function 字段，由豆包服务端自行处理
+          // 不需要我们执行，直接跳过，豆包会在下一轮响应中返回搜索结果
+          if (toolCall.type === 'web_search' || !toolCall.function) {
+            console.log(`🔧 内置工具调用: ${toolCall.type}，由豆包服务端处理`);
+            continue;
+          }
+
           const toolName = toolCall.function.name;
           const toolArgs = JSON.parse(toolCall.function.arguments);
 
