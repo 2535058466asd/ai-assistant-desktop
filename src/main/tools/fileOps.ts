@@ -62,6 +62,7 @@ export function registerWriteFile() {
 export function registerListDir() {
   ipcMain.handle('list-dir', async (_event, dirPath: string) => {
     try {
+      dirPath = resolvePath(dirPath);
       if (!fs.existsSync(dirPath)) {
         return { success: false, error: `目录不存在: ${dirPath}` };
       }
@@ -89,6 +90,7 @@ export function registerListDir() {
 export function registerSearchFiles() {
   ipcMain.handle('search-files', async (_event, dirPath: string, pattern: string) => {
     try {
+      dirPath = resolvePath(dirPath);
       if (!fs.existsSync(dirPath)) {
         return { success: false, error: `目录不存在: ${dirPath}` };
       }
@@ -130,6 +132,7 @@ export function registerSearchFiles() {
 export function registerGrepContent() {
   ipcMain.handle('grep-content', async (_event, dirPath: string, keyword: string, filePattern?: string) => {
     try {
+      dirPath = resolvePath(dirPath);
       if (!fs.existsSync(dirPath)) {
         return { success: false, error: `目录不存在: ${dirPath}` };
       }
