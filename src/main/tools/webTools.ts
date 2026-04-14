@@ -49,34 +49,34 @@ function stripTag(html: string): string {
 function parseBaiduResults(html: string): string {
   const results: string[] = [];
 
-  // 百度搜索结果在 <div class="result ..."> 或 <div class="c-container ..."> 中
-  // 每个结果包含：标题(<h3 class="c-title">)、摘要(<span class="content-right_..."> 或 <div class="c-abstract">)、链接(<a href>)
-  const resultRegex = /<div[^>]*class="[^"]*(?:result|c-container)[^"]*"[^>]*>[\s\S]*?<\/div>\s*(?:<\/div>\s*)*?(?=<div[^>]*class="[^"]*(?:result|c-container)|$)/gi;
-  let match;
+  // 先去掉 script/style，减少干扰
+  let clean = html.replace(/<script[\s\S]*?<\/script>/gi, '');
+  clean = clean.replace(/<style[\s\S]*?<\/style>/gi, '');
 
-  while ((match = resultRegex.exec(html)) !== null && results.length < 8) {
-    const block = match[0];
+  // 百度每个搜索结果都有一个 <h3> 标题，用这个作为锚点向上向下提取
+  const h3Regex = /<h3[^>]*>([\s\S]*?)<\/h3>/gi;
+  let h3Match;
 
-    // 提取标题
-    const titleMatch = block.match(/<h3[^>]*class="[^"]*c-title[^"]*"[^>]*>([\s\S]*?)<\/h3>/i)
-      || block.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
-    if (!titleMatch) continue;
+  while ((h3Match = h3Regex.exec(clean)) !== null && results.length < 8) {
+    const title = stripTag(h3Match[1]);
+    if (!title || title.length < 2 || title.includes('百度')) continue;
 
-    const title = stripTag(titleMatch[1]);
-    if (!title || title.length < 2) continue;
+    // 从 <h3> 向前找最近的 <a href="..."> 来获取链接
+    const beforeH3 = clean.substring(Math.max(0, h3Match.index - 500), h3Match.index);
+    const linkMatch = beforeH3.match(/<a[^>]*href="(https?:\/\/[^"]*|http:\/\/[^"]*)"[^>]*>\s*$/);
+    // 如果前面没找到，尝试在 h3 内部找
+    const linkInH3 = h3Match[1].match(/href="([^"]*)"/);
+    const link = linkMatch ? linkMatch[1] : (linkInH3 ? linkInH3[1] : '');
 
-    // 提取链接
-    const linkMatch = block.match(/<a[^>]*href="([^"]*)"[^>]*>/);
-    const link = linkMatch ? linkMatch[1] : '';
+    // 从 <h3> 向后找摘要（下一个 <h3> 之前的文本内容）
+    const afterH3 = clean.substring(h3Match.index + h3Match[0].length);
+    const nextH3 = afterH3.search(/<h3[^>]*>/i);
+    const snippet = nextH3 > 0 ? afterH3.substring(0, nextH3) : afterH3.substring(0, 500);
+    const abstract = stripTag(snippet).substring(0, 200);
 
-    // 提取摘要（多种 class 名）
-    const abstractMatch = block.match(/<span[^>]*class="[^"]*content-right[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
-      || block.match(/<div[^>]*class="[^"]*c-abstract[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
-      || block.match(/<div[^>]*class="[^"]*c-span-last[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
-    const abstract = abstractMatch ? stripTag(abstractMatch[1]) : '';
-
-    // 过滤广告（百度广告通常没有正常摘要，或包含"广告"字样）
+    // 过滤广告和导航
     if (title.includes('广告') || abstract.includes('广告')) continue;
+    if (abstract.length < 10) continue;
 
     results.push(`[${results.length + 1}] ${title}\n    ${abstract}\n    ${link}`);
   }
@@ -126,7 +126,11 @@ export function registerWebSearch() {
       try {
         console.log(`🔍 [web_search] 方案1: 尝试 SearXNG...`);
         const response = await fetch(`http://localhost:8888/search?q=${encodeURIComponent(query)}&format=json`, {
-          signal: AbortSignal.timeout(8000)
+          signal: AbortSignal.timeout(8000),
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+          }
         });
         if (response.ok) {
           const data: any = await response.json();
