@@ -197,6 +197,13 @@ export class VolcengineASRV3 implements ASRService {
     console.log('⏹️ 停止录音...')
     this.isRecording = false
 
+    // ★ 关键修复：立即保存并置空回调，防止 asr-complete IPC 事件和手动触发重复调用
+    // 根因：发送 isLast=true 后，服务端会返回 isLastPackage=true 的响应，
+    // 主进程 ws.on('message') 会发送 asr-complete IPC 事件到渲染进程，
+    // 而 stopListening() 最后又会手动触发 onEndCallback，导致 sendToAI 被调用两次
+    const cb = this.onEndCallback
+    this.onEndCallback = null
+
     try {
       const emptyBase64 = ''
       await window.electronAPI!.invoke('asr-v3-send-audio', this.config, emptyBase64, true)
@@ -219,14 +226,18 @@ export class VolcengineASRV3 implements ASRService {
       this.audioContext = null
     }
 
-    await window.electronAPI?.invoke('asr-v3-stop-recognition', this.config)
+    try {
+      await window.electronAPI?.invoke('asr-v3-stop-recognition', this.config)
+    } catch (error) {
+      console.error('❌ 停止识别失败:', error)
+    }
     this.isConnected = false
 
-    // 手动触发 onEnd 回调，通知上层 ASR 已停止
-    // 因为主进程 stopRecognition 是直接关闭 WebSocket，不会发送 asr-complete 事件
-    if (this.onEndCallback) {
+    // 手动触发 onEnd 回调（如果 asr-complete 事件还没触发的话）
+    // 此时 onEndCallback 已为 null，asr-complete 事件到达时不会再触发
+    if (cb) {
       console.log('📢 [ASR] 手动触发 onEnd 回调，识别结果:', this.recognitionResult)
-      this.onEndCallback()
+      cb()
     }
   }
 

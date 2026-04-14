@@ -429,7 +429,8 @@ export class VolcengineASRWebSocketService {
 
   stopRecognition(): void {
     if (this.ws) {
-      this.ws.close()
+      // 显式传入关闭码 1000，防止 ws.on('close') 误判为意外断开触发重连
+      this.ws.close(1000, 'Normal closure')
       this.ws = null
     }
   }
