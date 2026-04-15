@@ -44,7 +44,7 @@ export class Orchestrator {
   private streamCallbacks: StreamCallbacks | null = null; // 流式回调
   private isVoiceMode: boolean = false;
   private conversationHistory: any[] = [];
-  private static readonly MAX_HISTORY_MESSAGES = 40; // 最大保留40条消息（约20轮对话）
+  private static readonly MAX_HISTORY_MESSAGES = 20; // 最大保留20条消息（约10轮对话）
   private currentModelId: string = 'doubao-seed-2-0-pro-260215'; // 当前使用的模型
 
   constructor() {
