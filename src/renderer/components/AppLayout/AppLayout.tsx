@@ -172,18 +172,9 @@ const defaultModels: ModelOption[] = [
   { id: 'doubao-seed-2-0-pro-260215', name: '豆包2.0 Pro', isOnline: true },
   { id: 'doubao-seed-2-0-lite-260215', name: '豆包2.0 Lite', isOnline: true },
   { id: 'doubao-seed-2-0-mini-260215', name: '豆包2.0 Mini', isOnline: true },
-  { id: 'doubao-seed-1-8-260215', name: '豆包1.8', isOnline: true },
-  { id: 'doubao-seed-1-6-260215', name: '豆包1.6', isOnline: true },
-  { id: 'doubao-seed-1-6-lite-260215', name: '豆包1.6 Lite', isOnline: true },
   { id: 'doubao-seed-1-6-flash-260215', name: '豆包1.6 Flash', isOnline: true },
   { id: 'doubao-seed-1-6-thinking-260215', name: '豆包1.6 Thinking', isOnline: true },
-  { id: 'doubao-seed-character-260215', name: '豆包 Character', isOnline: true },
-  { id: 'doubao-seed-translation-260215', name: '豆包 Translation', isOnline: true },
-  { id: 'doubao-1-5-pro-256k-260215', name: '豆包1.5 Pro 256K', isOnline: true },
   { id: 'doubao-1-5-pro-32k-260215', name: '豆包1.5 Pro 32K', isOnline: true },
-  { id: 'doubao-1-5-lite-32k-260215', name: '豆包1.5 Lite 32K', isOnline: true },
-  { id: 'doubao-1-5-thinking-pro-260215', name: '豆包1.5 Thinking', isOnline: true },
-  { id: 'doubao-smart-router-260215', name: '豆包 Smart Router', isOnline: true },
 ];
 const defaultCurrentModel: ModelOption = defaultModels[0];
 
