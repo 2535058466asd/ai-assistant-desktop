@@ -197,6 +197,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   voiceChatState = 'idle',
   isVoiceChatEnabled = false,
   onToggleVoiceChat,
+  onModelChange,
 }) => {
   /* ===== 状态管理 ===== */
 
