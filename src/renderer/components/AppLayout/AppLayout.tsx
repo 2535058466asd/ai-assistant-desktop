@@ -176,10 +176,14 @@ const defaultModels: ModelOption[] = [
   { id: 'doubao-seed-1-6-260215', name: '豆包1.6', isOnline: true },
   { id: 'doubao-seed-1-6-lite-260215', name: '豆包1.6 Lite', isOnline: true },
   { id: 'doubao-seed-1-6-flash-260215', name: '豆包1.6 Flash', isOnline: true },
+  { id: 'doubao-seed-1-6-thinking-260215', name: '豆包1.6 Thinking', isOnline: true },
   { id: 'doubao-seed-character-260215', name: '豆包 Character', isOnline: true },
   { id: 'doubao-seed-translation-260215', name: '豆包 Translation', isOnline: true },
-  { id: 'glm-4-7-260215', name: 'GLM-4.7', isOnline: true },
-  { id: 'deepseek-v3-2-260215', name: 'DeepSeek V3.2', isOnline: true },
+  { id: 'doubao-1-5-pro-256k-260215', name: '豆包1.5 Pro 256K', isOnline: true },
+  { id: 'doubao-1-5-pro-32k-260215', name: '豆包1.5 Pro 32K', isOnline: true },
+  { id: 'doubao-1-5-lite-32k-260215', name: '豆包1.5 Lite 32K', isOnline: true },
+  { id: 'doubao-1-5-thinking-pro-260215', name: '豆包1.5 Thinking', isOnline: true },
+  { id: 'doubao-smart-router-260215', name: '豆包 Smart Router', isOnline: true },
 ];
 const defaultCurrentModel: ModelOption = defaultModels[0];
 
