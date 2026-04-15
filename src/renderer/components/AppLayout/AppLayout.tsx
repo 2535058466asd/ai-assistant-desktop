@@ -170,14 +170,16 @@ const defaultUserInfo: UserInfo = {
    ========================================== */
 const defaultModels: ModelOption[] = [
   { id: 'doubao-seed-2-0-pro-260215', name: '豆包2.0 Pro', isOnline: true },
-  { id: 'doubao-seed-2-0-lite-250328', name: '豆包2.0 Lite', isOnline: true },
-  { id: 'doubao-seed-2-0-mini-250415', name: '豆包2.0 Mini', isOnline: true },
-  { id: 'doubao-seed-2-0-code-260215', name: '豆包2.0 Code', isOnline: true },
-  { id: 'doubao-seed-1-8-250115', name: '豆包1.8', isOnline: true },
-  { id: 'doubao-seed-code-250115', name: '豆包 Seed Code', isOnline: true },
-  { id: 'doubao-seed-character-250115', name: '豆包 Character', isOnline: true },
-  { id: 'glm-4-7-250415', name: 'GLM-4.7', isOnline: true },
-  { id: 'deepseek-v3-2-250415', name: 'DeepSeek V3.2', isOnline: true },
+  { id: 'doubao-seed-2-0-lite-260215', name: '豆包2.0 Lite', isOnline: true },
+  { id: 'doubao-seed-2-0-mini-260215', name: '豆包2.0 Mini', isOnline: true },
+  { id: 'doubao-seed-1-8-260215', name: '豆包1.8', isOnline: true },
+  { id: 'doubao-seed-1-6-260215', name: '豆包1.6', isOnline: true },
+  { id: 'doubao-seed-1-6-lite-260215', name: '豆包1.6 Lite', isOnline: true },
+  { id: 'doubao-seed-1-6-flash-260215', name: '豆包1.6 Flash', isOnline: true },
+  { id: 'doubao-seed-character-260215', name: '豆包 Character', isOnline: true },
+  { id: 'doubao-seed-translation-260215', name: '豆包 Translation', isOnline: true },
+  { id: 'glm-4-7-260215', name: 'GLM-4.7', isOnline: true },
+  { id: 'deepseek-v3-2-260215', name: 'DeepSeek V3.2', isOnline: true },
 ];
 const defaultCurrentModel: ModelOption = defaultModels[0];
 
