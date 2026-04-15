@@ -48,13 +48,13 @@ export const toolDefinitions = [
     type: "function",
     function: {
       name: "read_file",
-      description: "读取文件内容。当用户想查看某个文件的内容时使用。路径示例：~/Desktop/天气.txt（桌面文件）、~/Documents/笔记.md（文档）、C:\\Users\\xxx\\project\\index.ts（绝对路径）。",
+      description: "读取文件内容。当用户想查看某个文件的内容时使用。⚠️ 路径必须使用 ~/ 格式：~/Desktop/文件名（桌面）、~/Documents/文件名（文档）、~/Downloads/文件名（下载）。禁止使用 %USERPROFILE% 或 C:\\Users 等格式。",
       parameters: {
         type: "object",
         properties: {
           path: {
             type: "string",
-            description: "文件的完整路径，例如 ~/Desktop/天气.txt 或 C:\\Users\\xxx\\file.txt"
+            description: "文件路径，必须以 ~/ 开头，例如 ~/Desktop/天气.txt、~/Documents/笔记.md"
           }
         },
         required: ["path"]
@@ -65,13 +65,13 @@ export const toolDefinitions = [
     type: "function",
     function: {
       name: "write_file",
-      description: "创建或修改文件。当用户想保存内容、新建文件、修改文件时使用。路径示例：~/Desktop/新建文件.txt（桌面）、~/Documents/笔记.md（文档）。如果文件已存在会覆盖原内容。",
+      description: "创建或修改文件。当用户想保存内容、新建文件、修改文件时使用。⚠️ 路径必须使用 ~/ 格式：~/Desktop/文件名（桌面）、~/Documents/文件名（文档）、~/Downloads/文件名（下载）。禁止使用 %USERPROFILE% 或 C:\\Users 等格式。如果文件已存在会覆盖原内容。",
       parameters: {
         type: "object",
         properties: {
           path: {
             type: "string",
-            description: "文件的完整路径，例如 ~/Desktop/新建文件.txt"
+            description: "文件路径，必须以 ~/ 开头，例如 ~/Desktop/攻略.txt、~/Documents/笔记.md"
           },
           content: {
             type: "string",
@@ -86,13 +86,13 @@ export const toolDefinitions = [
     type: "function",
     function: {
       name: "list_dir",
-      description: "列出目录中的文件和文件夹。当用户想查看某个文件夹里有什么时使用。路径示例：~/Desktop（桌面）、~/Documents（文档）、~/Downloads（下载）、C:\\Users\\xxx\\project（项目目录）。",
+      description: "列出目录中的文件和文件夹。当用户想查看某个文件夹里有什么时使用。⚠️ 路径必须使用 ~/ 格式：~/Desktop（桌面）、~/Documents（文档）、~/Downloads（下载）。禁止使用 %USERPROFILE% 或 C:\\Users 等格式。",
       parameters: {
         type: "object",
         properties: {
           path: {
             type: "string",
-            description: "目录路径，例如 ~/Desktop、~/Documents、C:\\Users\\xxx\\project"
+            description: "目录路径，必须以 ~/ 开头，例如 ~/Desktop、~/Documents、~/Downloads"
           }
         },
         required: ["path"]
@@ -109,7 +109,7 @@ export const toolDefinitions = [
         properties: {
           path: {
             type: "string",
-            description: "搜索的根目录，例如 ~/Desktop、~/Documents、C:\\Users\\xxx\\project"
+            description: "搜索的根目录，必须以 ~/ 开头，例如 ~/Desktop、~/Documents、~/Downloads"
           },
           pattern: {
             type: "string",
@@ -130,7 +130,7 @@ export const toolDefinitions = [
         properties: {
           path: {
             type: "string",
-            description: "搜索的根目录，例如 ~/Documents、C:\\Users\\xxx\\project"
+            description: "搜索的根目录，必须以 ~/ 开头，例如 ~/Documents、~/Desktop"
           },
           keyword: {
             type: "string",

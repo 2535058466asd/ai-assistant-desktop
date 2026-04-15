@@ -3,11 +3,16 @@ import fs from 'fs'
 import path from 'path'
 
 /**
- * 解析路径：将常见的简写路径转换为实际路径
- * ~/Desktop → 用户桌面
- * ~/Documents → 用户文档
- * ~/Downloads → 用户下载
- * ~ → 用户主目录
+ * 解析路径：将各种格式的路径统一转换为实际路径
+ * 
+ * 支持的输入格式（不管LLM生成什么格式，都能正确处理）：
+ * ~/Desktop/xxx → 用户桌面
+ * ~/Documents/xxx → 用户文档
+ * ~/Downloads/xxx → 用户下载
+ * ~/xxx → 用户主目录
+ * %USERPROFILE%/Desktop/xxx → 展开 Windows 环境变量
+ * 桌面/xxx、文档/xxx、下载/xxx → 中文目录名
+ * C:/xxx、D:/xxx → 绝对路径，原样返回
  */
 function resolvePath(filePath: string): string {
   const home = app.getPath('home');
@@ -15,18 +20,43 @@ function resolvePath(filePath: string): string {
   const documents = app.getPath('documents');
   const downloads = app.getPath('downloads');
 
-  if (filePath.startsWith('~/Desktop') || filePath.startsWith('/Desktop')) {
-    return filePath.replace(/^~?\/Desktop/, desktop);
+  // 1. 展开 Windows 环境变量（如 %USERPROFILE%、%HOMEPATH%）
+  if (process.platform === 'win32' && filePath.includes('%')) {
+    filePath = filePath.replace(/%([^%]+)%/g, (_, varName) => {
+      return process.env[varName] || `%${varName}%`;
+    });
   }
-  if (filePath.startsWith('~/Documents') || filePath.startsWith('/Documents')) {
-    return filePath.replace(/^~?\/Documents/, documents);
+
+  // 2. 标准化反斜杠为正斜杠（方便后续匹配）
+  const normalized = filePath.replace(/\\/g, '/');
+
+  // 3. 已经是绝对路径（C:/、D:/、/），直接返回原路径
+  if (/^[A-Za-z]:\//.test(normalized) || normalized.startsWith('/')) {
+    return filePath;
   }
-  if (filePath.startsWith('~/Downloads') || filePath.startsWith('/Downloads')) {
-    return filePath.replace(/^~?\/Downloads/, downloads);
+
+  // 4. 特殊目录映射（支持英文和中文）
+  const dirMap: Record<string, string> = {
+    'desktop': desktop, '桌面': desktop,
+    'documents': documents, '文档': documents,
+    'downloads': downloads, '下载': downloads,
+  };
+
+  // 匹配 ~/Desktop、/Desktop、桌面 等各种写法
+  for (const [key, resolved] of Object.entries(dirMap)) {
+    const pattern = new RegExp(`^~?/?${key}/?`, 'i');
+    if (pattern.test(normalized)) {
+      const rest = normalized.replace(pattern, '');
+      return path.join(resolved, rest);
+    }
   }
-  if (filePath.startsWith('~/')) {
-    return filePath.replace(/^~/, home);
+
+  // 5. ~/ → 用户主目录
+  if (normalized.startsWith('~/')) {
+    const rest = normalized.replace(/^~/, '');
+    return path.join(home, rest);
   }
+
   return filePath;
 }
 
