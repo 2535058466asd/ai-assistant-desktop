@@ -164,6 +164,10 @@ function AppContent() {
     await orchestratorRef.current.processTextInput(content);
   };
 
+  const handleModelChange = (modelId: string) => {
+    orchestratorRef.current.setModel(modelId);
+  };
+
   const handleClearMessages = useCallback(() => {
     setMessages([]);
     // 清理 spokenMessageIds，避免内存泄漏
@@ -185,6 +189,7 @@ function AppContent() {
       onSendMessage={handleSendMessage}
       onClearMessages={handleClearMessages}
       onSetMessages={handleSetMessages}
+      onModelChange={handleModelChange}
       showToast={showToast}
       theme={theme}
       onToggleTheme={handleToggleTheme}

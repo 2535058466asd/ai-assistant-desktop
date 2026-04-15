@@ -45,10 +45,16 @@ export class Orchestrator {
   private isVoiceMode: boolean = false;
   private conversationHistory: any[] = [];
   private static readonly MAX_HISTORY_MESSAGES = 40; // 最大保留40条消息（约20轮对话）
+  private currentModelId: string = 'doubao-seed-2-0-pro-260215'; // 当前使用的模型
 
   constructor() {
     this.sessionId = this.generateSessionId();
     this.initialize();
+  }
+
+  /** 切换模型 */
+  setModel(modelId: string) {
+    this.currentModelId = modelId;
   }
 
   /**
@@ -252,7 +258,7 @@ export class Orchestrator {
     };
 
     const getModelId = () => {
-      return 'doubao-seed-2-0-pro-260215';
+      return this.currentModelId;
     };
 
     const requestBody = {
