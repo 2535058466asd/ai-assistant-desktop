@@ -76,6 +76,8 @@ interface AppLayoutProps {
   isVoiceChatEnabled?: boolean;
   /** 切换语音对话模式回调 */
   onToggleVoiceChat?: () => void;
+  /** 切换模型回调 */
+  onModelChange?: (modelId: string) => void;
 }
 
 /* ==========================================
@@ -366,7 +368,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   /** 模型切换 */
   const handleModelChange = (modelId: string) => {
     const model = defaultModels.find((m) => m.id === modelId);
-    if (model) setCurrentModel(model);
+    if (model) {
+      setCurrentModel(model);
+      onModelChange?.(modelId);
+    }
   };
 
   /**
