@@ -30,8 +30,20 @@ function resolvePath(filePath: string): string {
   // 2. 标准化反斜杠为正斜杠（方便后续匹配）
   const normalized = filePath.replace(/\\/g, '/');
 
-  // 3. 已经是绝对路径（C:/、D:/、/），直接返回原路径
+  // 3. 已经是绝对路径（C:/、D:/），检查是否包含需要替换的目录
   if (/^[A-Za-z]:\//.test(normalized) || normalized.startsWith('/')) {
+    // 自动修正：Public/Desktop → 用户桌面（公共桌面没有写入权限）
+    const publicDesktop = app.getPath('desktop').replace(/\/[^/]+$/, '/Public/Desktop');
+    if (normalized.toLowerCase().startsWith(publicDesktop.toLowerCase().replace(/\\/g, '/'))) {
+      const rest = normalized.slice(publicDesktop.length);
+      return path.join(desktop, rest);
+    }
+    // 自动修正：Public/Documents → 用户文档
+    const publicDocuments = app.getPath('documents').replace(/\/[^/]+$/, '/Public/Documents');
+    if (normalized.toLowerCase().startsWith(publicDocuments.toLowerCase().replace(/\\/g, '/'))) {
+      const rest = normalized.slice(publicDocuments.length);
+      return path.join(documents, rest);
+    }
     return filePath;
   }
 
