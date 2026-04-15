@@ -174,9 +174,6 @@ const defaultModels: ModelOption[] = [
   { id: 'doubao-seed-2-0-pro-260215', name: '豆包2.0 Pro', isOnline: true },
   { id: 'doubao-seed-2-0-lite-260215', name: '豆包2.0 Lite', isOnline: true },
   { id: 'doubao-seed-2-0-mini-260215', name: '豆包2.0 Mini', isOnline: true },
-  { id: 'doubao-seed-1-6-flash-260215', name: '豆包1.6 Flash', isOnline: true },
-  { id: 'doubao-seed-1-6-thinking-260215', name: '豆包1.6 Thinking', isOnline: true },
-  { id: 'doubao-1-5-pro-32k-260215', name: '豆包1.5 Pro 32K', isOnline: true },
 ];
 const defaultCurrentModel: ModelOption = defaultModels[0];
 
