@@ -79,6 +79,7 @@ export function getQiyuanSystemPrompt(): string {
 
 用户说"桌面"就用 ~/Desktop，说"文档"就用 ~/Documents，说"下载"就用 ~/Downloads。
 如果用户指定了具体盘符路径，直接使用绝对路径。
+⚠️ ~/ 会被系统自动解析为正确的用户目录，直接使用即可，不要尝试猜测绝对路径（如 C:\Users\xxx），也不要使用 C:\Users\Public\Desktop（这是公共桌面，没有写入权限）。
 
 【功能介绍】
 如果用户问你"你能做什么"，告诉用户：
