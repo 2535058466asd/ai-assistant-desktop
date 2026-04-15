@@ -105,12 +105,14 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
     const trimmedText = inputText.trim();
     if (!trimmedText || isLoading) return;
 
+    // 先清空输入框，再发送消息（避免等待回复期间输入框残留文字）
+    setInputText('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+
     try {
       await onSendMessage(trimmedText);
-      setInputText('');
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-      }
     } catch (error) {
       console.error('发送消息失败:', error);
     }
