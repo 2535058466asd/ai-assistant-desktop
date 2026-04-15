@@ -155,6 +155,23 @@ export class Orchestrator {
         // 调用豆包 API（带工具定义）
         const response = await this.callDoubaoWithTools();
 
+        // 检查API是否返回错误
+        if (response.error) {
+          const errorMsg = response.error.message || '未知错误';
+          const errorCode = response.error.code || '';
+          console.error('❌ 豆包API错误:', errorCode, errorMsg);
+          
+          // 账号欠费等严重错误，直接返回友好提示
+          const userMessages: Record<string, string> = {
+            'AccountOverdueError': '哎呀，API账号余额不足了，需要充值才能继续使用哦～',
+            'RateLimitError': '请求太频繁了，稍等一下再试吧～',
+            'InvalidApiKey': 'API密钥配置有误，请检查一下设置～',
+          };
+          const userMsg = userMessages[errorCode] || `出了点问题：${errorMsg}`;
+          finalResponse = userMsg;
+          break;
+        }
+
         // 检查是否有工具调用
         const message = response.choices[0].message;
         this.conversationHistory.push(message);
