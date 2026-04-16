@@ -29,7 +29,7 @@ export interface UserPreferences {
 export interface Memory {
   id: string;
   content: string;
-  category: 'preference' | 'fact' | 'project' | 'decision';
+  category: 'preference' | 'fact' | 'project' | 'decision' | 'belief' | 'event';
   importance: number;
   created_at: number;
   updated_at: number;

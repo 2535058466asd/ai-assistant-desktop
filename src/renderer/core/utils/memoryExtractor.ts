@@ -11,7 +11,7 @@ import { sendMessageToDoubao } from '../../services/doubaoApiClient';
  */
 export interface ExtractedMemory {
   content: string;
-  category: 'preference' | 'fact' | 'project' | 'decision';
+  category: 'preference' | 'fact' | 'project' | 'decision' | 'belief' | 'event';
   importance: number;
 }
 
@@ -26,20 +26,35 @@ export async function extractMemoriesWithLLM(
   assistantText: string
 ): Promise<ExtractedMemory[]> {
   try {
-    const prompt = `分析以下对话，提取值得记住的关键信息。
+    const prompt = `分析以下对话，提取值得长期记住的信息。
 
 用户：${userText}
 助手：${assistantText}
 
-提取规则：
-1. 只提取事实性信息（用户偏好、项目信息、个人情况、重要决策）
-2. 不提取临时性信息（"今天天气怎么样"）
-3. 不提取AI的回复内容
-4. 每条记忆独立、简洁、具体
-5. 如果没有值得记住的信息，返回空数组
+判断原则：
+- 只提取用户主动透露的、稳定的、跨对话仍有价值的信息
+- 不提取一次性的、临时的、只在当前对话有用的信息
+- 不提取短暂的情绪状态（"我好烦"、"压力好大"），但提取长期的态度和观点
+- 不提取搜索请求本身（"帮我搜xxx"），但提取搜索背后的意图（如果有的话）
+- 如果不确定要不要记，就不记
+
+类别说明：
+- preference：用户偏好和习惯（"喜欢暗色主题"）
+- fact：关于用户的客观事实（"叫李二"、"在成都"、"前端开发者"）
+- project：用户在做的事情（"做Electron AI助手"、"用React"）
+- decision：用户做出的选择（"决定不用Java"、"先就业再考研"）
+- belief：用户的价值观和深层想法（"认为技术是中立的"、"觉得要不断学习"）
+- event：有时间节点的重要事件（"明天9:10面试"、"6月毕业"）
+
+重要性评分：
+9-10：核心身份信息、重要事件（面试/入职/毕业）
+7-8：项目信息、技术栈、明确偏好、重要观点
+4-6：一般性事实、偶尔有用的信息
+1-3：可能有用但不确定
+没有值得记的：返回空数组 []
 
 输出JSON格式：
-[{"content": "记忆内容", "category": "preference|fact|project|decision", "importance": 1-10}]
+[{"content": "记忆内容", "category": "preference|fact|project|decision|belief|event", "importance": 1-10}]
 
 只输出JSON，不要其他文字。`;
 
