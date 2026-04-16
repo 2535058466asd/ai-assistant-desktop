@@ -154,16 +154,16 @@ ipcMain.handle('memory-get-all-preferences', async () => {
   return memoryService.getAllPreferences();
 });
 
-ipcMain.handle('memory-add-memory', async (_event, content: string, category: string = 'fact') => {
-  memoryService.addMemory(content, category as any);
+ipcMain.handle('memory-add-memory', async (_event, content: string, category: string = 'fact', importance: number = 5) => {
+  await memoryService.addMemory(content, category as any, importance);
 });
 
 ipcMain.handle('memory-get-all-memories', async () => {
   return memoryService.getAllMemories();
 });
 
-ipcMain.handle('memory-get-prompt', async () => {
-  return memoryService.getMemoryPrompt();
+ipcMain.handle('memory-get-prompt', async (_event, userInput: string = '') => {
+  return await memoryService.getMemoryPrompt(userInput);
 });
 
 ipcMain.handle('memory-search-memories', async (_event, keyword: string) => {

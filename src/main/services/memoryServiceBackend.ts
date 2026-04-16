@@ -6,6 +6,9 @@
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
+import sqlite3 from 'sqlite3';
+import { open, Database } from 'sqlite';
+import crypto from 'crypto';
 
 /**
  * 用户偏好类型
@@ -21,13 +24,17 @@ export interface UserPreferences {
 }
 
 /**
- * 重要记忆类型
+ * 记忆类型
  */
-export interface ImportantMemory {
+export interface Memory {
   id: string;
   content: string;
-  timestamp: number;
-  category: 'preference' | 'important_event' | 'fact' | 'other';
+  category: 'preference' | 'fact' | 'project' | 'decision';
+  importance: number;
+  created_at: number;
+  updated_at: number;
+  access_count: number;
+  source_conversation?: string;
 }
 
 /**
@@ -36,20 +43,20 @@ export interface ImportantMemory {
 export class MemoryService {
   private dataDir: string;
   private preferencesPath: string;
-  private memoriesPath: string;
+  private dbPath: string;
   private preferences: UserPreferences;
-  private memories: ImportantMemory[];
+  private db: Database | null = null;
   
-  private static readonly MAX_MEMORIES = 200;
+  private static readonly MAX_MEMORIES = 500;
 
   constructor() {
     this.dataDir = path.join(app.getPath('userData'), 'qiyuan-memory');
     this.preferencesPath = path.join(this.dataDir, 'preferences.json');
-    this.memoriesPath = path.join(this.dataDir, 'memories.json');
+    this.dbPath = path.join(this.dataDir, 'memories.db');
     
     this.ensureDataDir();
     this.preferences = this.loadPreferences();
-    this.memories = this.loadMemories();
+    this.initDatabase();
     
     console.log('🧠 记忆服务（主进程）初始化成功');
   }
@@ -73,18 +80,6 @@ export class MemoryService {
     return {};
   }
 
-  private loadMemories(): ImportantMemory[] {
-    try {
-      if (fs.existsSync(this.memoriesPath)) {
-        const data = fs.readFileSync(this.memoriesPath, 'utf-8');
-        return JSON.parse(data);
-      }
-    } catch (error) {
-      console.error('❌ 加载重要记忆失败:', error);
-    }
-    return [];
-  }
-
   private savePreferences(): void {
     try {
       fs.writeFileSync(this.preferencesPath, JSON.stringify(this.preferences, null, 2));
@@ -94,12 +89,34 @@ export class MemoryService {
     }
   }
 
-  private saveMemories(): void {
+  private async initDatabase(): Promise<void> {
     try {
-      fs.writeFileSync(this.memoriesPath, JSON.stringify(this.memories, null, 2));
-      console.log('💾 重要记忆已保存');
+      this.db = await open({
+        filename: this.dbPath,
+        driver: sqlite3.Database
+      });
+
+      // 创建记忆表
+      await this.db.exec(`
+        CREATE TABLE IF NOT EXISTS memories (
+          id TEXT PRIMARY KEY,
+          content TEXT NOT NULL,
+          category TEXT NOT NULL,
+          importance INTEGER DEFAULT 5,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          access_count INTEGER DEFAULT 0,
+          source_conversation TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_category ON memories(category);
+        CREATE INDEX IF NOT EXISTS idx_importance ON memories(importance);
+        CREATE INDEX IF NOT EXISTS idx_created_at ON memories(created_at);
+      `);
+
+      console.log('✅ SQLite 数据库初始化成功');
     } catch (error) {
-      console.error('❌ 保存重要记忆失败:', error);
+      console.error('❌ 初始化数据库失败:', error);
     }
   }
 
@@ -133,115 +150,298 @@ export class MemoryService {
   }
 
   /**
-   * 添加重要记忆
+   * 添加记忆（带去重 + 自动清理）
    * @param content 记忆内容
-   * @param category 记忆类别（默认为 fact）
+   * @param category 记忆类别
+   * @param importance 重要性 1-10
    */
-  addMemory(content: string, category: ImportantMemory['category'] = 'fact'): void {
+  async addMemory(content: string, category: Memory['category'] = 'fact', importance: number = 5): Promise<void> {
+    if (!this.db) {
+      console.error('❌ 数据库未初始化');
+      return;
+    }
+
     const trimmedContent = content.trim();
     
-    const isDuplicate = this.memories.some(memory => {
-      const existingContent = memory.content.toLowerCase();
-      const newContent = trimmedContent.toLowerCase();
-      return existingContent.includes(newContent) || newContent.includes(existingContent);
-    });
-    
-    if (isDuplicate) {
-      console.log('🔍 检测到相似记忆，跳过添加');
+    // 1. 去重检查
+    const duplicate = await this.deduplicateMemory(trimmedContent);
+    if (duplicate) {
+      await this.db.run(
+        'UPDATE memories SET access_count = access_count + 1, updated_at = ? WHERE id = ?',
+        [Date.now(), duplicate.id]
+      );
+      console.log('🔍 检测到相似记忆，已更新访问次数');
       return;
     }
     
-    const memory: ImportantMemory = {
-      id: Date.now().toString(36) + Math.random().toString(36).substring(2),
-      content: trimmedContent,
-      timestamp: Date.now(),
-      category
-    };
+    // 2. 存入新记忆
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    await this.db.run(
+      'INSERT INTO memories (id, content, category, importance, created_at, updated_at, access_count) VALUES (?, ?, ?, ?, ?, ?, 0)',
+      [id, trimmedContent, category, importance, now, now]
+    );
     
-    this.memories.push(memory);
+    // 3. 容量检查，超限则自动淘汰
+    const { count } = await this.db.get('SELECT COUNT(*) as count FROM memories') as { count: number };
+    if (count > MemoryService.MAX_MEMORIES) {
+      await this.evictMemories(count - MemoryService.MAX_MEMORIES);
+    }
     
-    this.applyMemoryLimit();
-    
-    this.saveMemories();
+    console.log('💾 记忆已添加:', trimmedContent);
   }
   
   /**
-   * 应用记忆数量限制
+   * 淘汰最低分记忆
+   * @param count 要淘汰的数量
    */
-  private applyMemoryLimit(): void {
-    if (this.memories.length <= MemoryService.MAX_MEMORIES) {
+  private async evictMemories(count: number): Promise<void> {
+    if (!this.db) {
+      console.error('❌ 数据库未初始化');
       return;
     }
-    
-    console.log('📊 记忆数量超限，开始清理...');
-    
-    const importantEvents = this.memories.filter(m => m.category === 'important_event');
-    const preferences = this.memories.filter(m => m.category === 'preference').slice(-50);
-    const facts = this.memories.filter(m => m.category === 'fact').slice(-50);
-    const others = this.memories.filter(m => 
-      m.category !== 'important_event' && 
-      m.category !== 'preference' && 
-      m.category !== 'fact'
-    );
-    
-    const totalNeeded = MemoryService.MAX_MEMORIES;
-    let newMemories = [...importantEvents, ...preferences, ...facts];
-    
-    if (newMemories.length < totalNeeded) {
-      const remaining = totalNeeded - newMemories.length;
-      newMemories = [...newMemories, ...others.slice(-remaining)];
+
+    try {
+      // 淘汰规则：优先级 = importance * 0.5 + access_count + 时间衰减分
+      // 时间衰减：30天内线性衰减，超过30天不再加分
+      const toEvict = await this.db.all(`
+        SELECT id FROM memories
+        ORDER BY (
+          importance * 0.5
+          + access_count
+          + MAX(0, 5 - (strftime('%s','now') - created_at / 1000) / 86400 / 30)
+        ) ASC
+        LIMIT ?
+      `, [count]);
+
+      for (const mem of toEvict) {
+        await this.db.run('DELETE FROM memories WHERE id = ?', [mem.id]);
+      }
+
+      console.log(`✅ 记忆清理完成，淘汰了 ${toEvict.length} 条记忆`);
+    } catch (error) {
+      console.error('❌ 淘汰记忆失败:', error);
+    }
+  }
+
+  /**
+   * 记忆去重（内容相似度>90%则合并）
+   * @param content 新记忆内容
+   * @returns 重复的记忆或null
+   */
+  private async deduplicateMemory(content: string): Promise<Memory | null> {
+    if (!this.db) {
+      console.error('❌ 数据库未初始化');
+      return null;
+    }
+
+    try {
+      const memories = await this.db.all('SELECT * FROM memories');
+      const contentLower = content.toLowerCase();
+
+      for (const mem of memories) {
+        const existingContentLower = mem.content.toLowerCase();
+        const similarity = this.calculateSimilarity(contentLower, existingContentLower);
+        if (similarity > 0.9) {
+          return mem as Memory;
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ 去重检查失败:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 计算字符串相似度（简单的包含关系）
+   * @param str1 字符串1
+   * @param str2 字符串2
+   * @returns 相似度 0-1
+   */
+  private calculateSimilarity(str1: string, str2: string): number {
+    if (str1.includes(str2) || str2.includes(str1)) {
+      return 1.0;
     }
     
-    newMemories.sort((a, b) => a.timestamp - b.timestamp);
-    this.memories = newMemories;
+    // 简单的Levenshtein距离计算
+    const maxLength = Math.max(str1.length, str2.length);
+    if (maxLength === 0) return 1.0;
     
-    console.log(`✅ 记忆清理完成，当前数量: ${this.memories.length}`);
+    let distance = 0;
+    for (let i = 0; i < Math.min(str1.length, str2.length); i++) {
+      if (str1[i] !== str2[i]) distance++;
+    }
+    distance += Math.abs(str1.length - str2.length);
+    
+    return 1 - (distance / maxLength);
   }
 
   /**
-   * 获取所有重要记忆
-   * @returns 重要记忆数组副本
+   * 更新记忆
+   * @param id 记忆ID
+   * @param newContent 新内容
    */
-  getAllMemories(): ImportantMemory[] {
-    return [...this.memories];
+  async updateMemory(id: string, newContent: string): Promise<void> {
+    if (!this.db) {
+      console.error('❌ 数据库未初始化');
+      return;
+    }
+
+    try {
+      await this.db.run(
+        'UPDATE memories SET content = ?, updated_at = ? WHERE id = ?',
+        [newContent.trim(), Date.now(), id]
+      );
+      console.log('💾 记忆已更新:', id);
+    } catch (error) {
+      console.error('❌ 更新记忆失败:', error);
+    }
   }
 
   /**
-   * 搜索记忆
-   * @param keyword 搜索关键词
+   * 搜索记忆（关键词+类别+时间衰减+重要性加权）
+   * @param query 搜索查询
+   * @param limit 限制数量
    * @returns 匹配的记忆数组
    */
-  searchMemories(keyword: string): ImportantMemory[] {
-    const keywordLower = keyword.toLowerCase();
-    return this.memories.filter(memory => 
-      memory.content.toLowerCase().includes(keywordLower)
-    );
+  async searchMemories(query: string, limit: number = 10): Promise<Memory[]> {
+    if (!this.db) {
+      console.error('❌ 数据库未初始化');
+      return [];
+    }
+
+    try {
+      // 分词：将用户输入拆分为关键词
+      const keywords = query.split(/\s+/).filter(w => w.length > 1);
+      
+      if (keywords.length === 0) {
+        // 如果没有关键词，返回最近的记忆
+        return await this.getRecentMemories(limit);
+      }
+
+      // 获取所有记忆
+      const allMemories = await this.db.all('SELECT * FROM memories');
+      
+      // 对每条记忆计算匹配分数
+      const scored = allMemories.map(mem => {
+        let score = 0;
+        for (const kw of keywords) {
+          if (mem.content.toLowerCase().includes(kw.toLowerCase())) score += 1;
+        }
+        // 时间衰减：越近的记忆加分
+        const ageInDays = (Date.now() - mem.created_at) / (1000 * 60 * 60 * 24);
+        score += Math.max(0, 5 - ageInDays / 30); // 30天内线性衰减
+        // 重要性加权
+        score += mem.importance * 0.5;
+        return { ...mem, score };
+      });
+
+      // 按分数排序，返回top N
+      return scored
+        .filter(m => m.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit) as Memory[];
+    } catch (error) {
+      console.error('❌ 搜索记忆失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取最近N条记忆
+   * @param limit 限制数量
+   * @param category 可选的类别过滤
+   * @returns 最近的记忆数组
+   */
+  async getRecentMemories(limit: number = 10, category?: string): Promise<Memory[]> {
+    if (!this.db) {
+      console.error('❌ 数据库未初始化');
+      return [];
+    }
+
+    try {
+      let query = 'SELECT * FROM memories';
+      const params: any[] = [];
+
+      if (category) {
+        query += ' WHERE category = ?';
+        params.push(category);
+      }
+
+      query += ' ORDER BY created_at DESC LIMIT ?';
+      params.push(limit);
+
+      return await this.db.all(query, params) as Memory[];
+    } catch (error) {
+      console.error('❌ 获取最近记忆失败:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 获取所有记忆
+   * @returns 记忆数组
+   */
+  async getAllMemories(): Promise<Memory[]> {
+    if (!this.db) {
+      console.error('❌ 数据库未初始化');
+      return [];
+    }
+
+    try {
+      return await this.db.all('SELECT * FROM memories') as Memory[];
+    } catch (error) {
+      console.error('❌ 获取所有记忆失败:', error);
+      return [];
+    }
   }
 
   /**
    * 删除指定记忆
    * @param id 记忆ID
    */
-  deleteMemory(id: string): void {
-    this.memories = this.memories.filter(m => m.id !== id);
-    this.saveMemories();
+  async deleteMemory(id: string): Promise<void> {
+    if (!this.db) {
+      console.error('❌ 数据库未初始化');
+      return;
+    }
+
+    try {
+      await this.db.run('DELETE FROM memories WHERE id = ?', [id]);
+      console.log('🗑️ 记忆已删除:', id);
+    } catch (error) {
+      console.error('❌ 删除记忆失败:', error);
+    }
   }
 
   /**
    * 清空所有记忆
    */
-  clearAllMemories(): void {
-    this.memories = [];
-    this.saveMemories();
+  async clearAllMemories(): Promise<void> {
+    if (!this.db) {
+      console.error('❌ 数据库未初始化');
+      return;
+    }
+
+    try {
+      await this.db.run('DELETE FROM memories');
+      console.log('🗑️ 所有记忆已清空');
+    } catch (error) {
+      console.error('❌ 清空记忆失败:', error);
+    }
   }
 
   /**
    * 生成用于LLM的记忆提示词
+   * @param userInput 用户输入，用于记忆检索
    * @returns 格式化的记忆提示词字符串
    */
-  getMemoryPrompt(): string {
+  async getMemoryPrompt(userInput: string = ''): Promise<string> {
     const parts: string[] = [];
     
+    // 1. 偏好：全部输出
     const prefs = this.getAllPreferences();
     if (Object.keys(prefs).length > 0) {
       parts.push('【用户偏好】');
@@ -252,21 +452,14 @@ export class MemoryService {
       }
     }
     
-    const importantEvents = this.memories.filter(m => m.category === 'important_event');
-    const preferences = this.memories.filter(m => m.category === 'preference').slice(-15);
-    const facts = this.memories.filter(m => m.category === 'fact').slice(-15);
+    // 2. 记忆：根据用户当前输入检索相关记忆
+    const relevantMemories = await this.searchMemories(userInput, 10);
     
-    let selectedMemories = [...importantEvents, ...preferences, ...facts];
-    if (selectedMemories.length > 20) {
-      selectedMemories = selectedMemories.slice(-20);
-    }
-    
-    if (selectedMemories.length > 0) {
-      parts.push('【重要记忆】');
-      selectedMemories.forEach(memory => {
-        const date = new Date(memory.timestamp).toLocaleDateString('zh-CN');
-        parts.push(`- [${date}] ${memory.content}`);
-      });
+    if (relevantMemories.length > 0) {
+      parts.push('\n【相关记忆】');
+      for (const mem of relevantMemories) {
+        parts.push(`- [${mem.category}] ${mem.content}`);
+      }
     }
     
     return parts.length > 0 ? parts.join('\n') : '';

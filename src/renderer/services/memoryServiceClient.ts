@@ -43,9 +43,9 @@ export class MemoryService {
   /**
    * 添加记忆
    */
-  async addMemory(content: string, category: string = 'fact'): Promise<void> {
+  async addMemory(content: string, category: string = 'fact', importance: number = 5): Promise<void> {
     if (window.electronAPI?.memoryAddMemory) {
-      await window.electronAPI.memoryAddMemory(content, category);
+      await window.electronAPI.memoryAddMemory(content, category, importance);
     }
   }
 
@@ -62,9 +62,9 @@ export class MemoryService {
   /**
    * 获取记忆提示词
    */
-  async getMemoryPrompt(): Promise<string> {
+  async getMemoryPrompt(userInput: string = ''): Promise<string> {
     if (window.electronAPI?.memoryGetPrompt) {
-      return await window.electronAPI.memoryGetPrompt();
+      return await window.electronAPI.memoryGetPrompt(userInput);
     }
     return '';
   }

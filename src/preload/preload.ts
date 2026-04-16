@@ -72,16 +72,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('memory-get-all-preferences');
   },
   // 记忆服务 - 添加记忆
-  memoryAddMemory: async (content: string, category: string = 'fact') => {
-    return ipcRenderer.invoke('memory-add-memory', content, category);
+  memoryAddMemory: async (content: string, category: string = 'fact', importance: number = 5) => {
+    return ipcRenderer.invoke('memory-add-memory', content, category, importance);
   },
   // 记忆服务 - 获取所有记忆
   memoryGetAllMemories: async () => {
     return ipcRenderer.invoke('memory-get-all-memories');
   },
   // 记忆服务 - 获取记忆提示词
-  memoryGetPrompt: async () => {
-    return ipcRenderer.invoke('memory-get-prompt');
+  memoryGetPrompt: async (userInput: string = '') => {
+    return ipcRenderer.invoke('memory-get-prompt', userInput);
   },
   // 记忆服务 - 搜索记忆
   memorySearchMemories: async (keyword: string) => {
@@ -153,9 +153,9 @@ declare global {
       memorySetPreference: (key: string, value: any) => Promise<void>;
       memoryGetPreference: (key: string) => Promise<any>;
       memoryGetAllPreferences: () => Promise<any>;
-      memoryAddMemory: (content: string, category?: string) => Promise<void>;
+      memoryAddMemory: (content: string, category?: string, importance?: number) => Promise<void>;
       memoryGetAllMemories: () => Promise<any[]>;
-      memoryGetPrompt: () => Promise<string>;
+      memoryGetPrompt: (userInput?: string) => Promise<string>;
       memorySearchMemories: (keyword: string) => Promise<any[]>;
       memoryDeleteMemory: (id: string) => Promise<void>;
       memoryClearAllMemories: () => Promise<void>;

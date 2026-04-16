@@ -46,6 +46,12 @@ export class Orchestrator {
   private conversationHistory: any[] = [];
   private static readonly MAX_HISTORY_MESSAGES = 20; // 最大保留20条消息（约10轮对话）
   private currentModelId: string = 'doubao-seed-2-0-pro-260215'; // 当前使用的模型
+  
+  // 工具结果截断和上下文压缩相关常量
+  private static readonly MAX_TOOL_RESULT_TOKENS = 500; // 工具返回结果最大token数
+  private static readonly MAX_CONTEXT_TOKENS = 80000; // 模型窗口的70%
+  private static readonly KEEP_RECENT_MESSAGES = 6;   // 保留最近6条不压缩
+  private static readonly COMPACT_THRESHOLD = 0.8;     // 使用80%时触发压缩
 
   constructor() {
     this.sessionId = this.generateSessionId();
@@ -90,6 +96,122 @@ export class Orchestrator {
   }
 
   /**
+   * 工具结果截断
+   * @param result 工具返回结果
+   * @returns 截断后的结果
+   */
+  private truncateToolResult(result: string): string {
+    const estimatedTokens = Math.ceil(result.length / 4); // 粗略估算
+    if (estimatedTokens <= Orchestrator.MAX_TOOL_RESULT_TOKENS) return result;
+    const maxChars = Orchestrator.MAX_TOOL_RESULT_TOKENS * 4;
+    const truncated = result.slice(0, maxChars);
+    return truncated + `\n\n[结果已截断，原文共 ${result.length} 字]`;
+  }
+
+  /**
+   * 估算当前上下文的token数
+   * @param messages 消息数组
+   * @returns 估算的token数
+   */
+  private estimateTokens(messages: any[]): number {
+    let totalTokens = 0;
+    for (const message of messages) {
+      if (message.content) {
+        // 粗略估算：中文1字≈2token，英文1词≈1.3token
+        const content = message.content.toString();
+        const chineseChars = (content.match(/[\u4e00-\u9fa5]/g) || []).length;
+        const englishWords = (content.match(/\b\w+\b/g) || []).length;
+        const otherChars = content.length - chineseChars - englishWords;
+        totalTokens += chineseChars * 2 + englishWords * 1.3 + otherChars;
+      }
+    }
+    return totalTokens;
+  }
+
+  /**
+   * 检查是否需要压缩上下文
+   * @returns 是否需要压缩
+   */
+  private async shouldCompact(): Promise<boolean> {
+    const estimatedTokens = this.estimateTokens(this.conversationHistory);
+    return estimatedTokens > Orchestrator.MAX_CONTEXT_TOKENS * Orchestrator.COMPACT_THRESHOLD;
+  }
+
+  /**
+   * 压缩上下文历史
+   */
+  private async compactHistory(): Promise<void> {
+    // 1. 分离：需要压缩的消息 + 保留的消息
+    const toCompact = this.conversationHistory.slice(
+      0, this.conversationHistory.length - Orchestrator.KEEP_RECENT_MESSAGES
+    );
+    const toKeep = this.conversationHistory.slice(
+      -Orchestrator.KEEP_RECENT_MESSAGES
+    );
+
+    if (toCompact.length === 0) return;
+
+    // 2. 调用LLM压缩
+    const summary = await this.callLLMForCompaction(toCompact);
+
+    // 3. 替换：用摘要消息替代被压缩的消息
+    this.conversationHistory = [
+      { role: 'system', content: `[历史摘要] ${summary}` },
+      ...toKeep
+    ];
+
+    console.log(`📝 上下文压缩完成，保留了 ${Orchestrator.KEEP_RECENT_MESSAGES} 条消息 + 1条摘要`);
+  }
+
+  /**
+   * 调用LLM压缩对话历史
+   * @param messages 要压缩的消息
+   * @returns 压缩后的摘要
+   */
+  private async callLLMForCompaction(messages: any[]): Promise<string> {
+    const prompt = `你是一个对话摘要助手。请将以下对话历史压缩为简洁的摘要，保留：
+1. 用户的核心需求和意图
+2. 已完成的关键操作和结果
+3. 重要的决策和结论
+4. 未完成的待办事项
+
+忽略：闲聊、重复确认、中间错误
+
+摘要格式：用简洁的要点列出，每条不超过50字。
+
+对话历史：
+${messages.map(msg => `${msg.role}: ${msg.content || ''}`).join('\n')}`;
+
+    try {
+      const ARK_API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
+      const requestBody = {
+        model: this.currentModelId,
+        messages: [
+          { role: 'system', content: '你是一个专业的对话摘要助手，只负责压缩对话历史，不做其他回答。' },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 500,
+        stream: false
+      };
+
+      const response = await fetch(ARK_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiConfig.apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const responseJson = await response.json();
+      return responseJson.choices[0].message.content || '无重要信息';
+    } catch (error) {
+      console.error('❌ 压缩对话历史失败:', error);
+      return '无重要信息';
+    }
+  }
+
+  /**
    * 处理文本输入（使用 Function Calling 架构）
    * @param text 用户输入的文本
    * @param isTextInput 是否是文字输入（默认为true）
@@ -121,6 +243,11 @@ export class Orchestrator {
     try {
       // 2. 构建消息历史
       this.conversationHistory.push({ role: 'user', content: text });
+
+      // 检查是否需要压缩上下文
+      if (await this.shouldCompact()) {
+        await this.compactHistory();
+      }
 
       // 裁剪历史，防止 token 超限（保留最近的消息）
       if (this.conversationHistory.length > Orchestrator.MAX_HISTORY_MESSAGES) {
@@ -159,7 +286,7 @@ export class Orchestrator {
         round++;
 
         // 调用豆包 API（带工具定义）
-        const response = await this.callDoubaoWithTools();
+        const response = await this.callDoubaoWithTools(text);
 
         // 检查API是否返回错误
         if (response.error) {
@@ -198,11 +325,17 @@ export class Orchestrator {
           const result = await executeTool(toolName, toolArgs);
           console.log(`🔧 工具结果: ${result.success ? '成功' : '失败'} - ${result.data || result.error}`);
 
+          // 截断工具结果，防止撑爆上下文
+          const truncatedResult = {
+            ...result,
+            data: result.data ? this.truncateToolResult(result.data) : result.data
+          };
+          
           // 将工具结果回传
           this.conversationHistory.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: JSON.stringify(result)
+            content: JSON.stringify(truncatedResult)
           });
         }
       }
@@ -245,9 +378,10 @@ export class Orchestrator {
 
   /**
    * 调用豆包 API（带 Function Calling）
+   * @param userInput 用户输入，用于构建系统提示词
    */
-  private async callDoubaoWithTools(): Promise<any> {
-    const systemPrompt = await this.buildSystemPrompt();
+  private async callDoubaoWithTools(userInput: string = ''): Promise<any> {
+    const systemPrompt = await this.buildSystemPrompt(userInput);
 
     // 豆包 API 地址（Function Calling）
     const ARK_API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
@@ -289,9 +423,10 @@ export class Orchestrator {
 
   /**
    * 构建系统提示词（技能描述 + 用户记忆）
+   * @param userInput 用户输入，用于记忆检索
    */
-  private async buildSystemPrompt(): Promise<string> {
-    const memoryPrompt = await this.memoryService.getMemoryPrompt();
+  private async buildSystemPrompt(userInput: string = ''): Promise<string> {
+    const memoryPrompt = await this.memoryService.getMemoryPrompt(userInput);
 
     return `${getQiyuanSystemPrompt()}
 
