@@ -46,6 +46,7 @@ export class MemoryService {
   private dbPath: string;
   private preferences: UserPreferences;
   private db: Database | null = null;
+  private dbReady: Promise<void>;
   
   private static readonly MAX_MEMORIES = 500;
 
@@ -56,9 +57,16 @@ export class MemoryService {
     
     this.ensureDataDir();
     this.preferences = this.loadPreferences();
-    this.initDatabase();
+    this.dbReady = this.initDatabase();
     
     console.log('🧠 记忆服务（主进程）初始化成功');
+  }
+
+  /**
+   * 等待数据库初始化完成
+   */
+  private async ensureDbReady(): Promise<void> {
+    await this.dbReady;
   }
 
   private ensureDataDir(): void {
@@ -156,6 +164,7 @@ export class MemoryService {
    * @param importance 重要性 1-10
    */
   async addMemory(content: string, category: Memory['category'] = 'fact', importance: number = 5): Promise<void> {
+    await this.ensureDbReady();
     if (!this.db) {
       console.error('❌ 数据库未初始化');
       return;
@@ -196,6 +205,7 @@ export class MemoryService {
    * @param count 要淘汰的数量
    */
   private async evictMemories(count: number): Promise<void> {
+    await this.ensureDbReady();
     if (!this.db) {
       console.error('❌ 数据库未初始化');
       return;
@@ -230,6 +240,7 @@ export class MemoryService {
    * @returns 重复的记忆或null
    */
   private async deduplicateMemory(content: string): Promise<Memory | null> {
+    await this.ensureDbReady();
     if (!this.db) {
       console.error('❌ 数据库未初始化');
       return null;
@@ -255,27 +266,45 @@ export class MemoryService {
   }
 
   /**
-   * 计算字符串相似度（简单的包含关系）
+   * 计算字符串相似度（基于最长公共子序列比率）
    * @param str1 字符串1
    * @param str2 字符串2
    * @returns 相似度 0-1
    */
   private calculateSimilarity(str1: string, str2: string): number {
+    // 包含关系直接返回1.0
     if (str1.includes(str2) || str2.includes(str1)) {
       return 1.0;
     }
-    
-    // 简单的Levenshtein距离计算
-    const maxLength = Math.max(str1.length, str2.length);
-    if (maxLength === 0) return 1.0;
-    
-    let distance = 0;
-    for (let i = 0; i < Math.min(str1.length, str2.length); i++) {
-      if (str1[i] !== str2[i]) distance++;
+
+    const m = str1.length;
+    const n = str2.length;
+    if (m === 0 || n === 0) return 0;
+
+    // 计算最长公共子序列（LCS）长度
+    // 使用滚动数组优化空间复杂度 O(min(m,n))
+    const shorter = m < n ? str1 : str2;
+    const longer = m < n ? str2 : str1;
+    const len = shorter.length;
+
+    let prev = new Array(len + 1).fill(0);
+    let curr = new Array(len + 1).fill(0);
+
+    for (let i = 1; i <= longer.length; i++) {
+      for (let j = 1; j <= len; j++) {
+        if (longer[i - 1] === shorter[j - 1]) {
+          curr[j] = prev[j - 1] + 1;
+        } else {
+          curr[j] = Math.max(prev[j], curr[j - 1]);
+        }
+      }
+      [prev, curr] = [curr, prev];
+      curr.fill(0);
     }
-    distance += Math.abs(str1.length - str2.length);
-    
-    return 1 - (distance / maxLength);
+
+    const lcsLength = prev[len];
+    // 相似度 = LCS长度 / 两个字符串的较长长度
+    return lcsLength / Math.max(m, n);
   }
 
   /**
@@ -284,6 +313,7 @@ export class MemoryService {
    * @param newContent 新内容
    */
   async updateMemory(id: string, newContent: string): Promise<void> {
+    await this.ensureDbReady();
     if (!this.db) {
       console.error('❌ 数据库未初始化');
       return;
@@ -307,6 +337,7 @@ export class MemoryService {
    * @returns 匹配的记忆数组
    */
   async searchMemories(query: string, limit: number = 10): Promise<Memory[]> {
+    await this.ensureDbReady();
     if (!this.db) {
       console.error('❌ 数据库未初始化');
       return [];
@@ -356,6 +387,7 @@ export class MemoryService {
    * @returns 最近的记忆数组
    */
   async getRecentMemories(limit: number = 10, category?: string): Promise<Memory[]> {
+    await this.ensureDbReady();
     if (!this.db) {
       console.error('❌ 数据库未初始化');
       return [];
@@ -385,6 +417,7 @@ export class MemoryService {
    * @returns 记忆数组
    */
   async getAllMemories(): Promise<Memory[]> {
+    await this.ensureDbReady();
     if (!this.db) {
       console.error('❌ 数据库未初始化');
       return [];
@@ -403,6 +436,7 @@ export class MemoryService {
    * @param id 记忆ID
    */
   async deleteMemory(id: string): Promise<void> {
+    await this.ensureDbReady();
     if (!this.db) {
       console.error('❌ 数据库未初始化');
       return;
@@ -420,6 +454,7 @@ export class MemoryService {
    * 清空所有记忆
    */
   async clearAllMemories(): Promise<void> {
+    await this.ensureDbReady();
     if (!this.db) {
       console.error('❌ 数据库未初始化');
       return;
@@ -439,6 +474,7 @@ export class MemoryService {
    * @returns 格式化的记忆提示词字符串
    */
   async getMemoryPrompt(userInput: string = ''): Promise<string> {
+    await this.ensureDbReady();
     const parts: string[] = [];
     
     // 1. 偏好：全部输出

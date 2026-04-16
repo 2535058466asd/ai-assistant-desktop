@@ -185,7 +185,7 @@ ${messages.map(msg => `${msg.role}: ${msg.content || ''}`).join('\n')}`;
     try {
       const ARK_API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
       const requestBody = {
-        model: this.currentModelId,
+        model: 'doubao-1-5-lite-32k-250115', // 使用 lite 模型压缩，成本低
         messages: [
           { role: 'system', content: '你是一个专业的对话摘要助手，只负责压缩对话历史，不做其他回答。' },
           { role: 'user', content: prompt }
@@ -247,12 +247,6 @@ ${messages.map(msg => `${msg.role}: ${msg.content || ''}`).join('\n')}`;
       // 检查是否需要压缩上下文
       if (await this.shouldCompact()) {
         await this.compactHistory();
-      }
-
-      // 裁剪历史，防止 token 超限（保留最近的消息）
-      if (this.conversationHistory.length > Orchestrator.MAX_HISTORY_MESSAGES) {
-        this.conversationHistory = this.conversationHistory.slice(-Orchestrator.MAX_HISTORY_MESSAGES);
-        console.log(`📝 [历史裁剪] 已裁剪至最近 ${Orchestrator.MAX_HISTORY_MESSAGES} 条消息`);
       }
 
       // 3. Agent 循环（Function Calling）

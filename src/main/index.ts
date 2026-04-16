@@ -166,8 +166,8 @@ ipcMain.handle('memory-get-prompt', async (_event, userInput: string = '') => {
   return await memoryService.getMemoryPrompt(userInput);
 });
 
-ipcMain.handle('memory-search-memories', async (_event, keyword: string) => {
-  return memoryService.searchMemories(keyword);
+ipcMain.handle('memory-search-memories', async (_event, keyword: string, limit: number = 10) => {
+  return memoryService.searchMemories(keyword, limit);
 });
 
 ipcMain.handle('memory-delete-memory', async (_event, id: string) => {
