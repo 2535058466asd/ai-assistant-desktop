@@ -451,8 +451,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         showToast={showToast}
         theme={theme}
         onToggleTheme={onToggleTheme}
-        isVoiceChatEnabled={isVoiceChatEnabled}
-        onToggleVoiceChat={onToggleVoiceChat}
         onOpenSettings={handleOpenSettings}
       />
 
@@ -478,6 +476,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
           onSuggestionClick={handleSuggestionClick}
           voiceChatState={voiceChatState}
           isVoiceChatEnabled={isVoiceChatEnabled}
+          onToggleVoiceChat={onToggleVoiceChat}
         />
       </main>
     </div>

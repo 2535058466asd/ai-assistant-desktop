@@ -6,7 +6,7 @@ interface SettingsDrawerProps {
   onClose: () => void;
 }
 
-type SettingsTab = 'models' | 'api' | 'memory' | 'voice' | 'search' | 'shortcuts' | 'about';
+type SettingsTab = 'models' | 'api' | 'memory' | 'voice' | 'search' | 'shortcuts';
 
 type SettingsView = 'menu' | 'subpanel';
 
@@ -21,7 +21,6 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
     { id: 'voice', label: '语音设置', icon: '🎤' },
     { id: 'search', label: '搜索设置', icon: '🔍' },
     { id: 'shortcuts', label: '快捷键', icon: '⌨️' },
-    { id: 'about', label: '关于', icon: 'ℹ️' },
   ];
 
   const renderSubpanelContent = () => {
@@ -66,17 +65,6 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
           <div className={styles.tabContent}>
             <h3>快捷键</h3>
             <p>快捷键列表展示</p>
-          </div>
-        );
-      case 'about':
-        return (
-          <div className={styles.tabContent}>
-            <h3>关于 Nova</h3>
-            <p>版本信息、更新日志</p>
-            <div className={styles.aboutInfo}>
-              <p><strong>版本：</strong>1.0.0</p>
-              <p><strong>技术栈：</strong>Electron + React + 豆包大模型</p>
-            </div>
           </div>
         );
       default:

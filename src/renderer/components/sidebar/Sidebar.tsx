@@ -9,7 +9,7 @@
  * - 底部：用户信息 + 设置按钮
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import styles from './Sidebar.module.css';
 import type {
   ChatItem as ChatItemType,
@@ -66,6 +66,30 @@ const Sidebar: React.FC<SidebarProps> = ({
   /* 搜索框输入状态 */
   const [searchKeyword, setSearchKeyword] = useState('');
 
+  /* 右键菜单状态 */
+  const [contextMenu, setContextMenu] = useState({
+    isOpen: false,
+    x: 0,
+    y: 0,
+    chatId: '',
+  });
+
+  /* 重命名状态 */
+  const [renameMode, setRenameMode] = useState({
+    isActive: false,
+    chatId: '',
+    newTitle: '',
+  });
+
+  /* 删除确认状态 */
+  const [deleteConfirm, setDeleteConfirm] = useState({
+    isOpen: false,
+    chatId: '',
+  });
+
+  /* 菜单 ref */
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
   /**
    * 处理搜索输入变化
    * 实时调用父组件的搜索回调
@@ -75,6 +99,100 @@ const Sidebar: React.FC<SidebarProps> = ({
     const value = e.target.value;
     setSearchKeyword(value);
     onSearch(value);
+  };
+
+  /**
+   * 点击外部关闭右键菜单
+   */
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
+        setContextMenu({ isOpen: false, x: 0, y: 0, chatId: '' });
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  /**
+   * 处理对话项右键点击
+   */
+  const handleChatItemContextMenu = (e: React.MouseEvent, chatId: string) => {
+    e.preventDefault();
+    setContextMenu({
+      isOpen: true,
+      x: e.clientX,
+      y: e.clientY,
+      chatId,
+    });
+  };
+
+  /**
+   * 处理重命名
+   */
+  const handleRename = (chatId: string) => {
+    setContextMenu({ isOpen: false, x: 0, y: 0, chatId: '' });
+    const chat = chatGroups.flatMap(group => group.items).find(c => c.id === chatId);
+    if (chat) {
+      setRenameMode({
+        isActive: true,
+        chatId,
+        newTitle: chat.title,
+      });
+    }
+  };
+
+  /**
+   * 处理置顶
+   */
+  const handlePin = (chatId: string) => {
+    setContextMenu({ isOpen: false, x: 0, y: 0, chatId: '' });
+    // 这里需要调用父组件的置顶回调，暂时用alert模拟
+    alert('置顶功能开发中');
+  };
+
+  /**
+   * 处理删除确认
+   */
+  const handleDelete = (chatId: string) => {
+    setContextMenu({ isOpen: false, x: 0, y: 0, chatId: '' });
+    setDeleteConfirm({
+      isOpen: true,
+      chatId,
+    });
+  };
+
+  /**
+   * 确认删除
+   */
+  const confirmDelete = () => {
+    setDeleteConfirm({ isOpen: false, chatId: '' });
+    // 这里需要调用父组件的删除回调，暂时用alert模拟
+    alert('删除功能开发中');
+  };
+
+  /**
+   * 取消删除
+   */
+  const cancelDelete = () => {
+    setDeleteConfirm({ isOpen: false, chatId: '' });
+  };
+
+  /**
+   * 保存重命名
+   */
+  const saveRename = () => {
+    setRenameMode({ isActive: false, chatId: '', newTitle: '' });
+    // 这里需要调用父组件的重命名回调，暂时用alert模拟
+    alert(`重命名为: ${renameMode.newTitle}`);
+  };
+
+  /**
+   * 取消重命名
+   */
+  const cancelRename = () => {
+    setRenameMode({ isActive: false, chatId: '', newTitle: '' });
   };
 
   /**
@@ -150,22 +268,45 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
             {/* 该分组下的对话项列表 */}
             {group.items.map((chat) => (
-              <button
-                key={chat.id}
-                className={`${styles.chatItem} ${
-                  chat.id === activeChatId ? styles.chatItemActive : ''
-                }`}
-                onClick={() => onSelectChat(chat.id)}
-                title={chat.title}
-              >
-                {/* 对话图标 emoji */}
-                <div className={styles.chatItemIcon}>{chat.icon}</div>
-                {/* 对话文字信息 */}
-                <div className={styles.chatItemContent}>
-                  <div className={styles.chatItemTitle}>{chat.title}</div>
-                  <div className={styles.chatItemPreview}>{chat.preview}</div>
-                </div>
-              </button>
+              <div key={chat.id}>
+                {renameMode.isActive && renameMode.chatId === chat.id ? (
+                  <div className={styles.chatItemRename}>
+                    <div className={styles.chatItemIcon}>{chat.icon}</div>
+                    <div className={styles.chatItemContent}>
+                      <input
+                        type="text"
+                        className={styles.renameInput}
+                        value={renameMode.newTitle}
+                        onChange={(e) => setRenameMode(prev => ({ ...prev, newTitle: e.target.value }))}
+                        onKeyPress={(e) => e.key === 'Enter' && saveRename()}
+                        onBlur={saveRename}
+                        autoFocus
+                      />
+                    </div>
+                    <div className={styles.renameActions}>
+                      <button className={styles.renameSave} onClick={saveRename}>✓</button>
+                      <button className={styles.renameCancel} onClick={cancelRename}>✕</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    className={`${styles.chatItem} ${
+                      chat.id === activeChatId ? styles.chatItemActive : ''
+                    }`}
+                    onClick={() => onSelectChat(chat.id)}
+                    onContextMenu={(e) => handleChatItemContextMenu(e, chat.id)}
+                    title={chat.title}
+                  >
+                    {/* 对话图标 emoji */}
+                    <div className={styles.chatItemIcon}>{chat.icon}</div>
+                    {/* 对话文字信息 */}
+                    <div className={styles.chatItemContent}>
+                      <div className={styles.chatItemTitle}>{chat.title}</div>
+                      <div className={styles.chatItemPreview}>{chat.preview}</div>
+                    </div>
+                  </button>
+                )}
+              </div>
             ))}
           </React.Fragment>
         ))}
@@ -181,6 +322,61 @@ const Sidebar: React.FC<SidebarProps> = ({
           <div className={styles.userPlan}>{userInfo.plan}</div>
         </div>
       </div>
+
+      {/* ===== 右键菜单 ===== */}
+      {contextMenu.isOpen && (
+        <div
+          ref={contextMenuRef}
+          className={styles.contextMenu}
+          style={{
+            left: `${contextMenu.x}px`,
+            top: `${contextMenu.y}px`,
+          }}
+        >
+          <button
+            className={styles.contextMenuItem}
+            onClick={() => handleRename(contextMenu.chatId)}
+          >
+            重命名
+          </button>
+          <button
+            className={styles.contextMenuItem}
+            onClick={() => handlePin(contextMenu.chatId)}
+          >
+            置顶
+          </button>
+          <button
+            className={styles.contextMenuItemDelete}
+            onClick={() => handleDelete(contextMenu.chatId)}
+          >
+            删除
+          </button>
+        </div>
+      )}
+
+      {/* ===== 删除确认弹窗 ===== */}
+      {deleteConfirm.isOpen && (
+        <div className={styles.deleteConfirmOverlay}>
+          <div className={styles.deleteConfirmDialog}>
+            <h3>确认删除</h3>
+            <p>确定要删除这个对话吗？此操作无法撤销。</p>
+            <div className={styles.deleteConfirmActions}>
+              <button
+                className={styles.deleteConfirmCancel}
+                onClick={cancelDelete}
+              >
+                取消
+              </button>
+              <button
+                className={styles.deleteConfirmDelete}
+                onClick={confirmDelete}
+              >
+                删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 };
