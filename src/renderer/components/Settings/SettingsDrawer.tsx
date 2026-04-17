@@ -8,7 +8,10 @@ interface SettingsDrawerProps {
 
 type SettingsTab = 'models' | 'api' | 'memory' | 'voice' | 'search' | 'shortcuts' | 'about';
 
+type SettingsView = 'menu' | 'subpanel';
+
 const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
+  const [currentView, setCurrentView] = useState<SettingsView>('menu');
   const [activeTab, setActiveTab] = useState<SettingsTab>('models');
 
   const tabs: { id: SettingsTab; label: string; icon: string }[] = [
@@ -21,48 +24,48 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
     { id: 'about', label: '关于', icon: 'ℹ️' },
   ];
 
-  const renderTabContent = () => {
+  const renderSubpanelContent = () => {
     switch (activeTab) {
       case 'models':
         return (
           <div className={styles.tabContent}>
             <h3>模型管理</h3>
-            <p>模型列表增删排序、默认模型设置</p>
+            <p>模型列表展示、添加/删除模型入口</p>
           </div>
         );
       case 'api':
         return (
           <div className={styles.tabContent}>
             <h3>API 配置</h3>
-            <p>各平台 API Key 管理</p>
+            <p>API Key 输入框（火山引擎）</p>
           </div>
         );
       case 'memory':
         return (
           <div className={styles.tabContent}>
             <h3>记忆管理</h3>
-            <p>记忆列表查看/搜索/删除/导入导出</p>
+            <p>记忆数量统计、清空记忆按钮</p>
           </div>
         );
       case 'voice':
         return (
           <div className={styles.tabContent}>
             <h3>语音设置</h3>
-            <p>ASR/TTS 引擎选择、语速、音色</p>
+            <p>ASR/TTS 引擎选择下拉</p>
           </div>
         );
       case 'search':
         return (
           <div className={styles.tabContent}>
             <h3>搜索设置</h3>
-            <p>搜索引擎配置</p>
+            <p>搜索引擎 URL 配置</p>
           </div>
         );
       case 'shortcuts':
         return (
           <div className={styles.tabContent}>
             <h3>快捷键</h3>
-            <p>自定义快捷键</p>
+            <p>快捷键列表展示</p>
           </div>
         );
       case 'about':
@@ -81,6 +84,15 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
     }
   };
 
+  const handleTabClick = (tabId: SettingsTab) => {
+    setActiveTab(tabId);
+    setCurrentView('subpanel');
+  };
+
+  const handleBack = () => {
+    setCurrentView('menu');
+  };
+
   return (
     <>
       {/* 背景遮罩 */}
@@ -90,8 +102,21 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
       
       {/* 抽屉面板 */}
       <div className={`${styles.drawer} ${isOpen ? styles.open : ''}`}>
+        {/* 标题栏 */}
         <div className={styles.drawerHeader}>
-          <h2>⚙️ 设置</h2>
+          {currentView === 'menu' ? (
+            <h2>⚙️ 设置</h2>
+          ) : (
+            <div className={styles.subpanelHeader}>
+              <button className={styles.backBtn} onClick={handleBack} title="返回">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="19" y1="12" x2="5" y2="12" />
+                  <polyline points="12 19 5 12 12 5" />
+                </svg>
+              </button>
+              <h3>{tabs.find(tab => tab.id === activeTab)?.label}</h3>
+            </div>
+          )}
           <button className={styles.closeBtn} onClick={onClose} title="关闭">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -100,25 +125,33 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
         
+        {/* 内容区 */}
         <div className={styles.drawerBody}>
-          {/* 左侧标签栏 */}
-          <nav className={styles.tabs}>
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                className={`${styles.tab} ${activeTab === tab.id ? styles.active : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <span className={styles.tabIcon}>{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </nav>
-          
-          {/* 右侧内容区 */}
-          <div className={styles.content}>
-            {renderTabContent()}
-          </div>
+          {currentView === 'menu' ? (
+            /* 一级菜单列表 */
+            <div className={styles.menuList}>
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  className={styles.menuItem}
+                  onClick={() => handleTabClick(tab.id)}
+                >
+                  <span className={styles.menuIcon}>{tab.icon}</span>
+                  <span className={styles.menuLabel}>{tab.label}</span>
+                  <span className={styles.menuArrow}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            /* 二级子面板 */
+            <div className={styles.subpanel}>
+              {renderSubpanelContent()}
+            </div>
+          )}
         </div>
       </div>
     </>

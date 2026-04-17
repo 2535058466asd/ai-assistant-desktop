@@ -88,12 +88,14 @@
 
   /* --- 强调色 --- */
   --accent-blue: #2563eb;
-  --accent-indigo: #7c3aed;
+  --accent-purple: #7c3aed;
   --accent-cyan: #0891b2;
+  --accent-green: #16a34a;
 
   /* --- 渐变色 --- */
   --gradient-main: linear-gradient(135deg, #2563eb, #7c3aed);
   --gradient-logo: linear-gradient(135deg, #0891b2, #2563eb);
+  --gradient-brand: linear-gradient(135deg, #0891b2, #2563eb, #7c3aed);
 
   /* --- 边框 --- */
   --border-color: #e2e8f0;
@@ -107,17 +109,20 @@
   --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.1);
   --shadow-logo: 0 2px 8px rgba(8, 145, 178, 0.25);
   --shadow-avatar: 0 2px 8px rgba(8, 145, 178, 0.15);
+  --shadow-btn: 0 2px 8px rgba(37, 99, 235, 0.2);
+  --shadow-btn-hover: 0 4px 12px rgba(37, 99, 235, 0.3);
+  --shadow-msg-user: 0 4px 16px rgba(37, 99, 235, 0.15);
+  --shadow-welcome: 0 0 40px rgba(8, 145, 178, 0.15);
 }
 
 /* ==========================================
    2. 全局重置样式
    ========================================== */
-*,
-*::before,
-*::after {
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 html, body, #root {
@@ -139,8 +144,8 @@ body {
    3. 滚动条全局样式
    ========================================== */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -148,13 +153,13 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.15);
+  background: transparent;
   border-radius: 3px;
   transition: background 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(6, 182, 212, 0.3);
+  background: var(--text-muted);
 }
 
 /* 侧边栏专用细滚动条 */

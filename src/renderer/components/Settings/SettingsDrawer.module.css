@@ -29,8 +29,8 @@
 .drawer {
   position: fixed;
   top: 0;
-  right: -500px;
-  width: 500px;
+  right: -360px;
+  width: 360px;
   height: 100vh;
   background: var(--bg-secondary);
   backdrop-filter: blur(20px);
@@ -38,7 +38,7 @@
   z-index: 1001;
   display: flex;
   flex-direction: column;
-  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: right var(--transition-slow) cubic-bezier(0.4, 0, 0.2, 1);
   border-left: 1px solid var(--border-color);
 }
 
@@ -95,56 +95,102 @@
 /* ===== 抽屉主体 ===== */
 .drawerBody {
   flex: 1;
-  display: flex;
   overflow: hidden;
 }
 
-/* ===== 左侧标签栏 ===== */
-.tabs {
-  width: 160px;
-  background: var(--bg-tertiary);
-  border-right: 1px solid var(--border-color);
-  padding: 16px 8px;
+/* ===== 一级菜单列表 ===== */
+.menuList {
+  width: 100%;
+  padding: 8px 0;
   overflow-y: auto;
 }
 
-.tab {
+.menuItem {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 16px 20px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  border-radius: 8px;
   font-size: 14px;
   text-align: left;
-  transition: all 0.2s ease;
-  margin-bottom: 4px;
+  transition: all var(--transition-normal) ease;
+  position: relative;
 }
 
-.tab:hover {
+.menuItem:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
 
-.tab.active {
-  background: var(--accent-blue);
-  color: white;
-}
-
-.tabIcon {
-  font-size: 16px;
+.menuIcon {
+  font-size: 18px;
   line-height: 1;
+  width: 24px;
+  text-align: center;
 }
 
-/* ===== 右侧内容区 ===== */
-.content {
+.menuLabel {
   flex: 1;
-  padding: 24px;
+}
+
+.menuArrow {
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: transform var(--transition-normal) ease;
+}
+
+.menuItem:hover .menuArrow {
+  transform: translateX(2px);
+}
+
+/* ===== 二级子面板 ===== */
+.subpanel {
+  width: 100%;
+  height: 100%;
+  padding: 20px;
   overflow-y: auto;
+}
+
+.subpanelHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-right: 16px;
+}
+
+.backBtn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-normal) ease;
+}
+
+.backBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.backBtn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.subpanelHeader h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .tabContent h3 {

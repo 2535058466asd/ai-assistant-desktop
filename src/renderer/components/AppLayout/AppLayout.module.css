@@ -10,7 +10,7 @@
   width: 100vw;
   overflow: hidden;
   position: relative;
-  background: linear-gradient(135deg, #0a0e1a 0%, #0d1b2a 40%, #1b2838 100%);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, #0d1b2a 40%, #1b2838 100%);
   z-index: 1;
 }
 
@@ -42,7 +42,7 @@
 
 /* 亮色主题 */
 [data-theme="light"] .app {
-  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 40%, #f1f5f9 100%);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, #ffffff 40%, var(--bg-tertiary) 100%);
 }
 
 [data-theme="light"] .app::before {
