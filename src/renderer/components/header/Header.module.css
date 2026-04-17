@@ -321,3 +321,32 @@
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.1); opacity: 0.8; }
 }
+
+/* ===== 主题切换按钮 ===== */
+.themeToggleBtn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.themeToggleBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.themeIcon {
+  font-size: 20px;
+  transition: transform 0.3s ease;
+}
+
+.themeToggleBtn:hover .themeIcon {
+  transform: rotate(360deg);
+}

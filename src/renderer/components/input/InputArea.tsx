@@ -297,7 +297,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
           <textarea
             ref={textareaRef}
             className={styles.chatInput}
-            placeholder={isRecording ? '正在聆听...' : '和启源聊聊天吧~'}
+            placeholder={isRecording ? '正在聆听...' : '和 Nova 聊聊天吧~'}
             value={isRecording ? recognitionText : inputText}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
@@ -363,7 +363,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
 
         {/* 底部提示文字 */}
         <div className={styles.inputHint}>
-          启源 AI 可能会产生不准确的信息，请注意甄别
+          Nova 可能会产生不准确的信息，请注意甄别
         </div>
       </div>
     </div>

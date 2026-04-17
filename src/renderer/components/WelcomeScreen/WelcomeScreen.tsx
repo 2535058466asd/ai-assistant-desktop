@@ -91,11 +91,14 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       </div>
 
       {/* ===== 2. 品牌标题（渐变文字）===== */}
-      <h1 className={styles.welcomeTitle}>你好，我是 Nova</h1>
+      <h1 className={styles.welcomeTitle}>你好，我是 Nova ✨</h1>
 
       {/* ===== 3. 副标题/引导文字 ===== */}
       <p className={styles.welcomeSubtitle}>
-        选择下方快捷方式，或直接输入你想聊的内容
+        我可以搜索、记忆、语音对话，还能调用工具帮你干活。
+      </p>
+      <p className={styles.welcomeSubtitle}>
+        有什么我能帮你的？
       </p>
 
       {/* ===== 4. 快捷建议卡片网格（3列布局）===== */}

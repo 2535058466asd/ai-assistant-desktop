@@ -432,7 +432,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         onNewChat={handleNewChat}
         onSelectChat={handleSelectChat}
         onSearch={handleSearch}
-        onOpenSettings={handleOpenSettings}
       />
 
       {/* ===== 设置抽屉 ===== */}
@@ -454,6 +453,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         onToggleTheme={onToggleTheme}
         isVoiceChatEnabled={isVoiceChatEnabled}
         onToggleVoiceChat={onToggleVoiceChat}
+        onOpenSettings={handleOpenSettings}
       />
 
         {/* 2. 聊天区域 或 欢迎页（二选一显示）*/}

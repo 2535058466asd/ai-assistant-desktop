@@ -37,6 +37,8 @@ interface HeaderProps {
   isVoiceChatEnabled?: boolean;
   /** 切换语音对话模式回调 */
   onToggleVoiceChat?: () => void;
+  /** 打开设置回调 */
+  onOpenSettings?: () => void;
 }
 
 /**
@@ -54,6 +56,7 @@ const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   isVoiceChatEnabled = false,
   onToggleVoiceChat,
+  onOpenSettings,
 }) => {
   /* ===== 状态管理 ===== */
 
@@ -111,29 +114,14 @@ const Header: React.FC<HeaderProps> = ({
     setModelDropdownOpen(false); /* 同时关闭模型菜单 */
   };
 
-  /**
-   * 处理分享按钮点击
-   * 尝试复制当前页面 URL 到剪贴板
-   */
-  const handleShare = async () => {
-    try {
-      if (navigator.clipboard && window.location.href) {
-        await navigator.clipboard.writeText(window.location.href);
-        showToast('已复制链接到剪贴板', 'success');
-      } else {
-        showToast('您的浏览器不支持自动复制', 'error');
-      }
-    } catch {
-      showToast('复制失败，请手动复制地址栏链接', 'error');
-    }
-  };
+
 
   /**
    * 更多菜单项：设置
    */
   const handleSettings = () => {
     setMoreMenuOpen(false);
-    showToast('设置面板开发中...', 'info');
+    onOpenSettings?.();
   };
 
   /**
@@ -145,10 +133,9 @@ const Header: React.FC<HeaderProps> = ({
   };
 
   /**
-   * 更多菜单项：切换主题
+   * 独立主题切换按钮处理
    */
-  const handleToggleTheme = () => {
-    setMoreMenuOpen(false);
+  const handleThemeBtnClick = () => {
     onToggleTheme();
     showToast(`已切换到${theme === 'dark' ? '☀️ 亮色' : '🌙 暗色'}主题`, 'success');
   };
@@ -240,27 +227,13 @@ const Header: React.FC<HeaderProps> = ({
 
       {/* ===== 右侧区域：操作按钮组 ===== */}
       <div className={styles.headerRight}>
-        {/* 分享按钮 */}
+        {/* 主题切换按钮 */}
         <button
-          className={styles.headerBtn}
-          title="分享对话"
-          onClick={handleShare}
+          className={styles.themeToggleBtn}
+          title={theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题'}
+          onClick={handleThemeBtnClick}
         >
-          <svg
-            className={styles.headerBtnSvg}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="18" cy="5" r="3" />
-            <circle cx="6" cy="12" r="3" />
-            <circle cx="18" cy="19" r="3" />
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-          </svg>
+          <span className={styles.themeIcon}>{theme === 'dark' ? '☀️' : '🌙'}</span>
         </button>
 
         {/* 语音对话模式开关按钮 */}
@@ -331,19 +304,6 @@ const Header: React.FC<HeaderProps> = ({
               <button className={styles.moreMenuItem} onClick={handleSettings}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
                 设置
-              </button>
-              <button className={styles.moreMenuItem} onClick={handleToggleTheme}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  {theme === 'dark' ? (
-                    <>
-                      <circle cx="12" cy="12" r="5"/>
-                      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-                    </>
-                  ) : (
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                  )}
-                </svg>
-                {theme === 'dark' ? '切换到亮色' : '切换到暗色'}
               </button>
               <button className={styles.moreMenuItem} onClick={handleAbout}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
