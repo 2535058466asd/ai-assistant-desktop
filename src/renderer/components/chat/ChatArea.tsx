@@ -13,8 +13,6 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import * as ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import styles from './ChatArea.module.css';
 import type { UIMessage } from '../../types/chat';
 import { getTTSManager } from '../../core/tts/ttsManager';
@@ -350,59 +348,23 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
   };
 
   /**
-   * Markdown 渲染函数
-   * 使用 react-markdown + remark-gfm 渲染 Markdown 内容
-   * @param content - Markdown 格式的消息内容
-   * @returns JSX 元素
+   * 简单的 HTML 渲染（将文本中包含的 <kbd> 和 <code> 等 HTML 标签渲染出来）
+   * 注意：生产环境建议使用 react-markdown 或 DOMPurify 进行安全渲染
+   * 这里仅用于展示设计稿效果
+   * @param content - 可能包含 HTML 的消息内容
+   * @returns JSX 元素或纯文本
    */
   const renderMessageContent = (content: string) => {
-    return (
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          table: ({ node, ...props }) => (
-            <div className="tableWrapper">
-              <table {...props} />
-            </div>
-          ),
-          thead: ({ node, ...props }) => <thead {...props} />,
-          tbody: ({ node, ...props }) => <tbody {...props} />,
-          tr: ({ node, ...props }) => <tr {...props} />,
-          th: ({ node, ...props }) => <th {...props} />,
-          td: ({ node, ...props }) => <td {...props} />,
-          code: ({ node, inline, className, children, ...props }) => {
-            const match = /language-(\w+)/.exec(className || '');
-            return !inline && match ? (
-              <div className="codeBlockWrapper">
-                <div className="codeBlockHeader">
-                  <span className="codeLanguage">{match[1]}</span>
-                  <button 
-                    className="copyCodeBtn"
-                    onClick={() => {
-                      navigator.clipboard.writeText(String(children));
-                      showToast?.('代码已复制', 'success');
-                    }}
-                    title="复制代码"
-                  >
-                    复制
-                  </button>
-                </div>
-                <pre className={className}>
-                  <code {...props}>{children}</code>
-                </pre>
-              </div>
-            ) : (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            );
-          },
-          blockquote: ({ node, ...props }) => <blockquote {...props} />,
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    );
+    /* 检查内容是否包含 HTML 标签 */
+    if (/<\/?[a-z][\s\S]*>/i.test(content)) {
+      return (
+        <span
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }}
+        />
+      );
+    }
+    /* 纯文本直接返回 */
+    return content;
   };
 
   /* 如果没有消息且不在加载中，不渲染任何内容（由 WelcomeScreen 处理） */
