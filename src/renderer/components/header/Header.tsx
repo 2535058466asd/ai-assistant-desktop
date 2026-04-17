@@ -141,7 +141,7 @@ const Header: React.FC<HeaderProps> = ({
    */
   const handleAbout = () => {
     setMoreMenuOpen(false);
-    showToast('启源 AI v1.0.0 - 基于 Electron + React + 豆包大模型', 'info');
+    showToast('Nova v1.0.0 - 基于 Electron + React + 豆包大模型', 'info');
   };
 
   /**
@@ -178,7 +178,7 @@ const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* 2. Logo 图标 */}
-        <div className={styles.logo} title="启源 AI">
+        <div className={styles.logo} title="Nova">
           <svg
             className={styles.logoSvg}
             viewBox="0 0 24 24"
@@ -188,12 +188,12 @@ const Header: React.FC<HeaderProps> = ({
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
           </svg>
         </div>
 
         {/* 3. 品牌名称 */}
-        <span className={styles.brandName}>启源 AI</span>
+        <span className={styles.brandName}>Nova</span>
 
         {/* 4. 模型选择器（带下拉菜单） */}
         <div className={styles.modelSelectorWrapper} ref={modelDropdownRef}>
@@ -347,7 +347,7 @@ const Header: React.FC<HeaderProps> = ({
               </button>
               <button className={styles.moreMenuItem} onClick={handleAbout}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-                关于启源
+                关于 Nova
               </button>
             </div>
           )}

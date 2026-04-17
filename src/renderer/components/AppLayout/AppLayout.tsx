@@ -32,6 +32,7 @@ import ChatArea from '../chat/ChatArea';
 import InputArea from '../input/InputArea';
 import type { InputAreaHandle } from '../input/InputArea';
 import WelcomeScreen from '../WelcomeScreen/WelcomeScreen';
+import SettingsDrawer from '../Settings/SettingsDrawer';
 
 /* 导入类型定义 */
 import type {
@@ -207,6 +208,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   /** 侧边栏是否展开（移动端使用）*/
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  /** 设置抽屉是否打开 */
+  const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false);
+
   /** 是否正在加载（AI 回复中）- 使用父组件传来的值 */
   // const [isLoading, setIsLoading] = useState(false);
 
@@ -313,6 +317,20 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   };
 
   /**
+   * 打开设置抽屉
+   */
+  const handleOpenSettings = () => {
+    setSettingsDrawerOpen(true);
+  };
+
+  /**
+   * 关闭设置抽屉
+   */
+  const handleCloseSettings = () => {
+    setSettingsDrawerOpen(false);
+  };
+
+  /**
    * 新建对话
    * 清空当前选中状态 + 清空消息列表 → 显示欢迎页
    * 用户发送第一条消息时会自动创建新对话
@@ -414,6 +432,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         onNewChat={handleNewChat}
         onSelectChat={handleSelectChat}
         onSearch={handleSearch}
+        onOpenSettings={handleOpenSettings}
+      />
+
+      {/* ===== 设置抽屉 ===== */}
+      <SettingsDrawer
+        isOpen={settingsDrawerOpen}
+        onClose={handleCloseSettings}
       />
 
       {/* ===== 右侧：主内容区 ===== */}

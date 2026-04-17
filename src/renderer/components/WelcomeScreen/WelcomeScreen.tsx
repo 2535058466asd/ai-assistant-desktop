@@ -75,7 +75,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   return (
     <div className={styles.welcomeScreen}>
       {/* ===== 1. 品牌 Logo（大号 + 发光动画）===== */}
-      <div className={styles.welcomeLogo} title="启源 AI">
+      <div className={styles.welcomeLogo} title="Nova">
         <svg
           className={styles.welcomeLogoSvg}
           viewBox="0 0 24 24"
@@ -85,13 +85,13 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          {/* 闪电图标 */}
-          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          {/* 星星图标 */}
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
         </svg>
       </div>
 
       {/* ===== 2. 品牌标题（渐变文字）===== */}
-      <h1 className={styles.welcomeTitle}>你好，我是启源 AI</h1>
+      <h1 className={styles.welcomeTitle}>你好，我是 Nova</h1>
 
       {/* ===== 3. 副标题/引导文字 ===== */}
       <p className={styles.welcomeSubtitle}>

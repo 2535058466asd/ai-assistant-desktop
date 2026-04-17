@@ -50,8 +50,8 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.ai-assistant.desktop",
-    "productName": "AI Assistant Desktop",
+    "appId": "com.nova.desktop",
+    "productName": "Nova",
     "files": [
       "dist/**/*",
       "dist-electron/**/*",

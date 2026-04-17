@@ -38,6 +38,8 @@ interface SidebarProps {
   onSelectChat: SelectChatHandler;
   /** 搜索对话回调 */
   onSearch: SearchChatsHandler;
+  /** 打开设置面板回调 */
+  onOpenSettings?: () => void;
 }
 
 /* ==========================================
@@ -62,6 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNewChat,
   onSelectChat,
   onSearch,
+  onOpenSettings,
 }) => {
   /* 搜索框输入状态 */
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -184,7 +187,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <button
           className={styles.settingsBtn}
           title="设置"
-          onClick={() => console.log('打开设置')} // TODO: 接入设置面板
+          onClick={onOpenSettings}
         >
           <svg
             className={styles.settingsBtnSvg}

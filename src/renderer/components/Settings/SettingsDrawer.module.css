@@ -1,0 +1,194 @@
+/**
+ * SettingsDrawer 设置抽屉组件样式
+ * 右侧抽屉式设置面板
+ */
+
+/* ===== 背景遮罩 ===== */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ===== 抽屉面板 ===== */
+.drawer {
+  position: fixed;
+  top: 0;
+  right: -500px;
+  width: 500px;
+  height: 100vh;
+  background: var(--bg-secondary);
+  backdrop-filter: blur(20px);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-left: 1px solid var(--border-color);
+}
+
+.drawer.open {
+  right: 0;
+}
+
+/* 亮色主题 */
+[data-theme="light"] .drawer {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.1);
+}
+
+/* ===== 抽屉头部 ===== */
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.drawerHeader h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.closeBtn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.closeBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.closeBtn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ===== 抽屉主体 ===== */
+.drawerBody {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ===== 左侧标签栏 ===== */
+.tabs {
+  width: 160px;
+  background: var(--bg-tertiary);
+  border-right: 1px solid var(--border-color);
+  padding: 16px 8px;
+  overflow-y: auto;
+}
+
+.tab {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: left;
+  transition: all 0.2s ease;
+  margin-bottom: 4px;
+}
+
+.tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.tab.active {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.tabIcon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* ===== 右侧内容区 ===== */
+.content {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.tabContent h3 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tabContent p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.aboutInfo {
+  margin-top: 24px;
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+}
+
+.aboutInfo p {
+  margin: 8px 0;
+}
+
+/* 滚动条样式 */
+.tabs::-webkit-scrollbar,
+.content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tabs::-webkit-scrollbar-track,
+.content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabs::-webkit-scrollbar-thumb,
+.content::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.tabs::-webkit-scrollbar-thumb:hover,
+.content::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
