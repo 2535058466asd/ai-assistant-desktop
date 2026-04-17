@@ -13,7 +13,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import ReactMarkdown from 'react-markdown';
+import * as ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import styles from './ChatArea.module.css';
 import type { UIMessage } from '../../types/chat';
