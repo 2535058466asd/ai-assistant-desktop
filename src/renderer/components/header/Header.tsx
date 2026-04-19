@@ -131,7 +131,6 @@ const Header: React.FC<HeaderProps> = ({
    */
   const handleThemeBtnClick = () => {
     onToggleTheme();
-    showToast(`已切换到${theme === 'dark' ? '☀️ 亮色' : '🌙 暗色'}主题`, 'success');
   };
 
   return (
