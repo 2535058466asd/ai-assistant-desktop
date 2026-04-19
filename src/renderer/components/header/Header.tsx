@@ -60,9 +60,6 @@ const Header: React.FC<HeaderProps> = ({
   /** 更多菜单是否展开 */
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
-  /** 关于Nova弹窗 */
-  const [showAbout, setShowAbout] = useState(false);
-
   /* ===== Ref 引用 ===== */
 
   /** 模型下拉容器 ref（用于点击外部关闭）*/
@@ -117,14 +114,6 @@ const Header: React.FC<HeaderProps> = ({
   const handleSettings = () => {
     setMoreMenuOpen(false);
     onOpenSettings?.();
-  };
-
-  /**
-   * 更多菜单项：关于
-   */
-  const handleAbout = () => {
-    setMoreMenuOpen(false);
-    setShowAbout(true);
   };
 
   /**
@@ -261,37 +250,10 @@ const Header: React.FC<HeaderProps> = ({
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
                 设置
               </button>
-              <button className={styles.moreMenuItem} onClick={handleAbout}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-                关于 Nova
-              </button>
             </div>
           )}
         </div>
       </div>
-
-      {/* 关于 Nova 模态框 */}
-      {showAbout && (
-        <div className={styles.aboutOverlay} onClick={() => setShowAbout(false)}>
-          <div className={styles.aboutModal} onClick={(e) => e.stopPropagation()}>
-            <button className={styles.aboutClose} onClick={() => setShowAbout(false)}>✕</button>
-            <div className={styles.aboutLogo}>⭐</div>
-            <h2 className={styles.aboutTitle}>Nova AI</h2>
-            <p className={styles.aboutVersion}>v1.0.0</p>
-            <div className={styles.aboutDivider} />
-            <p className={styles.aboutDesc}>
-              基于 Electron + React + 豆包大模型构建的智能桌面助手，<br />
-              通过自然语言交互帮助用户高效完成日常任务。
-            </p>
-            <div className={styles.aboutTechs}>
-              <span className={styles.aboutTag}>Electron</span>
-              <span className={styles.aboutTag}>React</span>
-              <span className={styles.aboutTag}>TypeScript</span>
-              <span className={styles.aboutTag}>豆包 API</span>
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 };

@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import styles from './Sidebar.module.css';
 import type {
   ChatGroup,
@@ -326,8 +327,8 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* ===== 右键/三点菜单 ===== */}
-      {contextMenu.isOpen && (
+      {/* ===== 右键/三点菜单（Portal渲染到body，避免被sidebar遮挡） ===== */}
+      {contextMenu.isOpen && createPortal(
         <div
           ref={contextMenuRef}
           className={styles.contextMenu}
@@ -342,7 +343,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button className={styles.contextMenuItemDelete} onClick={() => handleDelete(contextMenu.chatId)}>
             删除
           </button>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ===== 删除确认弹窗 ===== */}
