@@ -2,10 +2,26 @@ import { ipcMain, shell } from 'electron'
 import { execSync } from 'child_process'
 import iconv from 'iconv-lite'
 
+/**
+ * 检查 target 是否安全（防止命令注入）
+ * 只允许：URL、英文字母/数字/中文/常见符号
+ */
+function isTargetSafe(target: string): boolean {
+  // URL 白名单
+  if (/^https?:\/\//.test(target)) return true;
+  // 应用名：只允许中文、英文、数字、空格、点、横线、下划线
+  if (/^[\w\u4e00-\u9fff\s.\-]+$/.test(target)) return true;
+  return false;
+}
+
 // open_app — 智能打开应用或网页
 export function registerOpenApp() {
   ipcMain.handle('open-app', async (_event, target: string) => {
     try {
+      // 安全检查：防止命令注入
+      if (!isTargetSafe(target)) {
+        return { success: false, error: `不安全的输入: "${target}"，仅支持应用名或URL` };
+      }
       // 1. 是 URL → 用 shell 打开浏览器
       if (target.startsWith('http://') || target.startsWith('https://')) {
         shell.openExternal(target);

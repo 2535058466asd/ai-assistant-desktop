@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './SettingsDrawer.module.css';
 
 interface SettingsDrawerProps {
@@ -13,6 +13,14 @@ type SettingsView = 'menu' | 'subpanel';
 const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
   const [currentView, setCurrentView] = useState<SettingsView>('menu');
   const [activeTab, setActiveTab] = useState<SettingsTab>('models');
+
+  // 每次打开设置时重置状态到主菜单
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentView('menu');
+      setActiveTab('models');
+    }
+  }, [isOpen]);
 
   const tabs: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'models', label: '模型管理', icon: '🤖' },

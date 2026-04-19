@@ -23,6 +23,8 @@ export interface ChatItem {
   updatedAt: number;
   /** 是否为当前激活的对话 */
   isActive?: boolean;
+  /** 是否置顶 */
+  isPinned?: boolean;
 }
 
 /** 对话分组标签（今天、昨天、更早） */
@@ -125,6 +127,15 @@ export type SelectChatHandler = (chatId: string) => void;
 
 /** 搜索对话回调 */
 export type SearchChatsHandler = (keyword: string) => void;
+
+/** 重命名对话回调 */
+export type RenameChatHandler = (chatId: string, newTitle: string) => void;
+
+/** 删除对话回调 */
+export type DeleteChatHandler = (chatId: string) => void;
+
+/** 置顶对话回调 */
+export type PinChatHandler = (chatId: string) => void;
 
 /** 模型切换回调 */
 export type ModelChangeHandler = (modelId: string) => void;

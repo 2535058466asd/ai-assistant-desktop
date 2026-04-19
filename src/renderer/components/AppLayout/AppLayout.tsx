@@ -228,14 +228,23 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     return [];
   });
 
+  /** 搜索关键词（搜索只影响展示，不修改原始 chatList）*/
+  const [searchKeyword, setSearchKeyword] = useState('');
+
   /** 当前使用的 AI 模型 */
   const [currentModel, setCurrentModel] = useState<ModelOption>(defaultCurrentModel);
 
   /** 输入框内容的 ref（用于快捷建议填入）*/
   const inputRef = useRef<InputAreaHandle | null>(null);
 
-  /* ===== 派生状态：将 chatList 按时间分组 ===== */
-  const chatGroups: ChatGroup[] = groupChatsByTime(chatList);
+  /* ===== 派生状态：将 chatList 按时间分组（搜索时过滤） ===== */
+  const displayChatList = searchKeyword.trim()
+    ? chatList.filter((chat) =>
+        chat.title.toLowerCase().includes(searchKeyword.toLowerCase()) ||
+        chat.preview.toLowerCase().includes(searchKeyword.toLowerCase())
+      )
+    : chatList;
+  const chatGroups: ChatGroup[] = groupChatsByTime(displayChatList);
 
   /* ===== localStorage 持久化副作用 ===== */
 
@@ -354,32 +363,74 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
   /**
    * 搜索对话
-   * 实时过滤对话列表（按标题和预览内容匹配）
+   * 只更新搜索关键词，通过派生状态 displayChatList 过滤展示
+   * 不修改原始 chatList，避免搜索结果被写回 localStorage 导致数据丢失
    * @param keyword - 搜索关键词
    */
   const handleSearch = (keyword: string) => {
-    if (!keyword.trim()) {
-      /* 空关键词时恢复完整列表 */
-      setChatList(() => {
-        try {
-          const saved = localStorage.getItem(STORAGE_KEY_CHAT_LIST);
-          return saved ? JSON.parse(saved) : [];
-        } catch {
-          return [];
-        }
-      });
-      return;
-    }
-
-    const lowerKeyword = keyword.toLowerCase();
-    setChatList((prev) =>
-      prev.filter(
-        (chat) =>
-          chat.title.toLowerCase().includes(lowerKeyword) ||
-          chat.preview.toLowerCase().includes(lowerKeyword)
-      )
-    );
+    setSearchKeyword(keyword);
   };
+
+  /**
+   * 重命名对话
+   */
+  const handleRenameChat = useCallback((chatId: string, newTitle: string) => {
+    setChatList((prev) => {
+      const updated = prev.map((chat) =>
+        chat.id === chatId ? { ...chat, title: newTitle } : chat
+      );
+      try {
+        localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
+      } catch (e) {
+        console.error('保存对话列表失败:', e);
+      }
+      return updated;
+    });
+  }, []);
+
+  /**
+   * 删除对话
+   */
+  const handleDeleteChat = useCallback((chatId: string) => {
+    setChatList((prev) => {
+      const updated = prev.filter((chat) => chat.id !== chatId);
+      try {
+        localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
+        // 清理该对话的消息存储
+        localStorage.removeItem(`qiyuan_messages_${chatId}`);
+      } catch (e) {
+        console.error('删除对话失败:', e);
+      }
+      // 如果删除的是当前激活的对话，清空消息
+      if (activeChatId === chatId) {
+        onClearMessages?.();
+      }
+      return updated;
+    });
+  }, [activeChatId, onClearMessages]);
+
+  /**
+   * 置顶/取消置顶对话
+   */
+  const handlePinChat = useCallback((chatId: string) => {
+    setChatList((prev) => {
+      const updated = prev.map((chat) =>
+        chat.id === chatId ? { ...chat, isPinned: !chat.isPinned } : chat
+      );
+      // 置顶的排前面，然后按更新时间排序
+      updated.sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.updatedAt - a.updatedAt;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
+      } catch (e) {
+        console.error('保存对话列表失败:', e);
+      }
+      return updated;
+    });
+  }, []);
 
   /** 模型切换 */
   const handleModelChange = (modelId: string) => {
@@ -432,6 +483,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         onNewChat={handleNewChat}
         onSelectChat={handleSelectChat}
         onSearch={handleSearch}
+        onRenameChat={handleRenameChat}
+        onDeleteChat={handleDeleteChat}
+        onPinChat={handlePinChat}
       />
 
       {/* ===== 设置抽屉 ===== */}

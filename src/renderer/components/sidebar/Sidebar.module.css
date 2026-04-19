@@ -218,6 +218,30 @@
   margin-top: 2px;
 }
 
+/* 三点更多按钮 */
+.chatItemMore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s, background-color 0.2s;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.chatItem:hover .chatItemMore {
+  opacity: 1;
+}
+
+.chatItemMore:hover {
+  background-color: var(--hover-bg);
+  color: var(--text-primary);
+}
+
 /* ===== 侧边栏底部 - 用户信息区 ===== */
 .sidebarFooter {
   padding: 12px 16px;

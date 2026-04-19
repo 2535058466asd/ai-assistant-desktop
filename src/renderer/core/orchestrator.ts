@@ -64,6 +64,20 @@ export class Orchestrator {
   }
 
   /**
+   * 重置对话上下文
+   * 切换对话时调用，确保不同对话的上下文完全隔离
+   * @param history - 新对话的历史消息（用于恢复上下文）
+   */
+  resetConversation(history: Message[] = []) {
+    this.conversationHistory = history.map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }));
+    this.sessionId = this.generateSessionId();
+    console.log('🔄 [Orchestrator] 对话上下文已重置，新 sessionId:', this.sessionId);
+  }
+
+  /**
    * 初始化
    */
   private async initialize(): Promise<void> {
@@ -203,8 +217,13 @@ ${messages.map(msg => `${msg.role}: ${msg.content || ''}`).join('\n')}`;
         body: JSON.stringify(requestBody)
       });
 
+      if (!response.ok) {
+        console.error('❌ 压缩API请求失败:', response.status, response.statusText);
+        return '无重要信息';
+      }
+
       const responseJson = await response.json();
-      return responseJson.choices[0].message.content || '无重要信息';
+      return responseJson.choices?.[0]?.message?.content || '无重要信息';
     } catch (error) {
       console.error('❌ 压缩对话历史失败:', error);
       return '无重要信息';
@@ -399,7 +418,9 @@ ${messages.map(msg => `${msg.role}: ${msg.content || ''}`).join('\n')}`;
       stream: false
     };
 
-    console.log('📤 发送给豆包的请求:', JSON.stringify(requestBody, null, 2));
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('📤 发送给豆包的请求:', JSON.stringify(requestBody, null, 2));
+    }
 
     const response = await fetch(ARK_API_URL, {
       method: 'POST',
@@ -410,8 +431,15 @@ ${messages.map(msg => `${msg.role}: ${msg.content || ''}`).join('\n')}`;
       body: JSON.stringify(requestBody)
     });
 
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`API请求失败 (${response.status}): ${errorText || response.statusText}`);
+    }
+
     const responseJson = await response.json();
-    console.log('📥 豆包返回的响应:', JSON.stringify(responseJson, null, 2));
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('📥 豆包返回的响应:', JSON.stringify(responseJson, null, 2));
+    }
     return responseJson;
   }
 

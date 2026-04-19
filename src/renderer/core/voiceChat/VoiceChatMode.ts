@@ -47,6 +47,10 @@ export class VoiceChatMode {
 
   // 防重复调用锁：TTS 播放中不再触发新的播放
   private isSpeaking: boolean = false;
+
+  // ASR 错误重试计数（防止无限递归）
+  private asrRetryCount: number = 0;
+  private readonly MAX_ASR_RETRIES = 5;
   
   // AudioContext 单例，避免内存泄漏
   private audioContext: AudioContext | null = null;
@@ -87,6 +91,7 @@ export class VoiceChatMode {
     
     console.log('🎤 [VoiceChatMode] 启用语音对话模式');
     this.isEnabled = true;
+    this.asrRetryCount = 0; // 重置重试计数
     
     // 自动开始监听
     await this.startListening();
@@ -149,14 +154,20 @@ export class VoiceChatMode {
           if (this.callbacks?.onError) {
             this.callbacks.onError(error);
           }
-          // 出错后重新开始监听
-          if (this.isEnabled) {
+          // 出错后重新开始监听（最多重试 MAX_ASR_RETRIES 次）
+          if (this.isEnabled && this.asrRetryCount < this.MAX_ASR_RETRIES) {
+            this.asrRetryCount++;
+            console.warn(`⚠️ [VoiceChatMode] ASR 重试 ${this.asrRetryCount}/${this.MAX_ASR_RETRIES}`);
             setTimeout(() => this.startListening(), 500);
+          } else if (this.asrRetryCount >= this.MAX_ASR_RETRIES) {
+            console.error('❌ [VoiceChatMode] ASR 重试次数已达上限，停止监听');
+            this.callbacks?.onError('语音识别连续出错，已停止监听');
           }
         },
         // onEnd: 识别结束
         () => {
           console.log('🎤 [VoiceChatMode] ASR 结束');
+          this.asrRetryCount = 0; // 成功结束，重置重试计数
           // 如果有识别结果，发送给 AI
           if (this.lastText.trim()) {
             this.sendToAI(this.lastText);

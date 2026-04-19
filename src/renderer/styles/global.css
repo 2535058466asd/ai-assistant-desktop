@@ -122,6 +122,10 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+/* 主题切换过渡（仅应用于需要过渡的元素） */
+body, [data-theme] * {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -250,4 +254,51 @@ body {
   bottom: -100px;
   left: 200px;
   background: var(--accent-purple);
+}
+
+/* ==========================================
+   6. Toast 通知样式
+   ========================================== */
+.toast-container {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+  pointer-events: auto;
+  animation: slideInRight 0.3s var(--ease-smooth);
+  max-width: 360px;
+  word-break: break-word;
+}
+
+.toast.success {
+  border-left: 3px solid var(--accent-green);
+}
+
+.toast.error {
+  border-left: 3px solid #ef4444;
+}
+
+.toast.info {
+  border-left: 3px solid var(--accent-blue);
+}
+
+.toast.warning {
+  border-left: 3px solid #f59e0b;
 }

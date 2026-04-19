@@ -104,13 +104,71 @@ export const toolDefinitions = [
     type: "function",
     function: {
       name: "open_app",
-      description: "打开应用程序或网页链接。当用户说'打开微信'、'帮我打开百度'时使用,注意用户说的中文，但对应的实际英",
+      description: "打开应用程序或网页链接。当用户说'打开微信'、'帮我打开百度'时使用。注意用户说的中文，但对应的实际英文应用名需要自行转换。",
       parameters: {
         type: "object",
         properties: {
           target: { type: "string", description: "应用名称或URL" }
         },
         required: ["target"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "web_fetch",
+      description: "获取指定URL的网页内容。当用户说'帮我看看这个链接的内容'、'抓取这个网页'时使用。",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "要获取的网页URL" }
+        },
+        required: ["url"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_dir",
+      description: "列出指定目录下的文件和文件夹。当用户想查看某个文件夹里有什么文件时使用。",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "目录路径" }
+        },
+        required: ["path"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_files",
+      description: "在指定目录中搜索包含特定关键词的文件名。当用户想找某个文件但不知道具体路径时使用。",
+      parameters: {
+        type: "object",
+        properties: {
+          directory: { type: "string", description: "搜索的目录路径" },
+          keyword: { type: "string", description: "文件名中包含的关键词" }
+        },
+        required: ["directory", "keyword"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "grep_content",
+      description: "在文件内容中搜索包含特定关键词的行。当用户想查找文件中是否包含某段文字时使用。",
+      parameters: {
+        type: "object",
+        properties: {
+          file_path: { type: "string", description: "文件路径" },
+          pattern: { type: "string", description: "要搜索的关键词或正则表达式" }
+        },
+        required: ["file_path", "pattern"]
       }
     }
   }

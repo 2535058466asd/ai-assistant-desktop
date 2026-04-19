@@ -208,6 +208,26 @@ export function registerWebFetch() {
         return { success: false, error: 'URL 必须以 http:// 或 https:// 开头' };
       }
 
+      // 安全检查：禁止访问内网地址（防止 SSRF）
+      try {
+        const parsedUrl = new URL(url);
+        const hostname = parsedUrl.hostname;
+        if (
+          hostname === 'localhost' ||
+          hostname === '127.0.0.1' ||
+          hostname === '0.0.0.0' ||
+          hostname.startsWith('192.168.') ||
+          hostname.startsWith('10.') ||
+          hostname.startsWith('172.') ||
+          hostname.endsWith('.local') ||
+          hostname === '::1'
+        ) {
+          return { success: false, error: '不允许访问内网地址' };
+        }
+      } catch {
+        return { success: false, error: '无效的 URL' };
+      }
+
       const response = await fetch(url, {
         signal: AbortSignal.timeout(15000),
         headers: {

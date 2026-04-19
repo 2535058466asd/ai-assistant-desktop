@@ -29,16 +29,8 @@ export const DOUBAO_CONFIG: ApiConfig = {
   maxTokens: 1024,
 };
 
-// 开发模式配置（可以在这里配置测试用的API）
-export const DEV_CONFIG: ApiConfig = {
-  ...DOUBAO_CONFIG,
-  // 如果需要在开发时使用不同的配置，可以在这里覆盖
-  // temperature: 0.9,
-};
-
 // 根据环境选择配置
 export const getApiConfig = (): ApiConfig => {
-  // 直接使用豆包配置
   return DOUBAO_CONFIG;
 };
 

@@ -54,18 +54,25 @@ export class WebSpeechTTS implements TTSService {
         // 等待语音列表加载
         if (!this.voicesLoaded || this.synthesis.getVoices().length === 0) {
           console.log('⏳ 等待语音列表加载...');
+          let spoken = false;
           const checkVoices = setInterval(() => {
             if (this.synthesis.getVoices().length > 0) {
               clearInterval(checkVoices);
-              this.voicesLoaded = true;
-              this.doSpeak(request, resolve);
+              if (!spoken) {
+                spoken = true;
+                this.voicesLoaded = true;
+                this.doSpeak(request, resolve);
+              }
             }
           }, 100);
           
           // 超时处理
           setTimeout(() => {
             clearInterval(checkVoices);
-            this.doSpeak(request, resolve);
+            if (!spoken) {
+              spoken = true;
+              this.doSpeak(request, resolve);
+            }
           }, 3000);
         } else {
           this.doSpeak(request, resolve);

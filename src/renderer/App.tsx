@@ -31,8 +31,12 @@ function AppContent() {
   const [voiceChatState, setVoiceChatState] = useState<VoiceChatState>('idle');
   const [isVoiceChatEnabled, setIsVoiceChatEnabled] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('qiyuan_theme');
-    return (saved as 'dark' | 'light') || 'dark';
+    try {
+      const saved = localStorage.getItem('qiyuan_theme');
+      return (saved as 'dark' | 'light') || 'dark';
+    } catch {
+      return 'dark';
+    }
   });
   
   const orchestratorRef = useRef(getOrchestrator());
@@ -151,7 +155,11 @@ function AppContent() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('qiyuan_theme', theme);
+    try {
+      localStorage.setItem('qiyuan_theme', theme);
+    } catch (e) {
+      console.error('保存主题设置失败:', e);
+    }
   }, [theme]);
 
   const handleToggleTheme = () => {
@@ -161,7 +169,14 @@ function AppContent() {
   const handleSendMessage = async (content: string) => {
     if (!content.trim()) return;
     setIsLoading(true); // 显示加载动画
-    await orchestratorRef.current.processTextInput(content);
+    try {
+      await orchestratorRef.current.processTextInput(content);
+    } catch (error) {
+      console.error('❌ 发送消息失败:', error);
+      showToast?.('发送消息失败，请重试', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleModelChange = (modelId: string) => {
@@ -172,14 +187,18 @@ function AppContent() {
     setMessages([]);
     // 清理 spokenMessageIds，避免内存泄漏
     spokenMessageIds.current.clear();
-    console.log('🧹 [App] 已清理 spokenMessageIds');
+    // 新建对话时重置 Orchestrator 上下文
+    orchestratorRef.current.resetConversation([]);
+    console.log('🧹 [App] 已清理 spokenMessageIds 并重置对话上下文');
   }, []);
 
   const handleSetMessages = useCallback((newMessages: Message[]) => {
     setMessages(newMessages);
     // 清理 spokenMessageIds，避免内存泄漏
     spokenMessageIds.current.clear();
-    console.log('🔄 [App] 已设置新的消息列表');
+    // 重置 Orchestrator 的对话上下文，确保不同对话的 session 隔离
+    orchestratorRef.current.resetConversation(newMessages);
+    console.log('🔄 [App] 已设置新的消息列表并重置对话上下文');
   }, []);
 
   return (
