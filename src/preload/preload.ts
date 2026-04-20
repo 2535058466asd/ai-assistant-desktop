@@ -59,6 +59,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openApp: async (target: string) => {
     return ipcRenderer.invoke('open-app', target);
   },
+  // ========== 知识库 RAG ==========
+  // 搜索知识库
+  knowledgeSearch: async (query: string, nResults?: number) => {
+    return ipcRenderer.invoke('knowledge-search', query, nResults);
+  },
+  // 添加知识到知识库
+  knowledgeAdd: async (documents: string[], metadatas?: Record<string, string>[]) => {
+    return ipcRenderer.invoke('knowledge-add', documents, metadatas);
+  },
+  // 获取知识库统计
+  knowledgeStats: async () => {
+    return ipcRenderer.invoke('knowledge-stats');
+  },
+  // 导入文件到知识库（PDF/Word/Excel/TXT/MD）
+  knowledgeImportFile: async (filePath: string, category?: string) => {
+    return ipcRenderer.invoke('knowledge-import-file', filePath, category);
+  },
+  // 识别图片并导入知识库
+  knowledgeImportImage: async (imagePath: string, category?: string) => {
+    return ipcRenderer.invoke('knowledge-import-image', imagePath, category);
+  },
   // 记忆服务 - 设置偏好
   memorySetPreference: async (key: string, value: any) => {
     return ipcRenderer.invoke('memory-set-preference', key, value);
@@ -150,6 +171,12 @@ declare global {
       clipboardWrite: (text: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       screenshot: () => Promise<{ success: boolean; data?: string; error?: string }>;
       openApp: (target: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      // 知识库 RAG
+      knowledgeSearch: (query: string, nResults?: number) => Promise<{ success: boolean; data?: string; error?: string }>;
+      knowledgeAdd: (documents: string[], metadatas?: Record<string, string>[]) => Promise<{ success: boolean; count?: number; error?: string }>;
+      knowledgeStats: () => Promise<{ success: boolean; data?: { count: number; collections: string[] }; error?: string }>;
+      knowledgeImportFile: (filePath: string, category?: string) => Promise<{ success: boolean; count?: number; chunks?: number; info?: string; error?: string }>;
+      knowledgeImportImage: (imagePath: string, category?: string) => Promise<{ success: boolean; count?: number; info?: string; error?: string }>;
       memorySetPreference: (key: string, value: any) => Promise<void>;
       memoryGetPreference: (key: string) => Promise<any>;
       memoryGetAllPreferences: () => Promise<any>;

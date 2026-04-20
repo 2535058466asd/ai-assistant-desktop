@@ -66,6 +66,27 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
         result = await api.openApp(args.target);
         break;
 
+      case 'knowledge_search':
+        result = await api.knowledgeSearch(args.query, args.n_results);
+        break;
+
+      case 'knowledge_add': {
+        const docs = args.documents || [];
+        const metas = args.category
+          ? docs.map(() => ({ category: args.category, created_at: new Date().toISOString() }))
+          : undefined;
+        result = await api.knowledgeAdd(docs, metas);
+        break;
+      }
+
+      case 'knowledge_import_file':
+        result = await api.knowledgeImportFile(args.file_path, args.category);
+        break;
+
+      case 'knowledge_import_image':
+        result = await api.knowledgeImportImage(args.image_path, args.category);
+        break;
+
       default:
         result = { success: false, error: `未知工具: ${name}` };
     }

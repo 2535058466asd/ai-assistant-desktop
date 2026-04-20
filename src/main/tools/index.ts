@@ -10,6 +10,7 @@ import { registerWebSearch, registerWebFetch } from './webTools'
 import { registerClipboardRead, registerClipboardWrite } from './clipboard'
 import { registerScreenshot } from './screenshot'
 import { registerOpenApp } from './openApp'
+import { registerKnowledgeSearch, registerKnowledgeAdd, registerKnowledgeStats, registerKnowledgeImportFile, registerKnowledgeImportImage } from './ragTools'
 
 export function registerAllTools() {
   // 系统命令
@@ -36,5 +37,12 @@ export function registerAllTools() {
   // 打开应用
   registerOpenApp()
 
-  console.log('🛠️ [工具] 12个工具已注册完成');
+  // 知识库 RAG
+  registerKnowledgeSearch()
+  registerKnowledgeAdd()
+  registerKnowledgeStats()
+  registerKnowledgeImportFile()
+  registerKnowledgeImportImage()
+
+  console.log('🛠️ [工具] 17个工具已注册完成');
 }
