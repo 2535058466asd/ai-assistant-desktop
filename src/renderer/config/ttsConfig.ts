@@ -29,14 +29,23 @@ export interface TTSConfig {
   volume?: number;
 }
 
+function readStoredValue(key: string): string {
+  if (typeof window === 'undefined') return '';
+  return window.localStorage.getItem(key) || '';
+}
+
+function readEnvValue(key: string): string {
+  return (import.meta.env[key] as string | undefined) || '';
+}
+
 // 默认 TTS 配置（使用豆包 TTS 2.0 WebSocket v3）
 export const DEFAULT_TTS_CONFIG: TTSConfig = {
   type: 'volcengine',  // 默认使用豆包 TTS 2.0 WebSocket v3
   
   // 豆包 TTS 2.0 配置（WebSocket v3 双向流式）
   volcengine: {
-    appId: '3206095607',  // 应用 ID（X-Api-App-Key）
-    accessToken: 'PabCghuQaDa8CcI9mP0XNImQeZ3auelD',  // Access Token（从 TTS 标签页获取的新 Token）
+    appId: readEnvValue('VITE_VOLCENGINE_APP_ID') || readStoredValue('qiyuan.volcengine.appId'),
+    accessToken: readEnvValue('VITE_VOLCENGINE_ACCESS_TOKEN') || readStoredValue('qiyuan.volcengine.accessToken'),
     apiUrl: 'wss://openspeech.bytedance.com/api/v3/tts/bidirection',  // WebSocket 双向流式接口
     voice: 'zh_female_vv_uranus_bigtts',  // 音色：Vivi 2.0（TTS 2.0 专属音色，表现力强）
     model: 'seed-tts-2.0-expressive',  // 模型：表现力强版本（推荐）

@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import styles from './SettingsDrawer.module.css';
 import KnowledgePanel from '../Knowledge/KnowledgePanel';
+import MemoryPanel from '../Memory/MemoryPanel';
+import ToolLogPanel from '../Observability/ToolLogPanel';
+import EvalPanel from '../Eval/EvalPanel';
 
 interface SettingsDrawerProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type SettingsTab = 'models' | 'api' | 'memory' | 'knowledge' | 'voice' | 'search' | 'shortcuts';
+type SettingsTab = 'models' | 'api' | 'memory' | 'knowledge' | 'observability' | 'eval' | 'voice' | 'search' | 'shortcuts';
 
 type SettingsView = 'menu' | 'subpanel';
 
@@ -28,6 +31,8 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
     { id: 'api', label: 'API 配置', icon: '🔑' },
     { id: 'memory', label: '记忆管理', icon: '🧠' },
     { id: 'knowledge', label: '知识库', icon: '📚' },
+    { id: 'observability', label: 'Agent 日志', icon: '📈' },
+    { id: 'eval', label: '评估面板', icon: '✅' },
     { id: 'voice', label: '语音设置', icon: '🎤' },
     { id: 'search', label: '搜索设置', icon: '🔍' },
     { id: 'shortcuts', label: '快捷键', icon: '⌨️' },
@@ -50,14 +55,13 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
           </div>
         );
       case 'memory':
-        return (
-          <div className={styles.tabContent}>
-            <h3>记忆管理</h3>
-            <p>记忆数量统计、清空记忆按钮</p>
-          </div>
-        );
+        return <MemoryPanel />;
       case 'knowledge':
         return <KnowledgePanel />;
+      case 'observability':
+        return <ToolLogPanel />;
+      case 'eval':
+        return <EvalPanel />;
       case 'voice':
         return (
           <div className={styles.tabContent}>

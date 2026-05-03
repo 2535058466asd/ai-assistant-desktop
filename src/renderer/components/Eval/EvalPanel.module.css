@@ -1,0 +1,137 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.metrics div {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.metrics strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.metrics span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+}
+
+.toolbar select,
+.toolbar button {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 9px 10px;
+  font-size: 12px;
+}
+
+.toolbar button {
+  cursor: pointer;
+}
+
+.toolbar button:hover {
+  border-color: var(--border-focus);
+  background: var(--bg-hover);
+}
+
+.caseList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.caseCard {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.caseHeader,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.caseHeader {
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.caseHeader span,
+.caseHeader strong {
+  font-size: 11px;
+}
+
+.caseHeader span {
+  color: var(--accent-cyan);
+}
+
+.pass {
+  color: var(--accent-green);
+}
+
+.fail {
+  color: #ef4444;
+}
+
+.untested {
+  color: var(--text-muted);
+}
+
+.caseCard h4 {
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 7px;
+}
+
+.caseCard p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+
+.actions button {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 7px 9px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.actions button:hover {
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+@media (max-width: 520px) {
+  .metrics,
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+}

@@ -18,12 +18,21 @@ export interface ApiConfig {
   maxTokens: number;
 }
 
+function readStoredValue(key: string): string {
+  if (typeof window === 'undefined') return '';
+  return window.localStorage.getItem(key) || '';
+}
+
+function readEnvValue(key: string): string {
+  return (import.meta.env[key] as string | undefined) || '';
+}
+
 // 豆包 API 配置
-// 请根据你的实际情况修改以下配置
+// 密钥不要写死在代码里。优先读取 .env.local，其次读取设置页写入的 localStorage。
 export const DOUBAO_CONFIG: ApiConfig = {
-  apiKey: '16042349-2aaa-433a-b774-d9c416d08165', // 豆包 API Key
+  apiKey: readEnvValue('VITE_DOUBAO_API_KEY') || readStoredValue('qiyuan.doubao.apiKey'),
   apiUrl: '/api/chat/completions',
-  model: 'doubao-seed-2-0-pro-260215',
+  model: readEnvValue('VITE_DOUBAO_MODEL') || readStoredValue('qiyuan.doubao.model') || 'doubao-seed-2-0-pro-260215',
   temperature: 0.8,
   topP: 0.95,
   maxTokens: 1024,

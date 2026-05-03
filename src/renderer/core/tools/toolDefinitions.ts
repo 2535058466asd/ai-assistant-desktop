@@ -235,5 +235,39 @@ export const toolDefinitions = [
         required: ["image_path"]
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "workspace_create_task",
+      description: "在个人 AI 工作台中创建项目任务。当用户要求拆计划、添加待办、记录下一步时使用。",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "任务标题" },
+          project_id: { type: "string", description: "项目ID，默认 project-ai-workspace" },
+          priority: { type: "string", enum: ["low", "medium", "high"], description: "任务优先级" }
+        },
+        required: ["title"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "workspace_update_project",
+      description: "更新个人 AI 工作台中的项目状态、下一步或阻塞点。当用户说更新项目进展、记录阻塞点、修改下一步时使用。",
+      parameters: {
+        type: "object",
+        properties: {
+          project_id: { type: "string", description: "项目ID，例如 project-ai-workspace、project-rag、project-eval" },
+          status: { type: "string", enum: ["active", "blocked", "planning", "done"], description: "项目状态" },
+          goal: { type: "string", description: "项目目标" },
+          next_step: { type: "string", description: "下一步行动" },
+          blocker: { type: "string", description: "阻塞点" }
+        },
+        required: ["project_id"]
+      }
+    }
   }
 ];

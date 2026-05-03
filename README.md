@@ -1,49 +1,56 @@
-# 启源 AI 助手（Nova）- 桌面端智能助手
+# Agentic Personal Workspace（Nova）
 
-一个基于 Electron + React + TypeScript 的桌面 AI Agent 助手，集成 LLM/ASR/TTS 实现多模态交互，基于 Function Calling 实现多工具自动编排，支持语音对话与系统控制。
+一个基于 Electron + React + TypeScript 的个人 AI 工作台。项目定位不是普通聊天助手，而是面向个人项目管理的 Agentic AI Workspace：支持 RAG 知识库、长期记忆、项目连续性、工具调用、调用日志、Eval 面板和桌面端部署。
+
+这个项目用于展示应用层 AI 工程能力：把 LLM 接入真实产品系统，并让系统可维护、可观察、可评估。
 
 ---
 
-## ✨ 核心特性
+## 核心能力
 
-### 🤖 AI Agent 工具调用
+### 项目驾驶舱
+- 首页展示项目状态、下一步、阻塞点、任务队列、最近记忆和知识库统计
+- 内置 `Project` / `Task` 数据模型，支持 Agent 通过工具创建任务、更新项目
+- 适合展示“AI 持续管理项目上下文”，而不是单轮问答
+
+### RAG 知识库
+- 支持 PDF、Word、Excel、TXT、Markdown 和图片识别导入
+- 文档解析后按 chunk 切分，写入 ChromaDB 向量库
+- 检索结果带来源、分类和相似度，设置页提供检索调试入口
+
+### 长期记忆
+- 使用 SQLite 持久化记忆，支持查看、搜索、删除和清空
+- 记忆包含类别、重要性、更新时间、访问次数
+- 对话结束后自动提取关键事实，下一轮对话可注入相关记忆
+
+### Agent 工具调用
 - **Function Calling 全链路**：AI 推理 → 工具执行 → 结果返回 → 继续推理
-- **16 个系统工具**：文件操作、网页搜索/抓取、应用启动、剪贴板、截图等
+- **系统工具**：文件操作、网页搜索/抓取、应用启动、剪贴板、截图等
+- **知识库工具**：知识库搜索、文档导入、图片识别导入
+- **工作台工具**：创建任务、更新项目状态/下一步/阻塞点
 - **多工具自动编排**：AI 自主决定调用顺序，无需人工编排
-- **模块化架构**：工具独立文件，支持热扩展
+- **可观测性**：每次工具调用记录工具名、参数摘要、结果摘要、状态和耗时
 
-### 🔍 后台静默搜索
-- **多源降级策略**：百度 → 必应，自动切换
-- **HTML 转纯文本**：不依赖正则解析，稳定可靠
-- **网页内容抓取**：AI 可自主获取任意网页内容（含 SSRF 防护）
+### Eval 评估面板
+- 内置 20 条测试问题，覆盖 RAG、记忆、工具调用、规划和安全
+- 支持按类别筛选、标记通过/失败、复制 Eval Set
+- 用于面试展示“不是凭感觉判断回答好坏，而是有固定评估集”
 
-### 🎙️ 语音交互
+### 语音交互
 - **流式语音识别（ASR）**：对接火山引擎 WebSocket 二进制协议
 - **流式语音合成（TTS）**：实时音频播放，低延迟
 - **半双工对话模式**：类对讲机，ASR → LLM → TTS 完整链路
 - **音频采集与编码**：PCM/Float32 → Int16，GZIP 压缩
 
-### 🖥️ 桌面原生能力
+### 桌面原生能力
 - **智能应用启动**：注册表 → 开始菜单 → 兜底三级查找（含命令注入防护）
 - **文件操作**：读写、列目录、按名搜索、按内容搜索
 - **路径自动映射**：`/Desktop/` 自动转为用户真实桌面路径
 - **剪贴板读写**、**屏幕截图**
 
-### 🧠 记忆与上下文管理
-- **三层分离架构**：短期上下文（自动压缩）+ 记忆库（AI自动提取持久化）+ 知识库（用户上传RAG检索）
-- **上下文自动压缩**：接近token上限时AI自动压缩历史，保留最近对话+压缩摘要
-- **记忆自动提取**：对话中自动识别并存储用户偏好、项目信息等关键事实
-- **长期记忆持久化**：跨会话保留，下次对话自动注入上下文
-
-### 🎨 桌面客户端 UI
-- **侧边栏**：对话管理（新建/搜索/重命名/删除/置顶）、三点菜单、右键菜单
-- **聊天区域**：Markdown 渲染、代码高亮、消息复制
-- **设置面板**：主题切换（暗色/亮色）、模型切换
-- **Toast 通知**：关键操作反馈（语音状态、复制结果、错误提示）
-
 ---
 
-## 🛠️ 技术栈
+## 技术栈
 
 | 技术 | 用途 |
 |------|------|
@@ -53,11 +60,13 @@
 | **CSS Modules** | 样式隔离 |
 | **豆包 API** | 大模型对话 + Function Calling（doubao-seed-2-0-pro） |
 | **火山引擎** | 流式 TTS / ASR（WebSocket 二进制协议） |
-| **iconv-lite** | Windows GBK 编码处理 |
+| **ChromaDB** | 本地向量知识库 |
+| **SQLite** | 长期记忆持久化 |
+| **pdf-parse / mammoth / xlsx** | 文档解析 |
 
 ---
 
-## 📁 项目结构
+## 项目结构
 
 ```
 ai-assistant-desktop/
@@ -73,8 +82,9 @@ ai-assistant-desktop/
 │   │   │   ├── screenshot.ts          # screenshot（屏幕截图）
 │   │   │   └── openApp.ts             # open_app（智能应用启动）
 │   │   └── services/                  # 主进程服务
-│   │       ├── doubaoApi.ts           # 豆包 API
 │   │       ├── memoryServiceBackend.ts # 记忆服务
+│   │       ├── ragService.ts          # ChromaDB RAG 服务
+│   │       ├── documentParser.ts      # 文档解析与 chunk
 │   │       ├── screenshotService.ts   # 截图服务
 │   │       ├── tts/                   # TTS 模块
 │   │       └── asr/                   # ASR 模块
@@ -84,6 +94,11 @@ ai-assistant-desktop/
 │   │
 │   └── renderer/                      # 渲染进程（React）
 │       ├── components/                # React 组件
+│       │   ├── Workspace/             # 项目驾驶舱
+│       │   ├── Knowledge/             # RAG 知识库面板
+│       │   ├── Memory/                # 长期记忆面板
+│       │   ├── Observability/         # Agent 工具调用日志
+│       │   ├── Eval/                  # Eval 测试集面板
 │       │   ├── sidebar/               # 侧边栏（对话管理）
 │       │   ├── header/                # 顶部栏（模型切换、主题、设置）
 │       │   ├── chat/                  # 聊天区域
@@ -93,19 +108,19 @@ ai-assistant-desktop/
 │       ├── core/
 │       │   ├── orchestrator.ts        # 核心编排器（Agent循环）
 │       │   ├── tools/                 # 工具定义与执行
-│       │   │   ├── toolDefinitions.ts # 16个工具的 JSON Schema
+│       │   │   ├── toolDefinitions.ts # 工具 JSON Schema
 │       │   │   └── toolExecutor.ts    # 工具分发与结果处理
 │       │   ├── tts/                   # TTS 管理器
 │       │   ├── asr/                   # ASR 管理器
 │       │   └── voiceChat/             # 语音对话模式
-│       ├── services/                  # 渲染进程服务
+│       ├── services/                  # 渲染进程服务和本地 workspace store
 │       ├── config/                    # 配置文件
 │       └── types/                     # TypeScript 类型定义
 ```
 
 ---
 
-## 🔧 16 个工具
+## 工具清单
 
 | 工具 | 类别 | 说明 |
 |------|------|------|
@@ -121,10 +136,16 @@ ai-assistant-desktop/
 | `clipboard_write` | 剪贴板 | 写入剪贴板 |
 | `screenshot` | 截图 | 屏幕截图 |
 | `open_app` | 应用 | 智能打开应用或网页（含命令注入防护） |
+| `knowledge_search` | RAG | 检索本地知识库 |
+| `knowledge_add` | RAG | 添加知识片段 |
+| `knowledge_import_file` | RAG | 导入 PDF/Word/Excel/TXT/MD |
+| `knowledge_import_image` | RAG | 识别图片并导入知识库 |
+| `workspace_create_task` | 项目管理 | 创建项目任务 |
+| `workspace_update_project` | 项目管理 | 更新项目状态、下一步、阻塞点 |
 
 ---
 
-## 🏗️ 架构设计
+## 架构设计
 
 ### 工具调用流程
 
@@ -141,6 +162,8 @@ AI 决定调用哪些工具（自动编排，最多5轮）
     ↓
 toolExecutor 分发 → preload IPC → 主进程 tools/
     ↓
+写入工具调用日志（状态、耗时、参数摘要、结果摘要）
+    ↓
 工具执行结果返回给 AI
     ↓
 AI 继续推理（可能调用更多工具）
@@ -148,7 +171,7 @@ AI 继续推理（可能调用更多工具）
 最终回复 → TTS（语音合成）→ 播放
 ```
 
-### 数据流
+### 数据流与状态
 
 ```
 前端（React）
@@ -162,11 +185,16 @@ Orchestrator（AI编排）
 主进程（Electron）
   ↕ 系统调用
 操作系统
+
+本地持久化：
+- localStorage：项目、任务、工具调用日志、Eval Set
+- SQLite：长期记忆
+- ChromaDB：RAG 向量知识库
 ```
 
 ---
 
-## 🚀 快速开始
+## 快速开始
 
 ### 前置要求
 - Node.js 18+
@@ -189,12 +217,24 @@ npm run electron:build
 
 ---
 
-## 📋 已知限制 & 待优化
+## 面试展示建议
+
+1. 打开首页项目驾驶舱，展示项目状态、下一步、阻塞点和任务队列。
+2. 在知识库导入一份 PDF 或 Markdown，搜索问题并展示来源引用。
+3. 发起需要工具的对话，例如读取文件、搜索文件或创建任务，然后打开 Agent 日志查看调用链。
+4. 打开 Eval 面板，说明如何用 20 条测试问题评估 RAG、记忆、工具调用和安全。
+5. 讲清楚工程边界：模型、embedding、向量库用成熟轮子；业务状态、编排、可观测和评估由项目实现。
+
+---
+
+## 已知限制 & 待优化
 
 | 项目 | 说明 | 优先级 |
 |------|------|--------|
 | 假流式输出 | 当前为 `stream: false`，等待完整响应后一次性显示 | 高 |
-| 设置面板空壳 | 6个子页面均为占位文字 | 中 |
+| Eval 自动化 | 当前 Eval 面板支持测试集管理和人工标注，后续可接 LLM-as-judge | 高 |
+| 引用结构化 | RAG 检索结果已有来源文本，后续可将 citation 结构化到消息 UI | 高 |
+| 成本统计 | 工具日志已有耗时，后续可加入 token 和人民币成本估算 | 中 |
 | 废弃代码层 | IntentClassifier/ContextManager/WakeWordDetector 未清理 | 低 |
 | 模型不随对话保存 | 切换对话后模型选择不恢复 | 低 |
 

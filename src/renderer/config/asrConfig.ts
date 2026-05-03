@@ -23,14 +23,23 @@ export interface ASRConfig {
   language?: string;
 }
 
+function readStoredValue(key: string): string {
+  if (typeof window === 'undefined') return '';
+  return window.localStorage.getItem(key) || '';
+}
+
+function readEnvValue(key: string): string {
+  return (import.meta.env[key] as string | undefined) || '';
+}
+
 // 默认 ASR 配置（使用豆包 ASR 2.0 WebSocket v3 双向流式优化版）
 export const DEFAULT_ASR_CONFIG: ASRConfig = {
   type: 'volcengine',  // 默认使用豆包 ASR 2.0 WebSocket v3
   
   // 豆包 ASR 2.0 配置（WebSocket v3 双向流式优化版）
   volcengine: {
-    appId: '3206095607',  // 应用 ID（X-Api-App-Key）
-    accessToken: 'PabCghuQaDa8CcI9mP0XNImQeZ3auelD',  // Access Token（从 ASR 标签页获取的新 Token，与 TTS 相同）
+    appId: readEnvValue('VITE_VOLCENGINE_APP_ID') || readStoredValue('qiyuan.volcengine.appId'),
+    accessToken: readEnvValue('VITE_VOLCENGINE_ACCESS_TOKEN') || readStoredValue('qiyuan.volcengine.accessToken'),
     apiUrl: 'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async',  // 双向流式优化版
     resourceId: 'volc.bigasr.sauc.duration',  // 资源 ID（与官方Python示例一致）
     format: 'pcm',  // 音频格式

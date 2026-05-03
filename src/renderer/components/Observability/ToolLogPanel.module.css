@@ -1,0 +1,132 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.statCard {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.statCard strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 20px;
+}
+
+.statCard span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 8px;
+}
+
+.toolbar input,
+.toolbar button {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 9px 10px;
+  font-size: 12px;
+}
+
+.toolbar button {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toolbar button:hover:not(:disabled) {
+  border-color: var(--border-focus);
+  background: var(--bg-hover);
+}
+
+.toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.logList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.logCard,
+.emptyState {
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.emptyState {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.logHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.logHeader strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.logHeader span {
+  font-size: 11px;
+}
+
+.success {
+  color: var(--accent-green);
+}
+
+.error {
+  color: #ef4444;
+}
+
+.logCard pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.logCard p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.logCard small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+@media (max-width: 520px) {
+  .statsGrid,
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+}

@@ -20,6 +20,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@babel/types": "^7.29.0",
     "@types/ws": "^8.18.1",
     "axios": "^1.13.6",
     "chromadb": "^3.4.3",
@@ -41,7 +42,9 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/babel__traverse": "^7.20.6",
     "@types/dompurify": "^3.0.5",
+    "@types/node": "^20.19.39",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.2.0",

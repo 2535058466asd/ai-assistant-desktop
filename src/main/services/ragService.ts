@@ -13,13 +13,13 @@ import * as fs from 'fs';
 const CHROMA_PATH = path.join(__dirname, '../../chroma_db');
 const DEFAULT_COLLECTION = 'knowledge_base';
 
-let client: ChromaClient | null = null;
-let collection: Collection | null = null;
+let client: any | null = null;
+let collection: any | null = null;
 
 /**
  * 初始化 ChromaDB 客户端
  */
-async function getClient(): Promise<ChromaClient> {
+async function getClient(): Promise<any> {
   if (!client) {
     // 确保目录存在
     if (!fs.existsSync(CHROMA_PATH)) {
@@ -36,7 +36,7 @@ async function getClient(): Promise<ChromaClient> {
 /**
  * 获取或创建知识库集合
  */
-async function getCollection(name: string = DEFAULT_COLLECTION): Promise<Collection> {
+async function getCollection(name: string = DEFAULT_COLLECTION): Promise<any> {
   const chroma = await getClient();
   // 先尝试获取已有集合
   const existingCollections = await chroma.listCollections();

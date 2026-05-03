@@ -462,6 +462,8 @@ ${memoryPrompt || ''}
 - clipboard_read / clipboard_write：读写剪贴板
 - screenshot：截取屏幕
 - open_app：打开应用或网页
+- knowledge_search / knowledge_import_file：检索或导入本地知识库，回答需要引用本地文档时优先使用
+- workspace_create_task / workspace_update_project：维护项目任务、下一步和阻塞点
 
 根据用户需求选择合适的工具。不需要工具时直接回复。工具执行失败时友好地告诉用户。`;
   }

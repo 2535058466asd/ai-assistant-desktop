@@ -31,7 +31,7 @@ import Header from '../header/Header';
 import ChatArea from '../chat/ChatArea';
 import InputArea from '../input/InputArea';
 import type { InputAreaHandle } from '../input/InputArea';
-import WelcomeScreen from '../WelcomeScreen/WelcomeScreen';
+import WorkspaceDashboard from '../Workspace/WorkspaceDashboard';
 import SettingsDrawer from '../Settings/SettingsDrawer';
 
 /* 导入类型定义 */
@@ -510,8 +510,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
         {/* 2. 聊天区域 或 欢迎页（二选一显示）*/}
         {showWelcome ? (
-          /* 无对话时显示欢迎页 */
-          <WelcomeScreen onSuggestionClick={handleSuggestionClick} />
+          /* 无对话时显示项目驾驶舱 */
+          <WorkspaceDashboard messages={messages} onSuggestionClick={handleSuggestionClick} />
         ) : (
           /* 有对话时显示聊天区（使用props.messages）*/
           <ChatArea
