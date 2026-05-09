@@ -15,6 +15,9 @@ release/
 .env.local
 .env.*.local
 
+# Config with secrets
+openclaw-config.json
+
 # IDE
 .vscode/
 .idea/

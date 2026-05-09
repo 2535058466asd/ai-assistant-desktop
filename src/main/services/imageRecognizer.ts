@@ -8,10 +8,10 @@
 import * as fs from 'fs';
 import axios from 'axios';
 
-// 豆包多模态API配置（与主配置保持一致）
+// 豆包多模态API配置（从环境变量读取，不写死密钥）
 const API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
-const API_KEY = '16042349-2aaa-433a-b774-d9c416d08165'; // 从apiConfig同步
-const VISION_MODEL = 'doubao-1-5-vision-pro-250328'; // 豆包视觉模型
+const API_KEY = process.env.VITE_DOUBAO_VISION_API_KEY || process.env.VITE_DOUBAO_API_KEY || '';
+const VISION_MODEL = process.env.VITE_DOUBAO_VISION_MODEL || 'doubao-1-5-vision-pro-250328'; // 豆包视觉模型
 
 /**
  * 识别图片内容
