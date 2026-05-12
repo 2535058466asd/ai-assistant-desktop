@@ -5,6 +5,9 @@
 // ==========================================
 
 import type { TTSService, TTSRequest, TTSResult } from './ttsInterface'
+import { createLogger } from '../../../shared/logger'
+
+const logger = createLogger('tts')
 
 export interface VolcengineTTSV3Config {
   appId: string
@@ -57,8 +60,8 @@ export class VolcengineTTSV3 implements TTSService {
       VolcengineTTSV3.listenersRegistered = true
     }
 
-    console.log('🎤 豆包语音 TTS 2.0 初始化成功（WebSocket v3 IPC 版本）')
-    console.log('📋 配置信息:', {
+    logger.debug('🎤 豆包语音 TTS 2.0 初始化成功（WebSocket v3 IPC 版本）')
+    logger.debug('📋 配置信息:', {
       apiUrl: this.config.apiUrl,
       resourceId: this.config.resourceId,
       voice: this.config.voice,
@@ -69,14 +72,14 @@ export class VolcengineTTSV3 implements TTSService {
   // 静态方法：全局只注册一次 IPC 监听器
   private static setupGlobalListeners(): void {
     if (!window.electronAPI) {
-      console.warn('⚠️ electronAPI 不可用，TTS 功能可能无法正常工作')
+      logger.warn('⚠️ electronAPI 不可用，TTS 功能可能无法正常工作')
       return
     }
 
     window.electronAPI.on('tts-session-started', (data: { sessionId: string }) => {
       const inst = VolcengineTTSV3.activeInstance
       if (inst) {
-        console.log('✅ TTS 会话已开始:', data?.sessionId)
+        logger.debug('✅ TTS 会话已开始:', data?.sessionId)
       }
     })
 
@@ -96,13 +99,13 @@ export class VolcengineTTSV3 implements TTSService {
       if (!inst || !data) return
       if (data.sessionId !== inst.currentSessionId) return
 
-      console.log('✅ TTS 音频合成完成, sessionId 匹配!')
+      logger.debug('✅ TTS 音频合成完成, sessionId 匹配!')
 
       try {
         if (data.audioBase64 && inst.onCompleteCallback) {
-          console.log('📦 [前端] 开始解码完整音频，base64 长度:', data.audioBase64.length)
+          logger.debug('📦 [前端] 开始解码完整音频，base64 长度:', data.audioBase64.length)
           const audioBuffer = inst.base64ToArrayBuffer(data.audioBase64)
-          console.log('✅ [前端] 音频解码成功，大小:', audioBuffer.byteLength, 'bytes')
+          logger.debug('✅ [前端] 音频解码成功，大小:', audioBuffer.byteLength, 'bytes')
           inst.onCompleteCallback(audioBuffer)
         }
       } catch (error) {
@@ -117,7 +120,7 @@ export class VolcengineTTSV3 implements TTSService {
     window.electronAPI.on('tts-error', (data: { sessionId: string; error: string }) => {
       const inst = VolcengineTTSV3.activeInstance
       if (inst && data && data.sessionId === inst.currentSessionId) {
-        console.error('❌ TTS 错误:', data.error)
+        logger.error('❌ TTS 错误:', data.error)
         if (data.error.includes('session number limit') ||
             data.error.includes('WebSocket') ||
             data.error.includes('connect')) {
@@ -129,7 +132,7 @@ export class VolcengineTTSV3 implements TTSService {
       }
     })
 
-    console.log('🔧 [TTS] 全局 IPC 监听器已注册（仅一次）')
+    logger.debug('🔧 [TTS] 全局 IPC 监听器已注册（仅一次）')
   }
 
   private base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -147,14 +150,14 @@ export class VolcengineTTSV3 implements TTSService {
     }
 
     try {
-      const result = await window.electronAPI.invoke('tts-v3-connect', this.config)
+      const result = await window.electronAPI.ttsV3Connect(this.config)
       if (!result.success) {
         throw new Error(result.error || 'TTS 连接失败')
       }
       this.isConnected = true
-      console.log('✅ TTS WebSocket 连接成功')
+      logger.debug('✅ TTS WebSocket 连接成功')
     } catch (error) {
-      console.error('❌ TTS 初始化失败:', error)
+      logger.error('❌ TTS 初始化失败:', error)
       throw error
     }
   }
@@ -162,7 +165,7 @@ export class VolcengineTTSV3 implements TTSService {
   async synthesize(request: TTSRequest): Promise<TTSResult> {
     // 防并发锁：如果正在合成中，直接返回错误
     if (this.isSynthesizing) {
-      console.warn('⚠️ [VolcengineTTSV3] 上一次合成尚未完成，忽略本次重复调用')
+      logger.warn('⚠️ [VolcengineTTSV3] 上一次合成尚未完成，忽略本次重复调用')
       return { success: false, error: '上一次 TTS 合成尚未完成' }
     }
     this.isSynthesizing = true
@@ -175,15 +178,15 @@ export class VolcengineTTSV3 implements TTSService {
       this.audioChunks = []
       this.currentSessionId = ''
 
-      console.log('🎤 [VolcengineTTSV3] 开始 TTS 合成:', request.text.substring(0, 50) + '...')
+      logger.debug('🎤 [VolcengineTTSV3] 开始 TTS 合成:', request.text.substring(0, 50) + '...')
 
       const sessionId = this.generateUUID()
       this.currentSessionId = sessionId
-      console.log('🎯 [VolcengineTTSV3] 生成 sessionId:', sessionId)
+      logger.debug('🎯 [VolcengineTTSV3] 生成 sessionId:', sessionId)
 
       return new Promise<TTSResult>((resolve) => {
         this.onCompleteCallback = (audioBuffer: ArrayBuffer) => {
-          console.log('🔔 [VolcengineTTSV3] onCompleteCallback 被调用，音频大小:', audioBuffer.byteLength)
+          logger.debug('🔔 [VolcengineTTSV3] onCompleteCallback 被调用，音频大小:', audioBuffer.byteLength)
           this.onCompleteCallback = null
           this.onErrorCallback = null
           this.isSynthesizing = false
@@ -194,7 +197,7 @@ export class VolcengineTTSV3 implements TTSService {
         }
 
         this.onErrorCallback = (error: string) => {
-          console.error('❌ [VolcengineTTSV3] onErrorCallback 被调用:', error)
+          logger.error('❌ [VolcengineTTSV3] onErrorCallback 被调用:', error)
           this.onCompleteCallback = null
           this.onErrorCallback = null
           this.isSynthesizing = false
@@ -202,28 +205,28 @@ export class VolcengineTTSV3 implements TTSService {
           if (error.includes('session number limit') ||
               error.includes('WebSocket') ||
               error.includes('connect')) {
-            console.log('🔄 [VolcengineTTSV3] 检测到连接/会话错误，重置连接状态')
+            logger.debug('🔄 [VolcengineTTSV3] 检测到连接/会话错误，重置连接状态')
             this.isConnected = false
           }
 
           resolve({ success: false, error })
         }
 
-        console.log('✅ [VolcengineTTSV3] 回调已设置，准备发送合成请求...')
+        logger.debug('✅ [VolcengineTTSV3] 回调已设置，准备发送合成请求...')
 
-        window.electronAPI!.invoke('tts-v3-synthesize', this.config, request.text, { sessionId })
+      window.electronAPI!.ttsV3Synthesize(this.config, request.text, { sessionId })
           .catch((error) => {
-            console.error('❌ TTS 合成请求失败:', error)
+            logger.error('❌ TTS 合成请求失败:', error)
             this.onCompleteCallback = null
             this.onErrorCallback = null
             this.isSynthesizing = false
             resolve({ success: false, error: error instanceof Error ? error.message : 'TTS 合成失败' })
           })
 
-        console.log('✅ [VolcengineTTSV3] TTS 合成请求已发送，等待响应...')
+        logger.debug('✅ [VolcengineTTSV3] TTS 合成请求已发送，等待响应...')
       })
     } catch (error) {
-      console.error('❌ TTS 合成失败:', error)
+      logger.error('❌ TTS 合成失败:', error)
       this.onCompleteCallback = null
       this.onErrorCallback = null
       this.isSynthesizing = false
@@ -253,7 +256,7 @@ export class VolcengineTTSV3 implements TTSService {
 
   stop(): void {
     if (window.electronAPI) {
-      window.electronAPI.invoke('tts-v3-disconnect')
+      window.electronAPI.ttsV3Disconnect()
       this.isConnected = false
     }
   }
@@ -274,6 +277,6 @@ export class VolcengineTTSV3 implements TTSService {
 
   setVoice(voiceId: string): void {
     this.config.voice = voiceId
-    console.log('🎤 TTS 音色已切换:', voiceId)
+    logger.debug('🎤 TTS 音色已切换:', voiceId)
   }
 }

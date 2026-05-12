@@ -11,6 +11,8 @@ import {
   searchKnowledge,
   getKnowledgeStats,
   deleteDocuments,
+  listKnowledgeSources,
+  deleteDocumentsBySource,
 } from '../services/ragService';
 import { parseFile, chunkText } from '../services/documentParser';
 import { recognizeImage } from '../services/imageRecognizer';
@@ -45,12 +47,24 @@ export function registerKnowledgeStats() {
   });
 }
 
+export function registerKnowledgeSources() {
+  ipcMain.handle('knowledge-sources', async () => {
+    return await listKnowledgeSources();
+  });
+}
+
 /**
  * 注册知识库删除工具
  */
 export function registerKnowledgeDelete() {
   ipcMain.handle('knowledge-delete', async (_event, ids: string[]) => {
     return await deleteDocuments(ids);
+  });
+}
+
+export function registerKnowledgeDeleteBySource() {
+  ipcMain.handle('knowledge-delete-by-source', async (_event, source: string) => {
+    return await deleteDocumentsBySource(source);
   });
 }
 
@@ -76,10 +90,12 @@ export function registerKnowledgeImportFile() {
 
       // 3. 构建元数据
       const fileName = filePath.split(/[/\\]/).pop() || 'unknown';
-      const metadatas = chunks.map(() => ({
+      const importedAt = new Date().toISOString();
+      const metadatas = chunks.map((_, index) => ({
         source: fileName,
         category: category || 'imported',
-        created_at: new Date().toISOString(),
+        chunkId: `${fileName}#${index + 1}`,
+        created_at: importedAt,
       }));
 
       // 4. 存入知识库
@@ -115,11 +131,13 @@ export function registerKnowledgeImportImage() {
       const fileName = imagePath.split(/[/\\]/).pop() || 'unknown';
 
       // 3. 存入知识库
-      const metadatas = chunks.map(() => ({
+      const importedAt = new Date().toISOString();
+      const metadatas = chunks.map((_, index) => ({
         source: fileName,
         category: category || 'image',
+        chunkId: `${fileName}#${index + 1}`,
         type: 'image_recognition',
-        created_at: new Date().toISOString(),
+        created_at: importedAt,
       }));
 
       const result = await addDocuments(chunks, metadatas);

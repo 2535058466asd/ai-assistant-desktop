@@ -8,6 +8,9 @@
 import { ChromaClient, Collection } from 'chromadb';
 import * as path from 'path';
 import * as fs from 'fs';
+import { createLogger } from '../../shared/logger';
+
+const logger = createLogger('rag');
 
 // 知识库存储路径（项目根目录下）
 const CHROMA_PATH = path.join(__dirname, '../../chroma_db');
@@ -28,7 +31,7 @@ async function getClient(): Promise<any> {
     client = new ChromaClient({
       path: CHROMA_PATH,
     });
-    console.log('📚 [RAG] ChromaDB 客户端初始化完成');
+    logger.debug('📚 [RAG] ChromaDB 客户端初始化完成');
   }
   return client;
 }
@@ -48,7 +51,7 @@ async function getCollection(name: string = DEFAULT_COLLECTION): Promise<any> {
       name,
       metadata: { description: '启源AI知识库' },
     });
-    console.log(`📚 [RAG] 创建知识库集合: ${name}`);
+    logger.debug(`📚 [RAG] 创建知识库集合: ${name}`);
   }
   return collection;
 }
@@ -71,8 +74,9 @@ export async function addDocuments(
     const docIds = ids || documents.map((_, i) => `doc_${Date.now()}_${i}`);
 
     // 自动生成元数据
-    const docMetas = metadatas || documents.map(() => ({
+    const docMetas = metadatas || documents.map((_, i) => ({
       source: 'manual',
+      chunkId: docIds[i],
       created_at: new Date().toISOString(),
     }));
 
@@ -82,10 +86,10 @@ export async function addDocuments(
       ids: docIds,
     });
 
-    console.log(`📚 [RAG] 添加 ${documents.length} 条文档到知识库`);
+    logger.debug(`📚 [RAG] 添加 ${documents.length} 条文档到知识库`);
     return { success: true, count: documents.length };
   } catch (error: any) {
-    console.error('📚 [RAG] 添加文档失败:', error.message);
+    logger.error('📚 [RAG] 添加文档失败:', error.message);
     return { success: false, count: 0, error: error.message };
   }
 }
@@ -125,15 +129,62 @@ export async function searchKnowledge(
     documents.forEach((doc: string, i: number) => {
       const meta = metadatas[i] || {};
       const distance = (distances[i] || 0).toFixed(4);
-      formatted += `--- 相关内容 ${i + 1}（相似度: ${distance}）---\n`;
-      formatted += `来源: ${meta.source || '未知'} | 分类: ${meta.category || '未分类'}\n`;
+      formatted += `--- 相关内容 ${i + 1}（距离: ${distance}，越小越相关）---\n`;
+      formatted += `来源: ${meta.source || '未知'} | 分类: ${meta.category || '未分类'} | 片段: ${meta.chunkId || '未知'}\n`;
       formatted += `${doc}\n\n`;
     });
 
-    console.log(`📚 [RAG] 检索到 ${documents.length} 条相关内容`);
+    logger.debug(`📚 [RAG] 检索到 ${documents.length} 条相关内容`);
     return { success: true, data: formatted };
   } catch (error: any) {
-    console.error('📚 [RAG] 检索失败:', error.message);
+    logger.error('📚 [RAG] 检索失败:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 列出知识库来源文件
+ */
+export async function listKnowledgeSources(): Promise<{
+  success: boolean;
+  data?: Array<{ source: string; category: string; count: number; createdAt?: string }>;
+  error?: string;
+}> {
+  try {
+    const col = await getCollection();
+    const count = await col.count();
+    if (count === 0) return { success: true, data: [] };
+    const result = await col.get({ include: ['metadatas'] });
+    const groups = new Map<string, { source: string; category: string; count: number; createdAt?: string }>();
+    for (const meta of result.metadatas || []) {
+      const source = meta?.source || 'unknown';
+      const category = meta?.category || 'uncategorized';
+      const key = `${source}::${category}`;
+      const existing = groups.get(key) || { source, category, count: 0, createdAt: meta?.created_at };
+      existing.count += 1;
+      if (!existing.createdAt || (meta?.created_at && meta.created_at < existing.createdAt)) {
+        existing.createdAt = meta.created_at;
+      }
+      groups.set(key, existing);
+    }
+    return { success: true, data: Array.from(groups.values()) };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 按来源文件删除知识片段
+ */
+export async function deleteDocumentsBySource(source: string): Promise<{ success: boolean; deletedCount?: number; error?: string }> {
+  try {
+    const col = await getCollection();
+    const result = await col.get({ where: { source }, include: ['metadatas'] });
+    const ids = result.ids || [];
+    if (ids.length === 0) return { success: true, deletedCount: 0 };
+    await col.delete({ ids });
+    return { success: true, deletedCount: ids.length };
+  } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
@@ -171,7 +222,7 @@ export async function deleteDocuments(ids: string[]): Promise<{ success: boolean
   try {
     const col = await getCollection();
     await col.delete({ ids });
-    console.log(`📚 [RAG] 删除 ${ids.length} 条文档`);
+    logger.debug(`📚 [RAG] 删除 ${ids.length} 条文档`);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };

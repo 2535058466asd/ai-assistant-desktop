@@ -7,6 +7,9 @@ import WebSocket from 'ws'
 import crypto from 'crypto'
 import zlib from 'zlib'
 import { BrowserWindow } from 'electron'
+import { createLogger } from '../../../shared/logger'
+
+const logger = createLogger('asr')
 
 // 使用 Node.js 内置的 crypto 生成 UUID（避免 ESM 兼容性问题）
 const uuidv4 = () => crypto.randomUUID()
@@ -66,7 +69,7 @@ export class VolcengineASRWebSocketService {
 
   constructor(config: ASRConfig) {
     this.config = config
-    console.log('🎤 [Main] ASR WebSocket 服务初始化')
+    logger.debug('🎤 [Main] ASR WebSocket 服务初始化')
   }
 
   setMainWindow(window: BrowserWindow) {
@@ -197,7 +200,7 @@ export class VolcengineASRWebSocketService {
       try {
         payload = Buffer.from(this.gzipDecompress(payload))
       } catch (error) {
-        console.error('❌ [Main] ASR 解压缩失败:', error)
+        logger.error('❌ [Main] ASR 解压缩失败:', error)
         return { code: -1, isLastPackage, payloadMsg: null }
       }
     }
@@ -207,7 +210,7 @@ export class VolcengineASRWebSocketService {
       try {
         payloadMsg = JSON.parse(payload.toString('utf-8'))
       } catch (error) {
-        console.error('❌ [Main] ASR 解析 JSON 失败:', error)
+        logger.error('❌ [Main] ASR 解析 JSON 失败:', error)
       }
     }
 
@@ -223,24 +226,24 @@ export class VolcengineASRWebSocketService {
     this.reconnectAttempts++
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1) // 指数退避
 
-    console.log(`🔄 [Main] ASR 尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})，延迟 ${delay}ms`)
+    logger.debug(`🔄 [Main] ASR 尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})，延迟 ${delay}ms`)
 
     return new Promise((resolve) => {
       setTimeout(async () => {
         try {
           const success = await this.connect()
           if (success) {
-            console.log('✅ [Main] ASR 重连成功')
+            logger.debug('✅ [Main] ASR 重连成功')
             this.reconnectAttempts = 0
             this.isReconnecting = false
             resolve(true)
           } else {
-            console.warn('⚠️ [Main] ASR 重连失败')
+            logger.warn('⚠️ [Main] ASR 重连失败')
             this.isReconnecting = false
             resolve(false)
           }
         } catch (error) {
-          console.error('❌ [Main] ASR 重连错误:', error)
+          logger.error('❌ [Main] ASR 重连错误:', error)
           this.isReconnecting = false
           resolve(false)
         }
@@ -254,7 +257,7 @@ export class VolcengineASRWebSocketService {
     }
 
     if (this.isConnecting) {
-      console.log('🔄 [Main] ASR 连接正在进行中，等待完成')
+      logger.debug('🔄 [Main] ASR 连接正在进行中，等待完成')
       // 等待当前连接完成
       return new Promise((resolve, reject) => {
         const checkInterval = setInterval(() => {
@@ -286,8 +289,8 @@ export class VolcengineASRWebSocketService {
           'X-Api-Request-Id': uuidv4()
         }
 
-        console.log('🔌 [Main] ASR WebSocket 连接中...')
-        console.log('📋 [Main] 请求头:', headers)
+        logger.debug('🔌 [Main] ASR WebSocket 连接中...')
+        logger.debug('📋 [Main] 请求头:', headers)
 
         this.ws = new WebSocket(this.config.apiUrl, {
           headers
@@ -296,20 +299,20 @@ export class VolcengineASRWebSocketService {
         this.ws.binaryType = 'arraybuffer'
 
         this.ws.on('open', () => {
-          console.log('✅ [Main] ASR WebSocket 连接成功')
+          logger.debug('✅ [Main] ASR WebSocket 连接成功')
           this.isConnecting = false
           this.reconnectAttempts = 0 // 重置重连次数
           resolve(true)
         })
 
         this.ws.on('message', (data: Buffer | ArrayBuffer) => {
-          console.log('📨 [Main] ASR 收到响应:', data instanceof ArrayBuffer ? (data as ArrayBuffer).byteLength + ' bytes (ArrayBuffer)' : data.length + ' bytes')
+          logger.debug('📨 [Main] ASR 收到响应:', data instanceof ArrayBuffer ? (data as ArrayBuffer).byteLength + ' bytes (ArrayBuffer)' : data.length + ' bytes')
 
           const buffer = data instanceof ArrayBuffer ? Buffer.from(data) : data
-          console.log('📝 [Main] ASR 响应头部 (hex):', buffer.slice(0, 16).toString('hex'))
+          logger.debug('📝 [Main] ASR 响应头部 (hex):', buffer.slice(0, 16).toString('hex'))
 
           const response = this.parseServerResponse(buffer)
-          console.log('📝 [Main] ASR 解析结果:', { code: response.code, isLastPackage: response.isLastPackage, payloadMsg: response.payloadMsg })
+          logger.debug('📝 [Main] ASR 解析结果:', { code: response.code, isLastPackage: response.isLastPackage, payloadMsg: response.payloadMsg })
           
           if (response.code !== 0) {
             this.mainWindow?.webContents.send('asr-error', { error: `服务端错误：code=${response.code}` })
@@ -320,7 +323,7 @@ export class VolcengineASRWebSocketService {
             const result = response.payloadMsg.result
             if (result.text) {
               this.recognitionResult = result.text
-              console.log('✅ [Main] ASR 识别结果:', result.text)
+              logger.debug('✅ [Main] ASR 识别结果:', result.text)
               this.mainWindow?.webContents.send('asr-result', { 
                 text: result.text,
                 isFinal: response.isLastPackage
@@ -329,7 +332,7 @@ export class VolcengineASRWebSocketService {
           }
 
           if (response.isLastPackage) {
-            console.log('✅ [Main] ASR 识别完成')
+            logger.debug('✅ [Main] ASR 识别完成')
             this.mainWindow?.webContents.send('asr-complete', { 
               text: this.recognitionResult 
             })
@@ -337,26 +340,26 @@ export class VolcengineASRWebSocketService {
         })
 
         this.ws.on('error', (error) => {
-          console.error('❌ [Main] ASR WebSocket 错误:', error)
+          logger.error('❌ [Main] ASR WebSocket 错误:', error)
           this.isConnecting = false
           reject(error)
         })
 
         this.ws.on('close', (code, reason) => {
-          console.log(`🔌 [Main] ASR WebSocket 连接关闭，code: ${code}, reason: ${reason}`)
+          logger.debug(`🔌 [Main] ASR WebSocket 连接关闭，code: ${code}, reason: ${reason}`)
           this.isConnecting = false
           
           // 自动重连（排除主动关闭的情况）
           if (code !== 1000 && !this.isReconnecting) {
-            console.log('🔄 [Main] ASR 连接意外关闭，准备重连')
+            logger.debug('🔄 [Main] ASR 连接意外关闭，准备重连')
             this.reconnect().catch(error => {
-              console.error('❌ [Main] ASR 重连失败:', error)
+              logger.error('❌ [Main] ASR 重连失败:', error)
             })
           }
         })
 
       } catch (error) {
-        console.error('❌ [Main] ASR 连接失败:', error)
+        logger.error('❌ [Main] ASR 连接失败:', error)
         this.isConnecting = false
         reject(error)
       }
@@ -372,30 +375,30 @@ export class VolcengineASRWebSocketService {
     this.recognitionResult = ''
 
     const fullRequest = this.buildFullClientRequest(this.seq++)
-    console.log('📤 [Main] ASR 发送初始化请求 (seq=%d)', this.seq - 1)
-    console.log('📝 [Main] FullClientRequest 头部 (hex):', fullRequest.slice(0, 12).toString('hex'))
-    console.log('📝 [Main] FullClientRequest 总长度:', fullRequest.length, 'bytes')
+    logger.debug('📤 [Main] ASR 发送初始化请求 (seq=%d)', this.seq - 1)
+    logger.debug('📝 [Main] FullClientRequest 头部 (hex):', fullRequest.slice(0, 12).toString('hex'))
+    logger.debug('📝 [Main] FullClientRequest 总长度:', fullRequest.length, 'bytes')
     this.ws!.send(fullRequest)
-    console.log('📤 [Main] ASR 发送初始化请求')
+    logger.debug('📤 [Main] ASR 发送初始化请求')
 
     // 等待服务端响应（FullServerResponse with code=0）
     return new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        console.error('⏰ [Main] ASR 等待响应超时')
+        logger.error('⏰ [Main] ASR 等待响应超时')
         reject(new Error('ASR 等待响应超时'))
       }, 5000)
 
       const messageHandler = (data: Buffer) => {
         const response = this.parseServerResponse(data)
-        console.log('📨 [Main] ASR 收到初始化响应:', { code: response.code, isLastPackage: response.isLastPackage })
+        logger.debug('📨 [Main] ASR 收到初始化响应:', { code: response.code, isLastPackage: response.isLastPackage })
 
         if (response.code === 0) {
-          console.log('✅ [Main] ASR 服务端已接受初始化请求')
+          logger.debug('✅ [Main] ASR 服务端已接受初始化请求')
           clearTimeout(timeout)
           this.ws?.off('message', messageHandler)
           resolve()
         } else {
-          console.error('❌ [Main] ASR 服务端错误:', response.code)
+          logger.error('❌ [Main] ASR 服务端错误:', response.code)
           clearTimeout(timeout)
           this.ws?.off('message', messageHandler)
           reject(new Error(`ASR 服务端错误：code=${response.code}`))
@@ -412,11 +415,11 @@ export class VolcengineASRWebSocketService {
     }
 
     const audioBuffer = Buffer.from(audioBase64, 'base64')
-    console.log('📤 [Main] ASR 发送音频块：size=%d bytes, isLast=%s', audioBuffer.length, isLast)
+    logger.debug('📤 [Main] ASR 发送音频块：size=%d bytes, isLast=%s', audioBuffer.length, isLast)
     
     const audioRequest = this.buildAudioOnlyRequest(this.seq, audioBuffer, isLast)
-    console.log('📝 [Main] AudioOnlyRequest 头部 (hex):', audioRequest.slice(0, 12).toString('hex'))
-    console.log('📝 [Main] AudioOnlyRequest 总长度:', audioRequest.length, 'bytes')
+    logger.debug('📝 [Main] AudioOnlyRequest 头部 (hex):', audioRequest.slice(0, 12).toString('hex'))
+    logger.debug('📝 [Main] AudioOnlyRequest 总长度:', audioRequest.length, 'bytes')
     
     this.ws!.send(audioRequest)
     
@@ -424,7 +427,7 @@ export class VolcengineASRWebSocketService {
       this.seq++
     }
     
-    console.log('📤 [Main] ASR 发送音频块, seq:', this.seq, 'isLast:', isLast)
+    logger.debug('📤 [Main] ASR 发送音频块, seq:', this.seq, 'isLast:', isLast)
   }
 
   stopRecognition(): void {

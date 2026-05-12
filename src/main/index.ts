@@ -8,7 +8,7 @@ if (process.env.NODE_ENV === 'development') {
     } catch (_) {}
   }).catch(() => {});
 }
-import { app, BrowserWindow, Menu, ipcMain } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, globalShortcut } from 'electron'
 import { exec, execSync } from 'child_process'
 import { promisify } from 'util'
 
@@ -22,8 +22,26 @@ import { getScreenshotService } from './services/screenshotService'
 import { getTTSService } from './services/tts/volcengineTTSWebSocketService'
 import { getASRService } from './services/asr/volcengineASRWebSocketService'
 import { registerAllTools } from './tools'
+import { createLogger } from '../shared/logger'
 
 let mainWindow: BrowserWindow | null = null
+const mainLogger = createLogger('ipc')
+
+function toggleDevTools() {
+  if (!mainWindow) return
+  const webContents = mainWindow.webContents
+  if (webContents.isDevToolsOpened()) {
+    webContents.closeDevTools()
+  } else {
+    webContents.openDevTools({ mode: 'detach' })
+  }
+}
+
+function registerDevelopmentShortcuts() {
+  if (app.isPackaged) return
+  globalShortcut.register('F12', toggleDevTools)
+  globalShortcut.register('CommandOrControl+Shift+I', toggleDevTools)
+}
 
 
 
@@ -46,17 +64,16 @@ function createWindow() {
       for (const port of ports) {
         try {
           await mainWindow.loadURL(`http://localhost:${port}`);
-          console.log(`✅ 成功连接到 Vite 服务器: http://localhost:${port}`);
+          mainLogger.info('Connected to Vite dev server', { url: `http://localhost:${port}` });
           return;
         } catch (error) {
-          console.log(`⏳ 尝试连接端口 ${port} 失败，继续尝试...`);
+          mainLogger.debug('Vite dev server port unavailable, trying next', { port });
         }
       }
-      console.error('❌ 无法连接到 Vite 服务器');
+      mainLogger.error('Unable to connect to Vite dev server');
     };
     tryLoadURL();
     
-    mainWindow.webContents.openDevTools()
   } else {
     mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'))
   }
@@ -82,7 +99,7 @@ ipcMain.handle('http-proxy', async (_event, options: any) => {
         headers: options.headers || {}
       };
 
-      console.log('🌐 HTTP 代理请求:', requestOptions.method, options.url);
+      mainLogger.info('HTTP proxy request started', { method: requestOptions.method, url: options.url });
 
       const req = client.request(requestOptions, (res) => {
         const chunks: Buffer[] = [];
@@ -92,7 +109,7 @@ ipcMain.handle('http-proxy', async (_event, options: any) => {
         });
         
         res.on('end', () => {
-          console.log('✅ HTTP代理响应完成，状态码:', res.statusCode);
+          mainLogger.info('HTTP proxy response completed', { statusCode: res.statusCode, isBinary });
           
           if (isBinary) {
             const buffer = Buffer.concat(chunks);
@@ -117,7 +134,7 @@ ipcMain.handle('http-proxy', async (_event, options: any) => {
       });
 
       req.on('error', (error) => {
-        console.error('❌ HTTP 代理请求失败:', error);
+        mainLogger.error('HTTP proxy request failed', error);
         resolve({
           success: false,
           error: error.message
@@ -130,7 +147,7 @@ ipcMain.handle('http-proxy', async (_event, options: any) => {
       
       req.end();
     } catch (error) {
-      console.error('❌ HTTP代理异常:', error);
+      mainLogger.error('HTTP proxy exception', error);
       resolve({
         success: false,
         error: error instanceof Error ? error.message : String(error)
@@ -193,7 +210,7 @@ ipcMain.handle('tts-v3-connect', async (_event, config: any) => {
     await ttsService.connect()
     return { success: true }
   } catch (error) {
-    console.error('❌ [Main] TTS 连接失败:', error)
+    mainLogger.error('TTS connect failed', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -208,7 +225,7 @@ ipcMain.handle('tts-v3-synthesize', async (_event, config: any, text: string, op
     const sessionId = await ttsService.synthesize(text, options?.sessionId)
     return { success: true, sessionId }
   } catch (error) {
-    console.error('❌ [Main] TTS 合成失败:', error)
+    mainLogger.error('TTS synthesize failed', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -223,7 +240,7 @@ ipcMain.handle('tts-v3-disconnect', async () => {
     ttsService.disconnect()
     return { success: true }
   } catch (error) {
-    console.error('❌ [Main] TTS 断开连接失败:', error)
+    mainLogger.error('TTS disconnect failed', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -255,15 +272,15 @@ ipcMain.handle('tts-cache-check', async (_event, text: string, voice: string) =>
     const filePath = path.join(cacheDir, fileName)
     
     if (fs.existsSync(filePath)) {
-      console.log('💾 [Main] TTS 缓存命中:', fileName)
+      mainLogger.debug('TTS cache hit', { fileName })
       const audioData = fs.readFileSync(filePath)
       return { exists: true, audioData: audioData.toString('base64') }
     }
     
-    console.log('📭 [Main] TTS 缓存未命中')
+    mainLogger.debug('TTS cache miss')
     return { exists: false }
   } catch (error) {
-    console.error('❌ [Main] TTS 缓存检查失败:', error)
+    mainLogger.error('TTS cache check failed', error)
     return { exists: false }
   }
 })
@@ -278,10 +295,10 @@ ipcMain.handle('tts-cache-save', async (_event, text: string, voice: string, aud
     const audioBuffer = Buffer.from(audioBase64, 'base64')
     fs.writeFileSync(filePath, audioBuffer)
     
-    console.log('💾 [Main] TTS 缓存已保存:', fileName, '大小:', audioBuffer.length, 'bytes')
+    mainLogger.info('TTS cache saved', { fileName, sizeBytes: audioBuffer.length })
     return { success: true, filePath }
   } catch (error) {
-    console.error('❌ [Main] TTS 缓存保存失败:', error)
+    mainLogger.error('TTS cache save failed', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -293,7 +310,7 @@ ipcMain.handle('tts-cache-list', async () => {
     const files = fs.readdirSync(cacheDir)
     return { success: true, count: files.length, files }
   } catch (error) {
-    console.error('❌ [Main] TTS 缓存列表获取失败:', error)
+    mainLogger.error('TTS cache list failed', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -306,10 +323,10 @@ ipcMain.handle('tts-cache-clear', async () => {
     for (const file of files) {
       fs.unlinkSync(path.join(cacheDir, file))
     }
-    console.log('🗑️ [Main] TTS 缓存已清除，共', files.length, '个文件')
+    mainLogger.info('TTS cache cleared', { deletedCount: files.length })
     return { success: true, deletedCount: files.length }
   } catch (error) {
-    console.error('❌ [Main] TTS 缓存清除失败:', error)
+    mainLogger.error('TTS cache clear failed', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -325,7 +342,7 @@ ipcMain.handle('asr-v3-connect', async (_event, config: any) => {
     await asrService.connect()
     return { success: true }
   } catch (error) {
-    console.error('❌ [Main] ASR 连接失败:', error)
+    mainLogger.error('ASR connect failed', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -340,7 +357,7 @@ ipcMain.handle('asr-v3-start-recognition', async (_event, config: any) => {
     await asrService.startRecognition()
     return { success: true }
   } catch (error) {
-    console.error('❌ [Main] ASR 开始识别失败:', error)
+    mainLogger.error('ASR start recognition failed', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -355,7 +372,7 @@ ipcMain.handle('asr-v3-send-audio', async (_event, config: any, audioBase64: str
     await asrService.sendAudioChunk(audioBase64, isLast)
     return { success: true }
   } catch (error) {
-    console.error('❌ [Main] ASR 发送音频失败:', error)
+    mainLogger.error('ASR send audio failed', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -370,14 +387,17 @@ ipcMain.handle('asr-v3-stop-recognition', async (_event, config: any) => {
     asrService.stopRecognition()
     return { success: true }
   } catch (error) {
-    console.error('❌ [Main] ASR 停止识别失败:', error)
+    mainLogger.error('ASR stop recognition failed', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 });
 
 app.whenReady().then(() => {
-  Menu.setApplicationMenu(null)
+  if (app.isPackaged) {
+    Menu.setApplicationMenu(null)
+  }
   createWindow()
+  registerDevelopmentShortcuts()
   registerAllTools()
 })
 
@@ -393,4 +413,8 @@ app.on('activate', () => {
   if (mainWindow === null) {
     createWindow()
   }
+})
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
 })

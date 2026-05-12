@@ -4,6 +4,72 @@
 
 这个项目用于展示应用层 AI 工程能力：把 LLM 接入真实产品系统，并让系统可维护、可观察、可评估。
 
+## 当前定位
+
+Nova 是一个桌面办公 AI Agent，不是代码助手。第一阶段能力边界是文件、知识库、剪贴板、截图、网页搜索、任务管理和轻量系统控制；不做自动写代码、连续键鼠桌控、自动发消息或高风险系统操作。
+
+## 快速启动
+
+```bash
+npm install
+copy .env.example .env
+npm run electron:dev
+```
+
+`npm run electron:dev` 会启动 Vite 开发服务器作为 Electron 渲染进程，但不会打开浏览器；它只会打开 Nova 桌面端窗口。`npm run dev` 只启动 Vite，适合单独调试前端渲染层。开发环境下可用 `F12` 或 `Ctrl+Shift+I` 重新打开/关闭桌面端 DevTools。
+
+生产构建检查：
+
+```bash
+npm run build
+```
+
+## Provider 配置
+
+默认模型 Provider 是豆包。后续可通过 Provider 抽象接入 OpenAI-compatible 服务和小米 MiMo：
+
+```env
+VITE_MODEL_PROVIDER=doubao
+VITE_DOUBAO_API_KEY=
+VITE_DOUBAO_MODEL=doubao-seed-2-0-pro-260215
+
+VITE_OPENAI_COMPATIBLE_BASE_URL=
+VITE_OPENAI_COMPATIBLE_API_KEY=
+VITE_OPENAI_COMPATIBLE_MODEL=
+
+VITE_MIMO_BASE_URL=
+VITE_MIMO_API_KEY=
+VITE_MIMO_MODEL=
+```
+
+当前代码默认使用豆包 Provider。MiMo 的具体 endpoint、模型名、工具调用兼容性和计费，以拿到的官方 API 文档为准。
+
+## Demo 场景
+
+1. **知识库问答**：导入一份 PDF/Word/Excel/TXT/MD，提问后展示检索片段、来源、分类和 chunk 信息。
+2. **本地文件助手**：让 Agent 读取一个本地文本文件，总结内容，并把下一步记录到任务面板。
+3. **截图/剪贴板助手**：截图或读取剪贴板内容，让 Agent 分析报错、英文文本或网页片段，并给出建议。
+
+## 安全边界
+
+工具按风险等级管理：
+
+- `read`：读取类工具，自动执行。
+- `low_write`：低风险写入，执行并记录日志。
+- `system`：打开应用、系统命令，执行前确认。
+- `destructive`：删除、批量移动、覆盖等，默认禁止或强确认。
+- `external_send`：发消息、发邮件、提交表单，强确认。
+
+渲染进程只通过 preload 暴露的白名单 IPC 调用主进程能力；不暴露任意 `invoke(channel)`。
+
+## 开发规则
+
+较大功能开发前先做轻量调研，记录到 [docs/development-research.md](docs/development-research.md)：
+
+- 查 2-3 个成熟 GitHub 项目或官方文档。
+- 只吸收适合本项目的架构和接口设计。
+- 不为了追框架而全面迁移 LangChain；复杂工作流后续再考虑局部引入 LangGraph 思想。
+
 ---
 
 ## 核心能力

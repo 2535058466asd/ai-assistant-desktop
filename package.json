@@ -4,7 +4,7 @@
   "description": "Desktop AI Assistant with STT/TTS and LLM",
   "main": "dist-electron/main/index.js",
   "scripts": {
-    "dev": "vite --open false",
+    "dev": "vite",
     "build": "tsc && vite build",
     "build:node": "tsc -p tsconfig.node.json",
     "electron:dev": "npm run build:node && concurrently \"npm run dev\" \"wait-on http://localhost:5173 && set NODE_ENV=development && electron .\"",

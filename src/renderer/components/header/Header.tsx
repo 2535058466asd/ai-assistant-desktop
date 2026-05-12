@@ -14,6 +14,9 @@ import type {
   ModelChangeHandler,
   SidebarToggleHandler,
 } from '../../types/chat';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('ui');
 
 /* ==========================================
    组件 Props 类型定义
@@ -86,6 +89,7 @@ const Header: React.FC<HeaderProps> = ({
    * 切换模型选择器下拉
    */
   const toggleModelDropdown = () => {
+    logger.info('模型下拉框展开状态切换', { from: modelDropdownOpen, to: !modelDropdownOpen });
     setModelDropdownOpen((prev) => !prev);
     setMoreMenuOpen(false); /* 同时关闭更多菜单 */
   };
@@ -94,6 +98,7 @@ const Header: React.FC<HeaderProps> = ({
    * 选择某个模型
    */
   const handleSelectModel = (modelId: string) => {
+    logger.info('点击模型选项', { from: currentModel.id, to: modelId });
     onModelChange(modelId);
     setModelDropdownOpen(false);
   };
@@ -102,6 +107,7 @@ const Header: React.FC<HeaderProps> = ({
    * 切换更多菜单
    */
   const toggleMoreMenu = () => {
+    logger.info('更多菜单展开状态切换', { from: moreMenuOpen, to: !moreMenuOpen });
     setMoreMenuOpen((prev) => !prev);
     setModelDropdownOpen(false); /* 同时关闭模型菜单 */
   };
@@ -112,6 +118,7 @@ const Header: React.FC<HeaderProps> = ({
    * 更多菜单项：设置
    */
   const handleSettings = () => {
+    logger.info('点击设置菜单项');
     setMoreMenuOpen(false);
     onOpenSettings?.();
   };
@@ -120,6 +127,7 @@ const Header: React.FC<HeaderProps> = ({
    * 独立主题切换按钮处理
    */
   const handleThemeBtnClick = () => {
+    logger.info('点击主题按钮', { theme });
     onToggleTheme();
   };
 

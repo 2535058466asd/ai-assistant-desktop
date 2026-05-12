@@ -5,6 +5,9 @@
 
 import { getMemoryService } from '../../services/memoryServiceClient';
 import { sendMessageToDoubao } from '../../services/doubaoApiClient';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('memory');
 
 /**
  * 提取的记忆类型
@@ -65,7 +68,7 @@ export async function extractMemoriesWithLLM(
     const memories = JSON.parse(response);
     return Array.isArray(memories) ? memories : [];
   } catch (error) {
-    console.error('❌ LLM提取记忆失败:', error);
+    logger.error('LLM 记忆提取失败', error);
     return [];
   }
 }
@@ -85,7 +88,7 @@ export async function tryExtractAndSaveMemory(userText: string, assistantText: s
     // 保存提取的记忆
     for (const memory of extractedMemories) {
       await memoryService.addMemory(memory.content, memory.category, memory.importance);
-      console.log('📝 已记住:', memory.content, `[${memory.category}, importance: ${memory.importance}]`);
+      logger.info('已从对话保存记忆', memory);
     }
 
     // 提取用户名字（保留原有逻辑作为备份）
@@ -94,12 +97,12 @@ export async function tryExtractAndSaveMemory(userText: string, assistantText: s
       const userName = (nameMatch[1] || nameMatch[2] || nameMatch[3]).trim();
       if (userName && userName.length < 20) {
         await memoryService.setPreference('userName', userName);
-        console.log('📝 已记住用户名字:', userName);
+        logger.info('已通过兜底规则保存用户名', { userName });
       }
     }
 
   } catch (error) {
-    console.error('❌ 提取记忆失败:', error);
+    logger.error('提取并保存记忆失败', error);
     // 提取记忆失败不影响聊天，所以不抛出错误
   }
 }

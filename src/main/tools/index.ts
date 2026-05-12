@@ -10,7 +10,10 @@ import { registerWebSearch, registerWebFetch } from './webTools'
 import { registerClipboardRead, registerClipboardWrite } from './clipboard'
 import { registerScreenshot } from './screenshot'
 import { registerOpenApp } from './openApp'
-import { registerKnowledgeSearch, registerKnowledgeAdd, registerKnowledgeStats, registerKnowledgeImportFile, registerKnowledgeImportImage } from './ragTools'
+import { registerKnowledgeSearch, registerKnowledgeAdd, registerKnowledgeStats, registerKnowledgeImportFile, registerKnowledgeImportImage, registerKnowledgeSources, registerKnowledgeDeleteBySource } from './ragTools'
+import { createLogger } from '../../shared/logger'
+
+const logger = createLogger('tool')
 
 export function registerAllTools() {
   // 系统命令
@@ -41,8 +44,10 @@ export function registerAllTools() {
   registerKnowledgeSearch()
   registerKnowledgeAdd()
   registerKnowledgeStats()
+  registerKnowledgeSources()
+  registerKnowledgeDeleteBySource()
   registerKnowledgeImportFile()
   registerKnowledgeImportImage()
 
-  console.log('🛠️ [工具] 17个工具已注册完成');
+  logger.info('Tools registered', { count: 17 });
 }

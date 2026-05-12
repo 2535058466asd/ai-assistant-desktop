@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import styles from './WorkspaceDashboard.module.css';
 import type { Message } from '../../types';
 import { getProjects, getTasks, getToolLogs, type WorkspaceProject, type WorkspaceTask } from '../../services/workspaceStore';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('ui');
 
 interface KnowledgeStats {
   count: number;
@@ -69,7 +72,7 @@ const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages, onSug
         if (knowledgeResult?.success) setKnowledgeStats(knowledgeResult.data);
         if (Array.isArray(memoryResult)) setMemories(memoryResult);
       } catch (error) {
-        console.error('加载工作台统计失败:', error);
+        logger.error('Load workspace dashboard stats failed', error);
       }
     };
 

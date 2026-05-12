@@ -24,62 +24,10 @@ export interface ASRResult {
   confidence: number;
 }
 
-// ==========================================
-// 3. 第 2 层：大脑层（NLP Brain）相关类型
-// ==========================================
-
-/**
- * 意图类型（豆包 LLM 识别的意图，只包含启源 AI 原生功能）
- */
-export type Intent =
-  | 'chat'              // 闲聊、情感交流
-  | 'open_app'          // 打开应用
-  | 'open_folder'       // 打开文件夹
-  | 'lock_screen'       // 锁定屏幕
-  | 'adjust_volume'     // 调节音量（暂时禁用）
-  | 'mute_volume'       // 静音（暂时禁用）
-  | 'check_time'        // 查询时间
-  | 'check_weather'     // 查询天气
-  | 'search_web'        // 搜索网页
-  | 'shutdown_computer' // 关机
-  | 'restart_computer'  // 重启
-  | 'cancel_shutdown'   // 取消关机/重启
-  | 'sleep_computer'    // 休眠
-  | 'empty_recycle_bin' // 清空回收站
-  | 'unknown';          // 未知意图
-
-/** 槽位（关键信息） */
-export interface Slots {
-  [key: string]: string | number | boolean | null;
-}
-
-/** 单个意图（用于多意图场景） */
-export interface SingleIntent {
-  intent: Intent;
-  slots: Slots;
-  confidence: number;
-  order: number;
-}
-
-/** 结构化意图对象（大脑层输出） */
-export interface StructuredIntent {
-  intent: Intent;
-  slots: Slots;
-  intents?: SingleIntent[];
-  sessionId: SessionId;
-  needAsk: boolean;
-  askQuestion?: string;
-  confidence: number;
-  rawText: string;
-  isMultiIntent: boolean;
-}
-
 /** 对话上下文 */
 export interface ConversationContext {
   sessionId: SessionId;
   history: Message[];
-  currentIntent?: Intent;
-  pendingSlots: Slots;
   lastActiveTime: Timestamp;
 }
 
@@ -144,7 +92,6 @@ export interface Message {
   sessionId: SessionId;
   isTTS?: boolean;
   isStreaming?: boolean;
-  intent?: Intent;
 }
 
 // ==========================================

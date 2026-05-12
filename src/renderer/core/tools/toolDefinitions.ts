@@ -1,7 +1,7 @@
 /**
  * 启源 AI - 工具定义
  * 
- * 定义8个标准工具的JSON Schema，用于豆包API的tools字段
+ * 定义模型可调用工具的 JSON Schema，用于模型 API 的 tools 字段
  */
 
 export const toolDefinitions = [
@@ -9,7 +9,7 @@ export const toolDefinitions = [
     type: "function",
     function: {
       name: "exec_command",
-      description: "执行系统命令。用于控制系统、管理进程、查看系统信息。Windows用cmd命令如tasklist/taskkill/start，Mac用bash命令如ps/kill/open。",
+      description: "执行系统命令。用于查看系统信息、查询进程、执行开发命令、打开程序等。日常低风险命令可自动执行，高风险命令会要求用户确认。优先使用专用工具；只有专用工具不够用时再使用本工具。Windows用cmd/PowerShell命令如tasklist、where、Get-Process、npm run build；Mac用bash命令如ps、open。",
       parameters: {
         type: "object",
         properties: {

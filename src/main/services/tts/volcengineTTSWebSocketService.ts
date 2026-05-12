@@ -6,6 +6,9 @@
 import WebSocket from 'ws'
 import crypto from 'crypto'
 import { BrowserWindow } from 'electron'
+import { createLogger } from '../../../shared/logger'
+
+const logger = createLogger('tts')
 
 // 使用 Node.js 内置的 crypto 生成 UUID（避免 ESM 兼容性问题）
 const uuidv4 = () => crypto.randomUUID()
@@ -84,7 +87,7 @@ export class VolcengineTTSWebSocketService {
 
   constructor(config: TTSConfig) {
     this.config = config
-    console.log('🎤 [Main] TTS WebSocket 服务初始化')
+    logger.debug('🎤 [Main] TTS WebSocket 服务初始化')
   }
 
   setMainWindow(window: BrowserWindow) {
@@ -182,7 +185,7 @@ export class VolcengineTTSWebSocketService {
 
     if (msgType === TTSMsgType.Error) {
       const errorCode = data.readUInt32BE(offset); offset += 4
-      console.error('❌ [Main] TTS 服务端错误码:', errorCode)
+      logger.error('❌ [Main] TTS 服务端错误码:', errorCode)
     }
 
     const payloadSize = data.readUInt32BE(offset); offset += 4
@@ -197,7 +200,7 @@ export class VolcengineTTSWebSocketService {
     }
 
     if (this.isConnecting) {
-      console.log('🔄 [Main] TTS 连接正在进行中，等待完成')
+      logger.debug('🔄 [Main] TTS 连接正在进行中，等待完成')
       // 等待当前连接完成
       return new Promise((resolve, reject) => {
         const checkInterval = setInterval(() => {
@@ -230,14 +233,14 @@ export class VolcengineTTSWebSocketService {
           'X-Api-Connect-Id': uuidv4()
         }
 
-        console.log('🔌 [Main] TTS WebSocket 连接中...')
-        console.log('📋 [Main] TTS 完整配置:', JSON.stringify({
+        logger.debug('🔌 [Main] TTS WebSocket 连接中...')
+        logger.debug('📋 [Main] TTS 完整配置:', JSON.stringify({
           appId: this.config.appId,
           resourceId: this.config.resourceId,
           voice: this.config.voice,
           apiUrl: this.config.apiUrl
         }, null, 2))
-        console.log('📋 [Main] 请求头:', JSON.stringify(headers, null, 2))
+        logger.debug('📋 [Main] 请求头:', JSON.stringify(headers, null, 2))
 
         this.ws = new WebSocket(this.config.apiUrl, {
           headers,
@@ -245,27 +248,27 @@ export class VolcengineTTSWebSocketService {
         })
 
         this.ws.on('open', () => {
-          console.log('✅ [Main] TTS WebSocket 连接成功')
+          logger.debug('✅ [Main] TTS WebSocket 连接成功')
           this.isConnecting = false
           this.reconnectAttempts = 0 // 重置重连次数
           
           this.ws!.send(this.buildTTSMessage(TTSMsgType.FullClientRequest, TTSMsgTypeFlagBits.WithEvent, TTSEventType.StartConnection, {}))
-          console.log('📤 [Main] TTS 已发送 StartConnection (event=1)')
+          logger.debug('📤 [Main] TTS 已发送 StartConnection (event=1)')
         })
 
         this.ws.on('message', (data: Buffer) => {
-          console.log('📨 [Main] TTS 收到消息:', data.length, 'bytes')
-          console.log('📝 [Main] 消息头部 (hex):', data.slice(0, 16).toString('hex'))
+          logger.debug('📨 [Main] TTS 收到消息:', data.length, 'bytes')
+          logger.debug('📝 [Main] 消息头部 (hex):', data.slice(0, 16).toString('hex'))
           
           const msg = this.parseTTSMessage(data)
-          console.log('📝 [Main] 解析结果:', { type: msg.type, event: msg.event, serialNumber: msg.serialNumber, payloadSize: msg.payload.length })
+          logger.debug('📝 [Main] 解析结果:', { type: msg.type, event: msg.event, serialNumber: msg.serialNumber, payloadSize: msg.payload.length })
           
           if (msg.type === TTSMsgType.FullServerResponse) {
             if (msg.event === TTSEventType.ConnectionStarted) {
-              console.log('✅ [Main] TTS 连接已建立 (event=101)')
+              logger.debug('✅ [Main] TTS 连接已建立 (event=101)')
               resolve(true)
             } else if (msg.event === TTSEventType.SessionStarted) {
-              console.log('✅ [Main] TTS 会话已开始 (event=201)')
+              logger.debug('✅ [Main] TTS 会话已开始 (event=201)')
               this.mainWindow?.webContents.send('tts-session-started', { sessionId: this.sessionId })
               if (this.sessionStartedResolver) {
                 this.sessionStartedResolver()
@@ -273,16 +276,16 @@ export class VolcengineTTSWebSocketService {
                 this.sessionStartedRejecter = null
               }
             } else if (msg.event === TTSEventType.SessionFinished) {
-              console.log('✅ [Main] TTS 会话已完成 (event=202)')
+              logger.debug('✅ [Main] TTS 会话已完成 (event=202)')
               const audioBuffer = Buffer.concat(this.audioChunks)
               const base64Audio = audioBuffer.toString('base64')
-              console.log('📤 [Main] TTS 发送 tts-audio-complete 事件, sessionId:', this.sessionId, 'audioSize:', audioBuffer.length, 'bytes')
+              logger.debug('📤 [Main] TTS 发送 tts-audio-complete 事件, sessionId:', this.sessionId, 'audioSize:', audioBuffer.length, 'bytes')
               this.mainWindow?.webContents.send('tts-audio-complete', {
                 sessionId: this.sessionId,
                 audioBase64: base64Audio,
                 format: this.config.format
               })
-              console.log('📤 [Main] TTS tts-audio-complete 事件已发送')
+              logger.debug('📤 [Main] TTS tts-audio-complete 事件已发送')
               this.audioChunks = []
               if (this.sessionFinishedResolver) {
                 this.sessionFinishedResolver()
@@ -291,14 +294,14 @@ export class VolcengineTTSWebSocketService {
               }
             }
           } else if (msg.type === TTSMsgType.AudioOnlyServer) {
-            console.log('📨 [Main] TTS 收到音频块:', msg.payload.length, 'bytes')
+            logger.debug('📨 [Main] TTS 收到音频块:', msg.payload.length, 'bytes')
             this.audioChunks.push(msg.payload)
             this.mainWindow?.webContents.send('tts-audio-chunk', { 
               sessionId: this.sessionId,
               chunkBase64: msg.payload.toString('base64')
             })
           } else if (msg.type === TTSMsgType.Error) {
-            console.error('❌ [Main] TTS 服务端错误:', msg.payload.toString())
+            logger.error('❌ [Main] TTS 服务端错误:', msg.payload.toString())
             this.mainWindow?.webContents.send('tts-error', { 
               sessionId: this.sessionId,
               error: msg.payload.toString()
@@ -307,26 +310,26 @@ export class VolcengineTTSWebSocketService {
         })
 
         this.ws.on('error', (error) => {
-          console.error('❌ [Main] TTS WebSocket 错误:', error)
+          logger.error('❌ [Main] TTS WebSocket 错误:', error)
           this.isConnecting = false
           reject(error)
         })
 
         this.ws.on('close', (code, reason) => {
-          console.log(`🔌 [Main] TTS WebSocket 连接关闭，code: ${code}, reason: ${reason}`)
+          logger.debug(`🔌 [Main] TTS WebSocket 连接关闭，code: ${code}, reason: ${reason}`)
           this.isConnecting = false
           
           // 自动重连（排除主动关闭的情况）
           if (code !== 1000 && !this.isReconnecting) {
-            console.log('🔄 [Main] TTS 连接意外关闭，准备重连')
+            logger.debug('🔄 [Main] TTS 连接意外关闭，准备重连')
             this.reconnect().catch(error => {
-              console.error('❌ [Main] TTS 重连失败:', error)
+              logger.error('❌ [Main] TTS 重连失败:', error)
             })
           }
         })
 
       } catch (error) {
-        console.error('❌ [Main] TTS 连接失败:', error)
+        logger.error('❌ [Main] TTS 连接失败:', error)
         this.isConnecting = false
         reject(error)
       }
@@ -341,10 +344,10 @@ export class VolcengineTTSWebSocketService {
       // readyState: 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
       const state = this.ws?.readyState ?? -1
       if (state !== WebSocket.OPEN) {
-        console.log('🔄 [Main] TTS 连接未打开，正在连接...')
+        logger.debug('🔄 [Main] TTS 连接未打开，正在连接...')
         await this.connect()
       } else {
-        console.log('✅ [Main] TTS 连接已打开，直接使用现有连接')
+        logger.debug('✅ [Main] TTS 连接已打开，直接使用现有连接')
       }
 
       this.sessionId = externalSessionId || uuidv4()
@@ -365,11 +368,11 @@ export class VolcengineTTSWebSocketService {
       }
 
       this.ws!.send(this.buildTTSMessage(TTSMsgType.FullClientRequest, TTSMsgTypeFlagBits.WithEvent, TTSEventType.StartSession, startSessionPayload, this.sessionId))
-      console.log('📤 [Main] TTS 已发送 StartSession (event=100, sessionId=%s)', this.sessionId)
+      logger.debug('📤 [Main] TTS 已发送 StartSession (event=100, sessionId=%s)', this.sessionId)
 
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
-          console.log('⚠️ [Main] TTS 等待 SessionStarted 超时，继续发送 TaskRequest')
+          logger.debug('⚠️ [Main] TTS 等待 SessionStarted 超时，继续发送 TaskRequest')
           this.sessionStartedResolver = null
           this.sessionStartedRejecter = null
           resolve()
@@ -377,7 +380,7 @@ export class VolcengineTTSWebSocketService {
 
         this.sessionStartedResolver = () => {
           clearTimeout(timeout)
-          console.log('✅ [Main] TTS 收到 SessionStarted 响应')
+          logger.debug('✅ [Main] TTS 收到 SessionStarted 响应')
           this.sessionStartedResolver = null
           this.sessionStartedRejecter = null
           resolve()
@@ -404,7 +407,7 @@ export class VolcengineTTSWebSocketService {
             event: TTSEventType.TaskRequest
           }
           this.ws!.send(this.buildTTSMessage(TTSMsgType.FullClientRequest, TTSMsgTypeFlagBits.WithEvent, TTSEventType.TaskRequest, taskPayload, this.sessionId))
-          console.log('📤 [Main] TTS 发送 TaskRequest (event=3, text="%s")', char)
+          logger.debug('📤 [Main] TTS 发送 TaskRequest (event=3, text="%s")', char)
           await new Promise(r => setTimeout(r, 10))
         }
       }
@@ -413,11 +416,11 @@ export class VolcengineTTSWebSocketService {
         user: { uid: uuidv4() }
       }
       this.ws!.send(this.buildTTSMessage(TTSMsgType.FullClientRequest, TTSMsgTypeFlagBits.WithEvent, TTSEventType.FinishSession, finishSessionPayload, this.sessionId))
-      console.log('📤 [Main] TTS 已发送 FinishSession (event=102)')
+      logger.debug('📤 [Main] TTS 已发送 FinishSession (event=102)')
 
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
-          console.log('⚠️ [Main] TTS 等待 SessionFinished 超时')
+          logger.debug('⚠️ [Main] TTS 等待 SessionFinished 超时')
           this.sessionFinishedResolver = null
           this.sessionFinishedRejecter = null
           resolve()
@@ -425,7 +428,7 @@ export class VolcengineTTSWebSocketService {
 
         this.sessionFinishedResolver = () => {
           clearTimeout(timeout)
-          console.log('✅ [Main] TTS 收到 SessionFinished 响应，音频接收完成')
+          logger.debug('✅ [Main] TTS 收到 SessionFinished 响应，音频接收完成')
           this.sessionFinishedResolver = null
           this.sessionFinishedRejecter = null
           resolve()
@@ -436,14 +439,14 @@ export class VolcengineTTSWebSocketService {
       return this.sessionId
 
     } catch (error) {
-      console.error('❌ [Main] TTS 合成失败:', error)
+      logger.error('❌ [Main] TTS 合成失败:', error)
       // 失败时标记需要重连，下次调用时会建立全新连接
       needsReconnect = true
       throw error
     } finally {
       // 如果出错或异常，关闭当前连接确保干净状态
       if (needsReconnect && this.ws) {
-        console.log('🧹 [Main] TTS 合成异常，清理 WebSocket 连接')
+        logger.debug('🧹 [Main] TTS 合成异常，清理 WebSocket 连接')
         try { this.ws.close() } catch(e) { /* 忽略 */ }
         this.ws = null
       }
@@ -459,24 +462,24 @@ export class VolcengineTTSWebSocketService {
     this.reconnectAttempts++
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1) // 指数退避
 
-    console.log(`🔄 [Main] TTS 尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})，延迟 ${delay}ms`)
+    logger.debug(`🔄 [Main] TTS 尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})，延迟 ${delay}ms`)
 
     return new Promise((resolve) => {
       setTimeout(async () => {
         try {
           const success = await this.connect()
           if (success) {
-            console.log('✅ [Main] TTS 重连成功')
+            logger.debug('✅ [Main] TTS 重连成功')
             this.reconnectAttempts = 0
             this.isReconnecting = false
             resolve(true)
           } else {
-            console.warn('⚠️ [Main] TTS 重连失败')
+            logger.warn('⚠️ [Main] TTS 重连失败')
             this.isReconnecting = false
             resolve(false)
           }
         } catch (error) {
-          console.error('❌ [Main] TTS 重连错误:', error)
+          logger.error('❌ [Main] TTS 重连错误:', error)
           this.isReconnecting = false
           resolve(false)
         }

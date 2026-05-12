@@ -5,6 +5,9 @@
 // ==========================================
 
 import type { ASRService, ASRRequest, ASRResult } from './asrInterface'
+import { createLogger } from '../../../shared/logger'
+
+const logger = createLogger('asr')
 
 export interface VolcengineASRV3Config {
   appId: string
@@ -41,8 +44,8 @@ export class VolcengineASRV3 implements ASRService {
 
     this.setupEventListeners()
 
-    console.log('🎤 豆包语音 ASR 2.0 初始化成功（WebSocket v3 IPC 版本）')
-    console.log('📋 配置信息:', {
+    logger.debug('🎤 豆包语音 ASR 2.0 初始化成功（WebSocket v3 IPC 版本）')
+    logger.debug('📋 配置信息:', {
       apiUrl: this.config.apiUrl,
       resourceId: this.config.resourceId,
       format: this.config.format,
@@ -52,16 +55,16 @@ export class VolcengineASRV3 implements ASRService {
 
   private setupEventListeners(): void {
     if (!window.electronAPI) {
-      console.warn('⚠️ electronAPI 不可用，ASR 功能可能无法正常工作')
+      logger.warn('⚠️ electronAPI 不可用，ASR 功能可能无法正常工作')
       return
     }
 
     window.electronAPI.on('asr-result', (data: { text: string; isFinal: boolean }) => {
       if (!data) {
-        console.warn('⚠️ ASR 收到空数据')
+        logger.warn('⚠️ ASR 收到空数据')
         return
       }
-      console.log('📨 ASR 识别结果:', data.text, 'isFinal:', data.isFinal)
+      logger.debug('📨 ASR 识别结果:', data.text, 'isFinal:', data.isFinal)
       this.recognitionResult = data.text
 
       if (this.onResultCallback) {
@@ -74,7 +77,7 @@ export class VolcengineASRV3 implements ASRService {
     })
 
     window.electronAPI.on('asr-complete', (data: { text: string }) => {
-      console.log('✅ ASR 识别完成:', data.text)
+      logger.debug('✅ ASR 识别完成:', data.text)
       this.recognitionResult = data.text
       this.isRecording = false
 
@@ -84,7 +87,7 @@ export class VolcengineASRV3 implements ASRService {
     })
 
     window.electronAPI.on('asr-error', (data: { error: string }) => {
-      console.error('❌ ASR 错误:', data.error)
+      logger.error('❌ ASR 错误:', data.error)
 
       if (this.onErrorCallback) {
         this.onErrorCallback(data.error)
@@ -107,14 +110,14 @@ export class VolcengineASRV3 implements ASRService {
     }
 
     try {
-      const result = await window.electronAPI.invoke('asr-v3-connect', this.config)
+      const result = await window.electronAPI.asrV3Connect(this.config)
       if (!result.success) {
         throw new Error(result.error || 'ASR 连接失败')
       }
       this.isConnected = true
-      console.log('✅ ASR WebSocket 连接成功')
+      logger.debug('✅ ASR WebSocket 连接成功')
     } catch (error) {
-      console.error('❌ ASR 初始化失败:', error)
+      logger.error('❌ ASR 初始化失败:', error)
       throw error
     }
   }
@@ -125,7 +128,7 @@ export class VolcengineASRV3 implements ASRService {
     onEnd?: () => void
   ): Promise<boolean> {
     try {
-      console.log('🎤 开始录音并识别...')
+      logger.debug('🎤 开始录音并识别...')
       
       this.onResultCallback = onResult
       this.onErrorCallback = onError
@@ -137,7 +140,7 @@ export class VolcengineASRV3 implements ASRService {
         await this.initialize()
       }
 
-      const result = await window.electronAPI!.invoke('asr-v3-start-recognition', this.config)
+      const result = await window.electronAPI!.asrV3StartRecognition(this.config)
       if (!result.success) {
         throw new Error(result.error || 'ASR 开始识别失败')
       }
@@ -170,20 +173,20 @@ export class VolcengineASRV3 implements ASRService {
         const audioBase64 = this.arrayBufferToBase64(int16Data.buffer)
         
         try {
-          await window.electronAPI!.invoke('asr-v3-send-audio', this.config, audioBase64, false)
+      await window.electronAPI!.asrV3SendAudio(this.config, audioBase64, false)
         } catch (error) {
-          console.error('❌ 发送音频数据失败:', error)
+          logger.error('❌ 发送音频数据失败:', error)
         }
       }
 
       this.audioSource.connect(this.audioProcessor)
       this.audioProcessor.connect(this.audioContext.destination)
       
-      console.log('🚀 录音已开始，实时发送音频流到豆包 ASR')
+      logger.debug('🚀 录音已开始，实时发送音频流到豆包 ASR')
       return true
 
     } catch (error) {
-      console.error('❌ 启动录音失败:', error)
+      logger.error('❌ 启动录音失败:', error)
       if (onError) {
         onError(error instanceof Error ? error.message : '启动录音失败')
       }
@@ -194,7 +197,7 @@ export class VolcengineASRV3 implements ASRService {
   async stopListening(): Promise<void> {
     if (!this.isRecording) return
 
-    console.log('⏹️ 停止录音...')
+    logger.debug('⏹️ 停止录音...')
     this.isRecording = false
 
     // ★ 关键修复：立即保存并置空回调，防止 asr-complete IPC 事件和手动触发重复调用
@@ -206,9 +209,9 @@ export class VolcengineASRV3 implements ASRService {
 
     try {
       const emptyBase64 = ''
-      await window.electronAPI!.invoke('asr-v3-send-audio', this.config, emptyBase64, true)
+      await window.electronAPI!.asrV3SendAudio(this.config, emptyBase64, true)
     } catch (error) {
-      console.error('❌ 发送结束标记失败:', error)
+      logger.error('❌ 发送结束标记失败:', error)
     }
 
     if (this.audioProcessor) {
@@ -227,16 +230,16 @@ export class VolcengineASRV3 implements ASRService {
     }
 
     try {
-      await window.electronAPI?.invoke('asr-v3-stop-recognition', this.config)
+      await window.electronAPI?.asrV3StopRecognition(this.config)
     } catch (error) {
-      console.error('❌ 停止识别失败:', error)
+      logger.error('❌ 停止识别失败:', error)
     }
     this.isConnected = false
 
     // 手动触发 onEnd 回调（如果 asr-complete 事件还没触发的话）
     // 此时 onEndCallback 已为 null，asr-complete 事件到达时不会再触发
     if (cb) {
-      console.log('📢 [ASR] 手动触发 onEnd 回调，识别结果:', this.recognitionResult)
+      logger.debug('📢 [ASR] 手动触发 onEnd 回调，识别结果:', this.recognitionResult)
       cb()
     }
   }
@@ -247,14 +250,14 @@ export class VolcengineASRV3 implements ASRService {
         return { success: false, error: '未提供音频数据' }
       }
 
-      console.log('🎤 开始识别音频数据...')
+      logger.debug('🎤 开始识别音频数据...')
       this.recognitionResult = ''
 
       if (!this.isConnected) {
         await this.initialize()
       }
 
-      const result = await window.electronAPI!.invoke('asr-v3-start-recognition', this.config)
+      const result = await window.electronAPI!.asrV3StartRecognition(this.config)
       if (!result.success) {
         return { success: false, error: result.error || 'ASR 开始识别失败' }
       }
@@ -279,7 +282,7 @@ export class VolcengineASRV3 implements ASRService {
         const segmentBase64 = this.arrayBufferToBase64(segment)
         const isLast = i === totalSegments - 1
         
-        await window.electronAPI!.invoke('asr-v3-send-audio', this.config, segmentBase64, isLast)
+      await window.electronAPI!.asrV3SendAudio(this.config, segmentBase64, isLast)
       }
 
       return new Promise((resolve) => {
@@ -307,7 +310,7 @@ export class VolcengineASRV3 implements ASRService {
       })
 
     } catch (error) {
-      console.error('❌ 识别失败:', error)
+      logger.error('❌ 识别失败:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : '识别失败'

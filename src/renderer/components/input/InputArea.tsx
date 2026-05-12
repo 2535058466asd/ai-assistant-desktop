@@ -21,6 +21,9 @@ import type { SendMessageHandler } from '../../types/chat';
 import { getASRManager } from '../../core/asr/asrManager';
 import type { ASRResult } from '../../core/asr/asrInterface';
 import { DEFAULT_ASR_CONFIG } from '../../config/asrConfig';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('ui');
 
 /* ==========================================
    组件 Props 类型定义
@@ -107,6 +110,11 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
   const handleSend = async () => {
     const trimmedText = inputText.trim();
     if (!trimmedText || isLoading) return;
+    logger.info('发送按钮或回车提交输入', {
+      textPreview: trimmedText.slice(0, 120),
+      length: trimmedText.length,
+      via: 'input-area',
+    });
 
     // 先清空输入框，再发送消息（避免等待回复期间输入框残留文字）
     setInputText('');
@@ -117,18 +125,20 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
     try {
       await onSendMessage(trimmedText);
     } catch (error) {
-      console.error('发送消息失败:', error);
+      logger.error('输入区发送失败', error);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !isLoading) {
+      logger.debug('按下回车发送消息');
       e.preventDefault();
       handleSend();
     }
   };
 
   const handleSuggestionClick = (suggestion: string) => {
+    logger.info('点击快捷建议', { suggestion });
     if (onSuggestionClick) {
       const prompt = suggestion.replace(/^[^\s]+\s*/, '');
       onSuggestionClick(prompt);
@@ -144,6 +154,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
      ========================================== */
 
   const toggleVoiceInput = async () => {
+    logger.info('切换语音输入', { isRecording });
     if (isRecording) {
       await stopVoiceRecognition();
     } else {
@@ -153,6 +164,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
 
   const startVoiceRecognition = async () => {
     try {
+      logger.info('语音识别开始启动');
       setRecognitionText('');
       setIsRecording(true);
 
@@ -163,18 +175,19 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
         // onResult: 收到识别结果
         (result: ASRResult) => {
           if (result.success && result.text) {
+            logger.debug('语音识别中间结果', { text: result.text });
             latestText = result.text;
             setRecognitionText(result.text);
           }
         },
         // onError: 识别出错
         (error: string) => {
-          console.error('❌ 语音识别错误:', error);
+          logger.error('语音识别错误', { error });
           setIsRecording(false);
         },
         // onEnd: 识别结束
         () => {
-          console.log('✅ 语音识别结束');
+          logger.info('语音识别结束', { finalText: latestText });
           setIsRecording(false);
           
           if (latestText) {
@@ -186,18 +199,19 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
       );
 
       if (!success) {
-        console.warn('⚠️ 语音识别启动失败');
+        logger.warn('语音识别启动返回失败');
         setIsRecording(false);
       }
 
     } catch (error) {
-      console.error('❌ 启动语音识别失败:', error);
+      logger.error('语音识别启动异常', error);
       setIsRecording(false);
     }
   };
 
   const stopVoiceRecognition = async () => {
     try {
+      logger.info('正在停止语音识别', { recognitionText });
       asrManagerRef.current.stopListening();
       setIsRecording(false);
       
@@ -207,7 +221,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
         adjustTextareaHeight();
       }
     } catch (error) {
-      console.error('❌ 停止语音识别失败:', error);
+      logger.error('停止语音识别失败', error);
       setIsRecording(false);
     }
   };
@@ -243,7 +257,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
             <button
               className={styles.extraBtn}
               title="上传文件"
-              onClick={() => console.log('上传文件')}
+              onClick={() => logger.info('点击上传文件按钮')}
             >
               <svg
                 className={styles.extraBtnSvg}

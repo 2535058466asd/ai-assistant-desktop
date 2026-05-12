@@ -1,5 +1,8 @@
 import axios from 'axios';
 import apiConfig from '../config/apiConfig';
+import { createLogger } from '../../shared/logger';
+
+const logger = createLogger('model');
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -71,7 +74,7 @@ export async function sendMessageToDoubao(
       max_tokens: apiConfig.maxTokens,
     };
 
-    console.log('发送请求到豆包API:', JSON.stringify(requestData, null, 2));
+    logger.debug('Legacy Doubao API request', requestData);
 
     const response = await axios.post<DoubaoResponse>(apiConfig.apiUrl, requestData, {
       headers: {
@@ -80,13 +83,13 @@ export async function sendMessageToDoubao(
       },
     });
 
-    console.log('豆包API响应:', response.data);
+    logger.debug('Legacy Doubao API response', response.data);
 
     return response.data.choices[0].message.content;
   } catch (error: any) {
-    console.error('豆包 API 调用失败:', error);
+    logger.error('Legacy Doubao API call failed', error);
     if (error.response) {
-      console.error('错误响应:', error.response.data);
+      logger.error('Legacy Doubao API error response', error.response.data);
     }
     throw new Error('与 AI 助手通信失败，请稍后重试');
   }
@@ -98,15 +101,15 @@ export async function sendMessageToDoubao(
  * 使用方式：
  * ```typescript
  * for await (const chunk of sendMessageToDoubaoStream('你好')) {
- *   console.log(chunk); // 每次收到一个 token
+ *   // 每次收到一个 token
  * }
  * ```
  * 
  * 或者使用回调模式：
  * ```typescript
  * await sendMessageToDoubaoStream('你好', [], '', {
- *   onChunk: (text) => console.log('收到:', text),
- *   onComplete: (fullText) => console.log('完成:', fullText)
+ *   onChunk: (text) => handleChunk(text),
+ *   onComplete: (fullText) => handleComplete(fullText)
  * });
  * ```
  */
@@ -141,7 +144,7 @@ export async function* sendMessageToDoubaoStream(
     stream: true // 开启流式输出
   };
 
-  console.log('📤 发送流式请求到豆包API:', JSON.stringify(requestData, null, 2));
+  logger.debug('Legacy Doubao stream request', requestData);
 
   try {
     const response = await fetch(apiConfig.apiUrl, {
@@ -191,7 +194,7 @@ export async function* sendMessageToDoubaoStream(
           
           // 检查是否结束
           if (data === '[DONE]') {
-            console.log('✅ 流式传输完成');
+            logger.info('Legacy Doubao stream completed');
             return;
           }
 
@@ -203,14 +206,14 @@ export async function* sendMessageToDoubaoStream(
               yield content; // 生成一个 token
             }
           } catch (e) {
-            console.warn('⚠️ 解析 SSE 数据失败:', data, e);
+            logger.warn('Legacy Doubao SSE parse failed', { data, error: e });
           }
         }
       }
     }
 
   } catch (error: any) {
-    console.error('❌ 豆包流式 API 调用失败:', error);
+    logger.error('Legacy Doubao stream API call failed', error);
     throw new Error(`与 AI 助手通信失败: ${error.message || '未知错误'}`);
   }
 }

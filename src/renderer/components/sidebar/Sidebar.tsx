@@ -22,6 +22,9 @@ import type {
   DeleteChatHandler,
   PinChatHandler,
 } from '../../types/chat';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('ui');
 
 /* ==========================================
    组件 Props 类型定义
@@ -107,6 +110,7 @@ const Sidebar: React.FC<SidebarProps> = ({
    */
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    logger.debug('侧边栏搜索输入变化', { keyword: value, length: value.length });
     setSearchKeyword(value);
     onSearch(value);
   };
@@ -130,6 +134,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleChatItemContextMenu = (e: React.MouseEvent, chatId: string) => {
     e.preventDefault();
     e.stopPropagation();
+    logger.info('右键打开对话菜单', { chatId, x: e.clientX, y: e.clientY });
     setContextMenu({ isOpen: true, x: e.clientX, y: e.clientY, chatId });
   };
 
@@ -139,6 +144,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleMoreClick = (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    logger.info('点击更多按钮打开对话菜单', { chatId });
     setContextMenu({ isOpen: true, x: rect.left, y: rect.bottom + 4, chatId });
   };
 
@@ -153,6 +159,7 @@ const Sidebar: React.FC<SidebarProps> = ({
    * 处理重命名 - 进入编辑模式
    */
   const handleRename = (chatId: string) => {
+    logger.info('点击重命名对话', { chatId });
     closeContextMenu();
     const chat = chatGroups.flatMap(group => group.items).find(c => c.id === chatId);
     if (chat) {
@@ -164,6 +171,7 @@ const Sidebar: React.FC<SidebarProps> = ({
    * 处理置顶
    */
   const handlePin = (chatId: string) => {
+    logger.info('点击置顶对话', { chatId });
     closeContextMenu();
     onPinChat?.(chatId);
   };
@@ -172,6 +180,7 @@ const Sidebar: React.FC<SidebarProps> = ({
    * 处理删除 - 弹出确认框
    */
   const handleDelete = (chatId: string) => {
+    logger.warn('点击删除对话', { chatId });
     closeContextMenu();
     setDeleteConfirm({ isOpen: true, chatId });
   };
@@ -181,6 +190,7 @@ const Sidebar: React.FC<SidebarProps> = ({
    */
   const confirmDelete = () => {
     const chatId = deleteConfirm.chatId;
+    logger.warn('确认删除对话', { chatId });
     setDeleteConfirm({ isOpen: false, chatId: '' });
     onDeleteChat?.(chatId);
   };
@@ -189,6 +199,7 @@ const Sidebar: React.FC<SidebarProps> = ({
    * 取消删除
    */
   const cancelDelete = () => {
+    logger.info('取消删除对话', { chatId: deleteConfirm.chatId });
     setDeleteConfirm({ isOpen: false, chatId: '' });
   };
 
@@ -198,6 +209,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const saveRename = () => {
     const { chatId, newTitle } = renameMode;
     if (newTitle.trim()) {
+      logger.info('保存对话重命名', { chatId, newTitle: newTitle.trim() });
       onRenameChat?.(chatId, newTitle.trim());
     }
     setRenameMode({ isActive: false, chatId: '', newTitle: '' });
@@ -207,6 +219,7 @@ const Sidebar: React.FC<SidebarProps> = ({
    * 取消重命名
    */
   const cancelRename = () => {
+    logger.info('取消对话重命名', { chatId: renameMode.chatId });
     setRenameMode({ isActive: false, chatId: '', newTitle: '' });
   };
 

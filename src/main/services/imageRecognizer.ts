@@ -7,6 +7,9 @@
 
 import * as fs from 'fs';
 import axios from 'axios';
+import { createLogger } from '../../shared/logger';
+
+const logger = createLogger('model');
 
 // 豆包多模态API配置（从环境变量读取，不写死密钥）
 const API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
@@ -77,10 +80,10 @@ export async function recognizeImage(
       return { success: false, error: 'API返回内容为空' };
     }
 
-    console.log(`🖼️ [图片识别] 成功识别图片: ${imagePath}`);
+    logger.info('Image recognition succeeded', { imagePath });
     return { success: true, text };
   } catch (error: any) {
-    console.error(`🖼️ [图片识别] 失败:`, error.message);
+    logger.error('Image recognition failed', { imagePath, error: error.message });
     return { success: false, error: error.message };
   }
 }
@@ -116,7 +119,7 @@ export async function recognizeImageBatch(
       }
     }
 
-    console.log(`🖼️ [图片识别] 批量识别完成: ${results.length}/${files.length} 成功`);
+    logger.info('Image recognition batch completed', { successCount: results.length, totalCount: files.length });
     return { success: true, results };
   } catch (error: any) {
     return { success: false, error: error.message };

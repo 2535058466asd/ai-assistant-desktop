@@ -9,6 +9,9 @@ import { app } from 'electron';
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 import crypto from 'crypto';
+import { createLogger } from '../../shared/logger';
+
+const logger = createLogger('memory');
 
 /**
  * 用户偏好类型
@@ -59,7 +62,7 @@ export class MemoryService {
     this.preferences = this.loadPreferences();
     this.dbReady = this.initDatabase();
     
-    console.log('🧠 记忆服务（主进程）初始化成功');
+    logger.info('Main memory service initialized');
   }
 
   /**
@@ -72,7 +75,7 @@ export class MemoryService {
   private ensureDataDir(): void {
     if (!fs.existsSync(this.dataDir)) {
       fs.mkdirSync(this.dataDir, { recursive: true });
-      console.log('📁 创建记忆数据目录:', this.dataDir);
+      logger.info('Memory data directory created', { dataDir: this.dataDir });
     }
   }
 
@@ -83,7 +86,7 @@ export class MemoryService {
         return JSON.parse(data);
       }
     } catch (error) {
-      console.error('❌ 加载用户偏好失败:', error);
+      logger.error('Load user preferences failed', error);
     }
     return {};
   }
@@ -91,9 +94,9 @@ export class MemoryService {
   private savePreferences(): void {
     try {
       fs.writeFileSync(this.preferencesPath, JSON.stringify(this.preferences, null, 2));
-      console.log('💾 用户偏好已保存');
+      logger.info('User preferences saved');
     } catch (error) {
-      console.error('❌ 保存用户偏好失败:', error);
+      logger.error('Save user preferences failed', error);
     }
   }
 
@@ -122,9 +125,9 @@ export class MemoryService {
         CREATE INDEX IF NOT EXISTS idx_created_at ON memories(created_at);
       `);
 
-      console.log('✅ SQLite 数据库初始化成功');
+      logger.info('SQLite memory database initialized');
     } catch (error) {
-      console.error('❌ 初始化数据库失败:', error);
+      logger.error('Initialize memory database failed', error);
     }
   }
 
@@ -166,7 +169,7 @@ export class MemoryService {
   async addMemory(content: string, category: Memory['category'] = 'fact', importance: number = 5): Promise<void> {
     await this.ensureDbReady();
     if (!this.db) {
-      console.error('❌ 数据库未初始化');
+      logger.error('Memory database is not initialized');
       return;
     }
 
@@ -179,7 +182,7 @@ export class MemoryService {
         'UPDATE memories SET access_count = access_count + 1, updated_at = ? WHERE id = ?',
         [Date.now(), duplicate.id]
       );
-      console.log('🔍 检测到相似记忆，已更新访问次数');
+      logger.info('Similar memory detected, access count updated', { id: duplicate.id });
       return;
     }
     
@@ -197,7 +200,7 @@ export class MemoryService {
       await this.evictMemories(count - MemoryService.MAX_MEMORIES);
     }
     
-    console.log('💾 记忆已添加:', trimmedContent);
+    logger.info('Memory added', { id, category, importance, content: trimmedContent });
   }
   
   /**
@@ -207,7 +210,7 @@ export class MemoryService {
   private async evictMemories(count: number): Promise<void> {
     await this.ensureDbReady();
     if (!this.db) {
-      console.error('❌ 数据库未初始化');
+      logger.error('Memory database is not initialized');
       return;
     }
 
@@ -228,9 +231,9 @@ export class MemoryService {
         await this.db.run('DELETE FROM memories WHERE id = ?', [mem.id]);
       }
 
-      console.log(`✅ 记忆清理完成，淘汰了 ${toEvict.length} 条记忆`);
+      logger.info('Memory eviction completed', { evictedCount: toEvict.length });
     } catch (error) {
-      console.error('❌ 淘汰记忆失败:', error);
+      logger.error('Memory eviction failed', error);
     }
   }
 
@@ -242,7 +245,7 @@ export class MemoryService {
   private async deduplicateMemory(content: string): Promise<Memory | null> {
     await this.ensureDbReady();
     if (!this.db) {
-      console.error('❌ 数据库未初始化');
+      logger.error('Memory database is not initialized');
       return null;
     }
 
@@ -260,7 +263,7 @@ export class MemoryService {
 
       return null;
     } catch (error) {
-      console.error('❌ 去重检查失败:', error);
+      logger.error('Memory deduplication failed', error);
       return null;
     }
   }
@@ -315,7 +318,7 @@ export class MemoryService {
   async updateMemory(id: string, newContent: string): Promise<void> {
     await this.ensureDbReady();
     if (!this.db) {
-      console.error('❌ 数据库未初始化');
+      logger.error('Memory database is not initialized');
       return;
     }
 
@@ -324,9 +327,9 @@ export class MemoryService {
         'UPDATE memories SET content = ?, updated_at = ? WHERE id = ?',
         [newContent.trim(), Date.now(), id]
       );
-      console.log('💾 记忆已更新:', id);
+      logger.info('Memory updated', { id });
     } catch (error) {
-      console.error('❌ 更新记忆失败:', error);
+      logger.error('Update memory failed', { id, error });
     }
   }
 
@@ -339,7 +342,7 @@ export class MemoryService {
   async searchMemories(query: string, limit: number = 10): Promise<Memory[]> {
     await this.ensureDbReady();
     if (!this.db) {
-      console.error('❌ 数据库未初始化');
+      logger.error('Memory database is not initialized');
       return [];
     }
 
@@ -375,7 +378,7 @@ export class MemoryService {
         .sort((a, b) => b.score - a.score)
         .slice(0, limit) as Memory[];
     } catch (error) {
-      console.error('❌ 搜索记忆失败:', error);
+      logger.error('Search memories failed', error);
       return [];
     }
   }
@@ -389,7 +392,7 @@ export class MemoryService {
   async getRecentMemories(limit: number = 10, category?: string): Promise<Memory[]> {
     await this.ensureDbReady();
     if (!this.db) {
-      console.error('❌ 数据库未初始化');
+      logger.error('Memory database is not initialized');
       return [];
     }
 
@@ -407,7 +410,7 @@ export class MemoryService {
 
       return await this.db.all(query, params) as Memory[];
     } catch (error) {
-      console.error('❌ 获取最近记忆失败:', error);
+      logger.error('Get recent memories failed', error);
       return [];
     }
   }
@@ -419,14 +422,14 @@ export class MemoryService {
   async getAllMemories(): Promise<Memory[]> {
     await this.ensureDbReady();
     if (!this.db) {
-      console.error('❌ 数据库未初始化');
+      logger.error('Memory database is not initialized');
       return [];
     }
 
     try {
       return await this.db.all('SELECT * FROM memories') as Memory[];
     } catch (error) {
-      console.error('❌ 获取所有记忆失败:', error);
+      logger.error('Get all memories failed', error);
       return [];
     }
   }
@@ -438,15 +441,15 @@ export class MemoryService {
   async deleteMemory(id: string): Promise<void> {
     await this.ensureDbReady();
     if (!this.db) {
-      console.error('❌ 数据库未初始化');
+      logger.error('Memory database is not initialized');
       return;
     }
 
     try {
       await this.db.run('DELETE FROM memories WHERE id = ?', [id]);
-      console.log('🗑️ 记忆已删除:', id);
+      logger.info('Memory deleted', { id });
     } catch (error) {
-      console.error('❌ 删除记忆失败:', error);
+      logger.error('Delete memory failed', { id, error });
     }
   }
 
@@ -456,15 +459,15 @@ export class MemoryService {
   async clearAllMemories(): Promise<void> {
     await this.ensureDbReady();
     if (!this.db) {
-      console.error('❌ 数据库未初始化');
+      logger.error('Memory database is not initialized');
       return;
     }
 
     try {
       await this.db.run('DELETE FROM memories');
-      console.log('🗑️ 所有记忆已清空');
+      logger.warn('All memories cleared');
     } catch (error) {
-      console.error('❌ 清空记忆失败:', error);
+      logger.error('Clear all memories failed', error);
     }
   }
 

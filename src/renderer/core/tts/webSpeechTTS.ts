@@ -4,6 +4,9 @@
 // ==========================================
 
 import type { TTSService, TTSRequest, TTSResult } from './ttsInterface';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('tts');
 
 export class WebSpeechTTS implements TTSService {
   private synthesis: SpeechSynthesis;
@@ -20,12 +23,12 @@ export class WebSpeechTTS implements TTSService {
     if (this.synthesis.getVoices().length === 0) {
       this.synthesis.onvoiceschanged = () => {
         this.voicesLoaded = true;
-        console.log('🔊 Web Speech TTS 语音列表已加载，共', this.synthesis.getVoices().length, '个语音');
+        logger.debug('🔊 Web Speech TTS 语音列表已加载，共', this.synthesis.getVoices().length, '个语音');
         this.logAvailableVoices();
       };
     } else {
       this.voicesLoaded = true;
-      console.log('🔊 Web Speech TTS 初始化成功');
+      logger.debug('🔊 Web Speech TTS 初始化成功');
       this.logAvailableVoices();
     }
   }
@@ -34,8 +37,8 @@ export class WebSpeechTTS implements TTSService {
   private logAvailableVoices(): void {
     const voices = this.synthesis.getVoices();
     const chineseVoices = voices.filter(v => v.lang.startsWith('zh'));
-    console.log('📢 可用的中文语音:', chineseVoices.map(v => `${v.name} (${v.lang})`));
-    console.log('📢 所有可用语音:', voices.map(v => `${v.name} (${v.lang})`));
+    logger.debug('📢 可用的中文语音:', chineseVoices.map(v => `${v.name} (${v.lang})`));
+    logger.debug('📢 所有可用语音:', voices.map(v => `${v.name} (${v.lang})`));
   }
 
   async speak(request: TTSRequest): Promise<TTSResult> {
@@ -53,7 +56,7 @@ export class WebSpeechTTS implements TTSService {
 
         // 等待语音列表加载
         if (!this.voicesLoaded || this.synthesis.getVoices().length === 0) {
-          console.log('⏳ 等待语音列表加载...');
+          logger.debug('⏳ 等待语音列表加载...');
           let spoken = false;
           const checkVoices = setInterval(() => {
             if (this.synthesis.getVoices().length > 0) {
@@ -79,7 +82,7 @@ export class WebSpeechTTS implements TTSService {
         }
 
       } catch (error) {
-        console.error('❌ 语音合成失败:', error);
+        logger.error('❌ 语音合成失败:', error);
         resolve({
           success: false,
           error: error instanceof Error ? error.message : '未知错误'
@@ -100,7 +103,7 @@ export class WebSpeechTTS implements TTSService {
     this.currentUtterance.volume = volume;
     this.currentUtterance.lang = 'zh-CN';
 
-    console.log('🎵 语音合成参数:', {
+    logger.debug('🎵 语音合成参数:', {
       text: request.text.substring(0, 30) + '...',
       volume,
       speed,
@@ -110,25 +113,25 @@ export class WebSpeechTTS implements TTSService {
 
     const chineseVoice = this.getChineseVoice();
     if (chineseVoice) {
-      console.log('🎤 使用语音:', chineseVoice.name, '(' + chineseVoice.lang + ')');
+      logger.debug('🎤 使用语音:', chineseVoice.name, '(' + chineseVoice.lang + ')');
       this.currentUtterance.voice = chineseVoice;
     } else {
-      console.warn('⚠️ 未找到中文语音，使用默认语音');
+      logger.warn('⚠️ 未找到中文语音，使用默认语音');
     }
 
     this.currentUtterance.onstart = () => {
-      console.log('🔊 开始播放语音');
-      console.log('🔔 如果没有听到声音，请检查：1) 系统音量 2) 浏览器音量 3) 是否有其他程序占用音频');
+      logger.debug('🔊 开始播放语音');
+      logger.debug('🔔 如果没有听到声音，请检查：1) 系统音量 2) 浏览器音量 3) 是否有其他程序占用音频');
     };
 
     this.currentUtterance.onend = () => {
-      console.log('🔊 语音播放结束');
+      logger.debug('🔊 语音播放结束');
       this.currentUtterance = null;
       resolve({ success: true });
     };
 
     this.currentUtterance.onerror = (event) => {
-      console.error('❌ 语音合成错误:', event.error, event);
+      logger.error('❌ 语音合成错误:', event.error, event);
       this.currentUtterance = null;
       resolve({
         success: false,
@@ -140,11 +143,11 @@ export class WebSpeechTTS implements TTSService {
     this.synthesis.cancel();
     setTimeout(() => {
       this.synthesis.speak(this.currentUtterance!);
-      console.log('📢 已调用 synthesis.speak()');
+      logger.debug('📢 已调用 synthesis.speak()');
       
       // 如果浏览器阻止自动播放，尝试在用户交互后重新播放
       if (this.synthesis.speaking === false) {
-        console.warn('⚠️ 语音可能被浏览器阻止，请点击页面任意位置后重试');
+        logger.warn('⚠️ 语音可能被浏览器阻止，请点击页面任意位置后重试');
       }
     }, 100);
   }
@@ -153,9 +156,9 @@ export class WebSpeechTTS implements TTSService {
     try {
       this.synthesis.cancel();
       this.currentUtterance = null;
-      console.log('⏹️  已停止语音播放');
+      logger.debug('⏹️  已停止语音播放');
     } catch (error) {
-      console.warn('⚠️  停止语音播放时出错:', error);
+      logger.warn('⚠️  停止语音播放时出错:', error);
     }
   }
 

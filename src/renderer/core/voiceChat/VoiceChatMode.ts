@@ -7,6 +7,9 @@ import { getASRManager } from '../asr/asrManager';
 import { getTTSManager } from '../tts/ttsManager';
 import type { ASRResult } from '../asr/asrInterface';
 import type { TTSResult } from '../tts/ttsInterface';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('asr');
 
 /**
  * 语音对话模式状态
@@ -59,7 +62,7 @@ export class VoiceChatMode {
    * 初始化语音对话模式
    */
   constructor() {
-    console.log('🎤 [VoiceChatMode] 初始化语音对话模式');
+    logger.info('Voice chat mode initialized');
   }
 
   /**
@@ -89,7 +92,7 @@ export class VoiceChatMode {
   async enable(): Promise<void> {
     if (this.isEnabled) return;
     
-    console.log('🎤 [VoiceChatMode] 启用语音对话模式');
+    logger.info('Voice chat mode enabled');
     this.isEnabled = true;
     this.asrRetryCount = 0; // 重置重试计数
     
@@ -103,7 +106,7 @@ export class VoiceChatMode {
   async disable(): Promise<void> {
     if (!this.isEnabled) return;
     
-    console.log('🎤 [VoiceChatMode] 禁用语音对话模式');
+    logger.info('Voice chat mode disabled');
     this.isEnabled = false;
     
     // 停止所有活动
@@ -130,7 +133,7 @@ export class VoiceChatMode {
   private async startListening(): Promise<void> {
     if (!this.isEnabled) return;
     
-    console.log('🎤 [VoiceChatMode] 开始监听...');
+    logger.info('Voice chat listening started');
     this.setState('listening');
     this.lastText = '';
     
@@ -150,23 +153,23 @@ export class VoiceChatMode {
         },
         // onError: 识别出错
         (error: string) => {
-          console.error('❌ [VoiceChatMode] ASR 错误:', error);
+          logger.error('Voice chat ASR error', { error });
           if (this.callbacks?.onError) {
             this.callbacks.onError(error);
           }
           // 出错后重新开始监听（最多重试 MAX_ASR_RETRIES 次）
           if (this.isEnabled && this.asrRetryCount < this.MAX_ASR_RETRIES) {
             this.asrRetryCount++;
-            console.warn(`⚠️ [VoiceChatMode] ASR 重试 ${this.asrRetryCount}/${this.MAX_ASR_RETRIES}`);
+            logger.warn('Voice chat ASR retry scheduled', { retryCount: this.asrRetryCount, maxRetries: this.MAX_ASR_RETRIES });
             setTimeout(() => this.startListening(), 500);
           } else if (this.asrRetryCount >= this.MAX_ASR_RETRIES) {
-            console.error('❌ [VoiceChatMode] ASR 重试次数已达上限，停止监听');
+            logger.error('Voice chat ASR retry limit reached');
             this.callbacks?.onError('语音识别连续出错，已停止监听');
           }
         },
         // onEnd: 识别结束
         () => {
-          console.log('🎤 [VoiceChatMode] ASR 结束');
+          logger.info('Voice chat ASR ended', { textPreview: this.lastText.slice(0, 120) });
           this.asrRetryCount = 0; // 成功结束，重置重试计数
           // 如果有识别结果，发送给 AI
           if (this.lastText.trim()) {
@@ -179,7 +182,7 @@ export class VoiceChatMode {
       );
       
       if (!success) {
-        console.error('❌ [VoiceChatMode] 启动 ASR 失败');
+        logger.error('Voice chat ASR start returned false');
         if (this.callbacks?.onError) {
           this.callbacks.onError('无法启动语音识别');
         }
@@ -189,7 +192,7 @@ export class VoiceChatMode {
         }
       }
     } catch (error) {
-      console.error('❌ [VoiceChatMode] 启动监听失败:', error);
+      logger.error('Voice chat listening start failed', error);
       if (this.callbacks?.onError) {
         this.callbacks.onError('启动语音识别失败');
       }
@@ -212,7 +215,7 @@ export class VoiceChatMode {
     
     // 设置新的计时器
     this.silenceTimer = setTimeout(() => {
-      console.log('🎤 [VoiceChatMode] 检测到静音，停止录音');
+      logger.info('Voice chat silence detected, stopping ASR');
       this.asrManager.stopListening();
     }, this.SILENCE_TIMEOUT);
   }
@@ -223,7 +226,7 @@ export class VoiceChatMode {
   private async sendToAI(text: string): Promise<void> {
     if (!this.isEnabled) return;
     
-    console.log('🎤 [VoiceChatMode] 发送给 AI:', text);
+    logger.info('Voice chat sending text to AI', { text });
     this.setState('thinking');
     
     // 清除静音计时器
@@ -238,7 +241,7 @@ export class VoiceChatMode {
         await this.callbacks.onSendMessage(text);
       }
     } catch (error) {
-      console.error('❌ [VoiceChatMode] 发送消息失败:', error);
+      logger.error('Voice chat send message failed', error);
       if (this.callbacks?.onError) {
         this.callbacks.onError('发送消息失败');
       }
@@ -258,13 +261,13 @@ export class VoiceChatMode {
     
     // 防重复调用锁：如果正在播放，忽略后续重复调用
     if (this.isSpeaking) {
-      console.log('⚠️ [VoiceChatMode] 正在播放中，忽略重复的 speakResponse 调用');
+      logger.warn('Voice chat speakResponse ignored because playback is active');
       return;
     }
     this.isSpeaking = true;
     
     if (!text || !text.trim()) {
-      console.warn('⚠️ [VoiceChatMode] 空文本，跳过 TTS');
+      logger.warn('Voice chat empty text skipped for TTS');
       this.isSpeaking = false;
       // 播放完成后，重新开始监听
       if (this.isEnabled) {
@@ -273,7 +276,7 @@ export class VoiceChatMode {
       return;
     }
     
-    console.log('🎤 [VoiceChatMode] 播放 AI 回复:', text.substring(0, 50) + '...');
+    logger.info('Voice chat AI response playback started', { textPreview: text.substring(0, 80) });
     this.setState('speaking');
     
     // 通知 UI 显示 AI 回复
@@ -292,13 +295,13 @@ export class VoiceChatMode {
         // 播放音频
         await this.playAudio(result.audioData);
       } else {
-        console.error('❌ [VoiceChatMode] TTS 合成失败:', result?.error || '未知错误');
+        logger.error('Voice chat TTS synthesis failed', { error: result?.error || '未知错误' });
         if (this.callbacks?.onError) {
           this.callbacks.onError('语音合成失败');
         }
       }
     } catch (error) {
-      console.error('❌ [VoiceChatMode] 播放语音失败:', error);
+      logger.error('Voice chat playback failed', error);
       if (this.callbacks?.onError) {
         this.callbacks.onError('播放语音失败');
       }
@@ -309,7 +312,7 @@ export class VoiceChatMode {
     
     // 播放完成后，重新开始监听
     if (this.isEnabled) {
-      console.log('🎤 [VoiceChatMode] 播放完成，重新开始监听');
+      logger.info('Voice chat playback completed, restarting listening');
       await this.startListening();
     }
   }
@@ -333,10 +336,10 @@ export class VoiceChatMode {
         }
         const decoded = await this.audioContext.decodeAudioData(audioData.slice(0));
         wavData = this.audioBufferToWav(decoded);
-        console.log('✅ [VoiceChatMode] AudioContext 解码成功，已转为 WAV');
+        logger.debug('Voice chat audio decoded by AudioContext');
       } catch (e) {
         // 解码失败说明是裸 PCM 数据，直接加 WAV 头
-        console.warn('⚠️ [VoiceChatMode] AudioContext 解码失败，使用 PCM→WAV 方式');
+        logger.warn('Voice chat AudioContext decode failed, using PCM to WAV fallback', e);
         wavData = this.pcmToWav(audioData);
       }
 
@@ -351,19 +354,19 @@ export class VoiceChatMode {
         };
 
         audio.onerror = () => {
-          console.error('❌ [VoiceChatMode] 播放失败');
+          logger.error('Voice chat audio element playback failed');
           URL.revokeObjectURL(url);
           resolve();
         };
 
         audio.play().catch(error => {
-          console.error('❌ [VoiceChatMode] 播放音频失败:', error);
+          logger.error('Voice chat audio play rejected', error);
           URL.revokeObjectURL(url);
           resolve();
         });
       });
     } catch (error) {
-      console.error('❌ [VoiceChatMode] 创建音频失败:', error);
+      logger.error('Voice chat audio creation failed', error);
     }
   }
 
@@ -470,7 +473,7 @@ export class VoiceChatMode {
     try {
       this.asrManager.stopListening();
     } catch (error) {
-      console.error('停止 ASR 失败:', error);
+      logger.error('Voice chat stop ASR failed', error);
     }
     
     // 关闭 AudioContext 释放资源
@@ -478,9 +481,9 @@ export class VoiceChatMode {
       try {
         await this.audioContext.close();
         this.audioContext = null;
-        console.log('✅ [VoiceChatMode] AudioContext 已关闭');
+        logger.info('Voice chat AudioContext closed');
       } catch (error) {
-        console.error('关闭 AudioContext 失败:', error);
+        logger.error('Voice chat AudioContext close failed', error);
       }
     }
   }
@@ -491,8 +494,9 @@ export class VoiceChatMode {
   private setState(state: VoiceChatState): void {
     if (this.currentState === state) return;
     
+    const previous = this.currentState;
     this.currentState = state;
-    console.log('🎤 [VoiceChatMode] 状态变化:', state);
+    logger.info('Voice chat state changed', { from: previous, to: state });
     
     if (this.callbacks?.onStateChange) {
       this.callbacks.onStateChange(state);

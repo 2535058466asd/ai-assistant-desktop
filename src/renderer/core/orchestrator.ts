@@ -16,7 +16,40 @@ import { getMemoryService } from '../services/memoryServiceClient';
 import { tryExtractAndSaveMemory } from './utils/memoryExtractor';
 import { toolDefinitions } from './tools/toolDefinitions';
 import { executeTool } from './tools/toolExecutor';
+import { getModelProvider, type ModelMessage, type StreamChunk } from './model';
+import { createLogger } from '../../shared/logger';
 import apiConfig from '../config/apiConfig';
+
+const logger = createLogger('agent');
+
+function getDefaultModelId(): string {
+  const providerId = import.meta.env.VITE_MODEL_PROVIDER || 'doubao';
+  if (providerId === 'mimo' && import.meta.env.VITE_MIMO_MODEL) {
+    return import.meta.env.VITE_MIMO_MODEL;
+  }
+  if (providerId === 'openai-compatible' && import.meta.env.VITE_OPENAI_COMPATIBLE_MODEL) {
+    return import.meta.env.VITE_OPENAI_COMPATIBLE_MODEL;
+  }
+  return apiConfig.model || 'doubao-seed-2-0-pro-260215';
+}
+
+function summarizeModelMessage(message: any) {
+  if (!message) return null;
+  return {
+    role: message.role,
+    content: message.content || '',
+    tool_calls: message.tool_calls?.map((toolCall: any) => ({
+      id: toolCall.id,
+      type: toolCall.type,
+      name: toolCall.function?.name,
+      arguments: toolCall.function?.arguments,
+    })),
+  };
+}
+
+function isVerboseAgentLog(): boolean {
+  return process.env.NODE_ENV !== 'production' && import.meta.env.VITE_VERBOSE_AGENT_LOGS !== 'false';
+}
 
 
 /**
@@ -39,13 +72,14 @@ export class Orchestrator {
   private voiceGateway = getVoiceGatewayManager();
   private brain = getBrainManager();
   private memoryService = getMemoryService();
+  private modelProvider = getModelProvider();
   private sessionId: SessionId;
   private onMessageCallback: ((message: Message) => void) | null = null;
   private streamCallbacks: StreamCallbacks | null = null; // 流式回调
   private isVoiceMode: boolean = false;
   private conversationHistory: any[] = [];
   private static readonly MAX_HISTORY_MESSAGES = 20; // 最大保留20条消息（约10轮对话）
-  private currentModelId: string = 'doubao-seed-2-0-pro-260215'; // 当前使用的模型
+  private currentModelId: string = getDefaultModelId(); // 当前使用的模型
   
   // 工具结果截断和上下文压缩相关常量
   private static readonly MAX_TOOL_RESULT_TOKENS = 500; // 工具返回结果最大token数
@@ -74,14 +108,14 @@ export class Orchestrator {
       content: msg.content,
     }));
     this.sessionId = this.generateSessionId();
-    console.log('🔄 [Orchestrator] 对话上下文已重置，新 sessionId:', this.sessionId);
+    logger.info('对话上下文已重置', { sessionId: this.sessionId });
   }
 
   /**
    * 初始化
    */
   private async initialize(): Promise<void> {
-    console.log('🚀 启源 AI 助手启动中...');
+    logger.info('Agent 协调器启动中');
     
     this.voiceGateway.initialize(this.sessionId);
     this.brain.initialize(this.sessionId);
@@ -92,7 +126,7 @@ export class Orchestrator {
       this.processTextInput(text);
     });
 
-    console.log('✅ 启源 AI 助手启动完成！');
+    logger.info('Agent 协调器已就绪');
   }
 
   /**
@@ -174,7 +208,7 @@ export class Orchestrator {
       ...toKeep
     ];
 
-    console.log(`📝 上下文压缩完成，保留了 ${Orchestrator.KEEP_RECENT_MESSAGES} 条消息 + 1条摘要`);
+    logger.info('对话历史已压缩', { kept: Orchestrator.KEEP_RECENT_MESSAGES });
   }
 
   /**
@@ -183,49 +217,10 @@ export class Orchestrator {
    * @returns 压缩后的摘要
    */
   private async callLLMForCompaction(messages: any[]): Promise<string> {
-    const prompt = `你是一个对话摘要助手。请将以下对话历史压缩为简洁的摘要，保留：
-1. 用户的核心需求和意图
-2. 已完成的关键操作和结果
-3. 重要的决策和结论
-4. 未完成的待办事项
-
-忽略：闲聊、重复确认、中间错误
-
-摘要格式：用简洁的要点列出，每条不超过50字。
-
-对话历史：
-${messages.map(msg => `${msg.role}: ${msg.content || ''}`).join('\n')}`;
-
     try {
-      const ARK_API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
-      const requestBody = {
-        model: 'doubao-1-5-lite-32k-250115', // 使用 lite 模型压缩，成本低
-        messages: [
-          { role: 'system', content: '你是一个专业的对话摘要助手，只负责压缩对话历史，不做其他回答。' },
-          { role: 'user', content: prompt }
-        ],
-        max_tokens: 500,
-        stream: false
-      };
-
-      const response = await fetch(ARK_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiConfig.apiKey}`
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        console.error('❌ 压缩API请求失败:', response.status, response.statusText);
-        return '无重要信息';
-      }
-
-      const responseJson = await response.json();
-      return responseJson.choices?.[0]?.message?.content || '无重要信息';
+      return await this.modelProvider.compact(messages as ModelMessage[]);
     } catch (error) {
-      console.error('❌ 压缩对话历史失败:', error);
+      logger.error('对话历史压缩失败', error);
       return '无重要信息';
     }
   }
@@ -242,7 +237,7 @@ ${messages.map(msg => `${msg.role}: ${msg.content || ''}`).join('\n')}`;
       this.isVoiceMode = false;
     }
 
-    console.log('💬 收到用户输入:', text);
+    logger.info('Agent 收到用户输入', { textPreview: text.slice(0, 120) });
 
     // 1. 创建用户消息并通知 UI
     const userMessage: Message = {
@@ -290,65 +285,93 @@ ${messages.map(msg => `${msg.role}: ${msg.content || ''}`).join('\n')}`;
         this.onMessageCallback(assistantMessage);
       }
 
-      // 4. 执行 Agent 循环
+      // 4. 执行 Agent 循环（流式）
       const MAX_TOOL_ROUNDS = 5;
       let round = 0;
       let finalResponse = '';
 
       while (round < MAX_TOOL_ROUNDS) {
         round++;
+        logger.info('Agent 循环轮次开始', {
+          round,
+          maxRounds: MAX_TOOL_ROUNDS,
+          historyLength: this.conversationHistory.length,
+        });
 
-        // 调用豆包 API（带工具定义）
-        const response = await this.callDoubaoWithTools(text);
+        // 流式调用模型，实时推送文字到 UI
+        const previousContent = finalResponse;
+        const { content, toolCalls, error } = await this.callDoubaoWithToolsStream(text, (accumulated) => {
+          // 跨轮次累积：前面轮次的文字 + 当前轮次的流式文字
+          if (this.streamCallbacks) {
+            this.streamCallbacks.onStreamChunk(messageId, previousContent + accumulated);
+          }
+        });
 
         // 检查API是否返回错误
-        if (response.error) {
-          const errorMsg = response.error.message || '未知错误';
-          const errorCode = response.error.code || '';
-          console.error('❌ 豆包API错误:', errorCode, errorMsg);
-          
-          // 账号欠费等严重错误，直接返回友好提示
+        if (error) {
+          const errorMsg = error.message || '未知错误';
+          const errorCode = error.code || '';
+          logger.error('模型 API 返回错误', { errorCode, errorMsg });
+
           const userMessages: Record<string, string> = {
             'AccountOverdueError': '哎呀，API账号余额不足了，需要充值才能继续使用哦～',
             'RateLimitError': '请求太频繁了，稍等一下再试吧～',
             'InvalidApiKey': 'API密钥配置有误，请检查一下设置～',
           };
-          const userMsg = userMessages[errorCode] || `出了点问题：${errorMsg}`;
-          finalResponse = userMsg;
+          finalResponse = userMessages[errorCode] || `出了点问题：${errorMsg}`;
           break;
         }
 
-        // 检查是否有工具调用
-        const message = response.choices[0].message;
-        this.conversationHistory.push(message);
+        // 把助手消息（含可能的工具调用）加入历史
+        const assistantMsg: any = { role: 'assistant', content: content || null };
+        if (toolCalls.length > 0) {
+          assistantMsg.tool_calls = toolCalls;
+        }
+        this.conversationHistory.push(assistantMsg);
 
-        if (!message.tool_calls) {
-          // 没有工具调用 → 返回最终文本回复
-          finalResponse = message.content || '';
+        // 累积文字内容（多轮工具调用时，每轮的文字都要拼接）
+        if (content) finalResponse += content;
+
+        if (toolCalls.length === 0) {
+          // 没有工具调用 → 最终文本回复
+          logger.info('Agent 循环结束：无需继续调用工具', { round, content: finalResponse });
           break;
         }
+
+        logger.info('模型请求调用工具', {
+          round,
+          toolCalls: toolCalls.map((tc: any) => ({
+            id: tc.id,
+            name: tc.function?.name,
+            arguments: tc.function?.arguments,
+          })),
+        });
 
         // 执行所有工具调用
-        for (const toolCall of message.tool_calls) {
+        for (const toolCall of toolCalls) {
           const toolName = toolCall.function.name;
           const toolArgs = JSON.parse(toolCall.function.arguments);
 
-          console.log(`🔧 执行工具: ${toolName}(${JSON.stringify(toolArgs)})`);
+          logger.info('开始执行工具', { toolName, toolArgs });
 
           const result = await executeTool(toolName, toolArgs);
-          console.log(`🔧 工具结果: ${result.success ? '成功' : '失败'} - ${result.data || result.error}`);
+          logger.info('工具执行结果', { toolName, success: result.success, result: result.data || result.error });
 
-          // 截断工具结果，防止撑爆上下文
           const truncatedResult = {
             ...result,
             data: result.data ? this.truncateToolResult(result.data) : result.data
           };
-          
-          // 将工具结果回传
+
           this.conversationHistory.push({
             role: 'tool',
             tool_call_id: toolCall.id,
             content: JSON.stringify(truncatedResult)
+          });
+
+          logger.info('工具结果已回填到模型上下文', {
+            toolName,
+            toolCallId: toolCall.id,
+            truncated: Boolean(result.data && truncatedResult.data !== result.data),
           });
         }
       }
@@ -379,12 +402,12 @@ ${messages.map(msg => `${msg.role}: ${msg.content || ''}`).join('\n')}`;
       try {
         await tryExtractAndSaveMemory(text, accumulatedContent);
       } catch (memoryError) {
-        console.error('❌ 提取记忆失败:', memoryError);
+        logger.error('记忆提取失败', memoryError);
         // 提取记忆失败不影响聊天，所以不抛出错误
       }
 
     } catch (error) {
-      console.error('❌ 处理输入失败:', error);
+      logger.error('处理用户输入失败', error);
       await this.sendAssistantMessage('处理您的请求时出现错误，请稍后重试。');
     }
   }
@@ -395,14 +418,6 @@ ${messages.map(msg => `${msg.role}: ${msg.content || ''}`).join('\n')}`;
    */
   private async callDoubaoWithTools(userInput: string = ''): Promise<any> {
     const systemPrompt = await this.buildSystemPrompt(userInput);
-
-    // 豆包 API 地址（Function Calling）
-    const ARK_API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
-
-    // 获取 API Key 和 Model ID（从配置或环境变量）
-    const getApiKey = () => {
-      return apiConfig.apiKey;
-    };
 
     const getModelId = () => {
       return this.currentModelId;
@@ -418,29 +433,84 @@ ${messages.map(msg => `${msg.role}: ${msg.content || ''}`).join('\n')}`;
       stream: false
     };
 
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('📤 发送给豆包的请求:', JSON.stringify(requestBody, null, 2));
+    if (isVerboseAgentLog()) {
+      logger.info('发送给模型的完整请求', requestBody);
+    } else if (process.env.NODE_ENV !== 'production') {
+      logger.debug('发送模型请求摘要', {
+        model: requestBody.model,
+        messageCount: requestBody.messages.length,
+        toolCount: requestBody.tools.length,
+      });
     }
 
-    const response = await fetch(ARK_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getApiKey()}`
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(`API请求失败 (${response.status}): ${errorText || response.statusText}`);
-    }
-
-    const responseJson = await response.json();
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('📥 豆包返回的响应:', JSON.stringify(responseJson, null, 2));
+    const responseJson = await this.modelProvider.chatWithTools(requestBody as any);
+    if (isVerboseAgentLog()) {
+      logger.info('模型完整响应', responseJson);
+    } else if (process.env.NODE_ENV !== 'production') {
+      logger.debug('收到模型响应摘要', {
+        choices: responseJson.choices?.length || 0,
+        hasError: Boolean(responseJson.error),
+        id: (responseJson as any).id,
+        model: (responseJson as any).model,
+        usage: (responseJson as any).usage,
+        message: summarizeModelMessage(responseJson.choices?.[0]?.message),
+        error: responseJson.error,
+      });
     }
     return responseJson;
+  }
+
+  /**
+   * 流式调用模型（带 Function Calling）
+   * 实时回调文字增量，流结束后返回累积的文本和工具调用
+   */
+  private async callDoubaoWithToolsStream(
+    userInput: string,
+    onTextDelta: (accumulated: string) => void
+  ): Promise<{ content: string; toolCalls: any[]; error?: any }> {
+    const systemPrompt = await this.buildSystemPrompt(userInput);
+    const requestBody = {
+      model: this.currentModelId,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...this.conversationHistory
+      ],
+      tools: toolDefinitions,
+      stream: true,
+    };
+
+    if (isVerboseAgentLog()) {
+      logger.info('发送给模型的流式请求', requestBody);
+    }
+
+    const provider = this.modelProvider;
+    if (!provider.chatWithToolsStream) {
+      // 降级：provider 不支持流式，回退到非流式
+      logger.info('Provider 不支持流式，降级为非流式调用');
+      const response = await provider.chatWithTools(requestBody as any);
+      if (response.error) return { content: '', toolCalls: [], error: response.error };
+      const msg = response.choices[0]?.message;
+      const content = msg?.content || '';
+      const toolCalls = msg?.tool_calls || [];
+      if (content) onTextDelta(content);
+      return { content, toolCalls };
+    }
+
+    let accumulated = '';
+    const response = await provider.chatWithToolsStream(requestBody as any, (chunk: StreamChunk) => {
+      if (chunk.type === 'text_delta' && chunk.textDelta) {
+        accumulated += chunk.textDelta;
+        onTextDelta(accumulated);
+      }
+    });
+
+    if (response.error) return { content: '', toolCalls: [], error: response.error };
+
+    const msg = response.choices[0]?.message;
+    return {
+      content: msg?.content || accumulated,
+      toolCalls: msg?.tool_calls || [],
+    };
   }
 
   /**

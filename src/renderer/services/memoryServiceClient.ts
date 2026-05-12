@@ -3,12 +3,16 @@
 // 通过IPC与主进程的记忆服务通信
 // ==========================================
 
+import { createLogger } from '../../shared/logger';
+
+const logger = createLogger('memory');
+
 /**
  * 记忆服务类（渲染进程）
  */
 export class MemoryService {
   constructor() {
-    console.log('🧠 记忆服务（渲染进程）初始化成功');
+    logger.info('渲染进程记忆服务已初始化');
   }
 
   /**

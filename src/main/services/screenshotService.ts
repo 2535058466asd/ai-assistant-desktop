@@ -4,13 +4,16 @@
 // ==========================================
 
 import { desktopCapturer } from 'electron';
+import { createLogger } from '../../shared/logger';
+
+const logger = createLogger('tool');
 
 /**
  * 屏幕截图服务类
  */
 export class ScreenshotService {
   constructor() {
-    console.log('📸 屏幕截图服务初始化成功');
+    logger.info('Screenshot service initialized');
   }
 
   /**
@@ -18,7 +21,7 @@ export class ScreenshotService {
    */
   async takeScreenshot(): Promise<{ success: boolean; imageData?: string; error?: string }> {
     try {
-      console.log('📸 开始截取屏幕...');
+      logger.info('Screenshot capture started');
       
       // 获取屏幕源
       const sources = await desktopCapturer.getSources({
@@ -34,7 +37,7 @@ export class ScreenshotService {
       const screenSource = sources[0];
       const imageData = screenSource.thumbnail.toDataURL();
       
-      console.log('📸 屏幕截图成功');
+      logger.info('Screenshot capture succeeded');
       
       return { 
         success: true, 
@@ -42,7 +45,7 @@ export class ScreenshotService {
       };
       
     } catch (error) {
-      console.error('❌ 屏幕截图失败:', error);
+      logger.error('Screenshot capture failed', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : String(error) 

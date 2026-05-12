@@ -4,6 +4,9 @@
 // ==========================================
 
 import type { ASRService, ASRRequest, ASRResult } from './asrInterface';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('asr');
 
 // 声明 SpeechRecognition 类型
 declare global {
@@ -30,7 +33,7 @@ export class WebSpeechASR implements ASRService {
   private onEndCallback: (() => void) | null = null;
 
   constructor() {
-    console.log('🎤 Web Speech ASR 初始化中...');
+    logger.debug('🎤 Web Speech ASR 初始化中...');
   }
 
   async initialize(): Promise<void> {
@@ -43,9 +46,9 @@ export class WebSpeechASR implements ASRService {
       this.recognition.interimResults = true;  // 返回中间结果
       this.recognition.lang = 'zh-CN';         // 设置为中文
       
-      console.log('✅ Web Speech ASR 初始化成功');
+      logger.debug('✅ Web Speech ASR 初始化成功');
     } else {
-      console.warn('⚠️  Web Speech API 不支持');
+      logger.warn('⚠️  Web Speech API 不支持');
     }
   }
 
@@ -55,12 +58,12 @@ export class WebSpeechASR implements ASRService {
     onEnd?: () => void
   ): Promise<boolean> {
     if (!this.recognition) {
-      console.error('❌ 语音识别未初始化');
+      logger.error('❌ 语音识别未初始化');
       return false;
     }
 
     if (this.isListening) {
-      console.warn('⚠️  语音识别已经在运行中');
+      logger.warn('⚠️  语音识别已经在运行中');
       return true;
     }
 
@@ -81,7 +84,7 @@ export class WebSpeechASR implements ASRService {
       }
 
       if (transcript.trim()) {
-        console.log('🎤 识别结果:', transcript, isFinal ? '(最终)' : '(中间)');
+        logger.debug('🎤 识别结果:', transcript, isFinal ? '(最终)' : '(中间)');
         
         const result: ASRResult = {
           success: true,
@@ -96,7 +99,7 @@ export class WebSpeechASR implements ASRService {
     };
 
     this.recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error('❌ 语音识别错误:', event.error);
+      logger.error('❌ 语音识别错误:', event.error);
       
       if (this.onErrorCallback) {
         this.onErrorCallback(event.error);
@@ -104,7 +107,7 @@ export class WebSpeechASR implements ASRService {
     };
 
     this.recognition.onend = () => {
-      console.log('ℹ️  语音识别已结束');
+      logger.debug('ℹ️  语音识别已结束');
       this.isListening = false;
       
       if (this.onEndCallback) {
@@ -115,10 +118,10 @@ export class WebSpeechASR implements ASRService {
     try {
       this.recognition.start();
       this.isListening = true;
-      console.log('🚀 语音监听已启动');
+      logger.debug('🚀 语音监听已启动');
       return true;
     } catch (error) {
-      console.error('❌ 启动语音监听失败:', error);
+      logger.error('❌ 启动语音监听失败:', error);
       return false;
     }
   }
@@ -128,15 +131,15 @@ export class WebSpeechASR implements ASRService {
       try {
         this.recognition.stop();
         this.isListening = false;
-        console.log('⏹️  语音监听已停止');
+        logger.debug('⏹️  语音监听已停止');
       } catch (error) {
-        console.warn('⚠️  停止语音监听时出错:', error);
+        logger.warn('⚠️  停止语音监听时出错:', error);
       }
     }
   }
 
   async recognize(request: ASRRequest): Promise<ASRResult> {
-    console.warn('⚠️  Web Speech ASR 不支持文件识别');
+    logger.warn('⚠️  Web Speech ASR 不支持文件识别');
     return {
       success: false,
       error: 'Web Speech ASR 不支持文件识别'

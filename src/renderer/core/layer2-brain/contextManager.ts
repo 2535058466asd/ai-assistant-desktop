@@ -3,7 +3,7 @@
 // 负责管理对话历史和上下文状态
 // ==========================================
 
-import type { Message, ConversationContext, SessionId, Intent, Slots } from '../../types';
+import type { Message, ConversationContext, SessionId } from '../../types';
 
 /**
  * 上下文管理器类
@@ -19,7 +19,6 @@ export class ContextManager {
     const context: ConversationContext = {
       sessionId,
       history: [],
-      pendingSlots: {},
       lastActiveTime: Date.now()
     };
 
@@ -68,61 +67,6 @@ export class ContextManager {
   }
 
   /**
-   * 设置当前意图
-   */
-  setCurrentIntent(sessionId: SessionId, intent: Intent): void {
-    const context = this.getOrCreateContext(sessionId);
-    context.currentIntent = intent;
-    context.lastActiveTime = Date.now();
-  }
-
-  /**
-   * 获取当前意图
-   */
-  getCurrentIntent(sessionId: SessionId): Intent | null {
-    const context = this.getContext(sessionId);
-    return context?.currentIntent || null;
-  }
-
-  /**
-   * 设置待填充的槽位
-   */
-  setPendingSlots(sessionId: SessionId, slots: Slots): void {
-    const context = this.getOrCreateContext(sessionId);
-    context.pendingSlots = { ...context.pendingSlots, ...slots };
-    context.lastActiveTime = Date.now();
-  }
-
-  /**
-   * 获取待填充的槽位
-   */
-  getPendingSlots(sessionId: SessionId): Slots {
-    const context = this.getContext(sessionId);
-    return context ? { ...context.pendingSlots } : {};
-  }
-
-  /**
-   * 清除待填充的槽位
-   */
-  clearPendingSlots(sessionId: SessionId): void {
-    const context = this.getContext(sessionId);
-    if (context) {
-      context.pendingSlots = {};
-    }
-  }
-
-  /**
-   * 合并新槽位到待填充槽位
-   */
-  mergeSlots(sessionId: SessionId, newSlots: Slots): Slots {
-    const context = this.getOrCreateContext(sessionId);
-    const mergedSlots = { ...context.pendingSlots, ...newSlots };
-    context.pendingSlots = mergedSlots;
-    context.lastActiveTime = Date.now();
-    return mergedSlots;
-  }
-
-  /**
    * 清除会话上下文
    */
   clearContext(sessionId: SessionId): void {
@@ -130,13 +74,11 @@ export class ContextManager {
   }
 
   /**
-   * 重置会话（保留历史，但清除状态）
+   * 重置会话（保留历史）
    */
   resetContext(sessionId: SessionId): void {
     const context = this.getContext(sessionId);
     if (context) {
-      context.currentIntent = undefined;
-      context.pendingSlots = {};
       context.lastActiveTime = Date.now();
     }
   }
@@ -184,17 +126,6 @@ export class ContextManager {
     }));
   }
 
-  /**
-   * 检查是否有正在进行的任务
-   */
-  hasPendingTask(sessionId: SessionId): boolean {
-    const context = this.getContext(sessionId);
-    if (!context) return false;
-
-    // 检查是否有当前意图且有待填充槽位
-    return context.currentIntent !== undefined && 
-           Object.keys(context.pendingSlots).length > 0;
-  }
 }
 
 // 创建单例

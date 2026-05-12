@@ -62,7 +62,7 @@ export class WakeWordDetector {
    */
   startListening(): void {
     this.isListening = true;
-    console.log('🎯 唤醒词检测器已启动，监听词：', this.wakeWords);
+    logger.debug('🎯 唤醒词检测器已启动，监听词：', this.wakeWords);
   }
 
   /**
@@ -70,7 +70,7 @@ export class WakeWordDetector {
    */
   stopListening(): void {
     this.isListening = false;
-    console.log('⏹️  唤醒词检测器已停止');
+    logger.debug('⏹️  唤醒词检测器已停止');
   }
 
   /**
@@ -90,3 +90,6 @@ export function getWakeWordDetector(): WakeWordDetector {
   }
   return wakeWordDetectorInstance;
 }
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('asr');

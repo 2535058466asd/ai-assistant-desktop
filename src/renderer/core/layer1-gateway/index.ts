@@ -11,6 +11,9 @@ import { getASRManager } from '../asr';
 import { getTTSManager } from '../tts';
 import { DEFAULT_TTS_CONFIG } from '../../config/ttsConfig';
 import { DEFAULT_ASR_CONFIG } from '../../config/asrConfig';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('asr');
 
 /**
  * 交互层管理器
@@ -35,16 +38,16 @@ export class VoiceGatewayManager {
   private initializeServices(): void {
     try {
       this.ttsManager.initialize(DEFAULT_TTS_CONFIG);
-      console.log('🎵 TTS服务初始化成功，使用:', DEFAULT_TTS_CONFIG.type);
+      logger.debug('🎵 TTS服务初始化成功，使用:', DEFAULT_TTS_CONFIG.type);
     } catch (error) {
-      console.error('❌ TTS服务初始化失败:', error);
+      logger.error('❌ TTS服务初始化失败:', error);
     }
 
     try {
       this.asrManager.initialize(DEFAULT_ASR_CONFIG);
-      console.log('🎤 ASR服务初始化成功，使用:', DEFAULT_ASR_CONFIG.type);
+      logger.debug('🎤 ASR服务初始化成功，使用:', DEFAULT_ASR_CONFIG.type);
     } catch (error) {
-      console.error('❌ ASR服务初始化失败:', error);
+      logger.error('❌ ASR服务初始化失败:', error);
     }
   }
 
@@ -53,7 +56,7 @@ export class VoiceGatewayManager {
    */
   initialize(sessionId: SessionId): void {
     this.currentSessionId = sessionId;
-    console.log('🎯 交互层已初始化，会话 ID:', sessionId);
+    logger.debug('🎯 交互层已初始化，会话 ID:', sessionId);
   }
 
   /**
@@ -61,7 +64,7 @@ export class VoiceGatewayManager {
    */
   async startListening(): Promise<boolean> {
     if (this.isListening) {
-      console.log('⚠️  语音监听已在运行中');
+      logger.debug('⚠️  语音监听已在运行中');
       return true;
     }
 
@@ -70,7 +73,7 @@ export class VoiceGatewayManager {
     const success = await this.asrManager.startListening(
       (result) => {
         if (result.success && result.text) {
-          console.log('🎤 识别结果:', result.text);
+          logger.debug('🎤 识别结果:', result.text);
           
           if (this.isAwake) {
             // 如果已经唤醒，直接发送消息
@@ -80,7 +83,7 @@ export class VoiceGatewayManager {
           } else {
             // 如果未唤醒，检查是否包含唤醒词
             if (this.wakeWordDetector.detect(result.text)) {
-              console.log('🎯 检测到唤醒词！');
+              logger.debug('🎯 检测到唤醒词！');
               this.isAwake = true;
               
               // 提取唤醒词后的命令
@@ -96,17 +99,17 @@ export class VoiceGatewayManager {
         }
       },
       (error) => {
-        console.error('❌ ASR 错误:', error);
+        logger.error('❌ ASR 错误:', error);
       },
       () => {
-        console.log('ℹ️  语音识别已结束');
+        logger.debug('ℹ️  语音识别已结束');
         this.isListening = false;
       }
     );
 
     if (success) {
       this.isListening = true;
-      console.log('🎤 语音监听已启动');
+      logger.debug('🎤 语音监听已启动');
     }
     return success;
   }
@@ -118,7 +121,7 @@ export class VoiceGatewayManager {
     this.wakeWordDetector.stopListening();
     this.asrManager.stopListening();
     this.isListening = false;
-    console.log('⏹️  语音监听已停止');
+    logger.debug('⏹️  语音监听已停止');
   }
 
   /**
@@ -126,7 +129,7 @@ export class VoiceGatewayManager {
    */
   async speak(text: string): Promise<boolean> {
     if (!this.currentSessionId) {
-      console.error('❌ 会话未初始化');
+      logger.error('❌ 会话未初始化');
       return false;
     }
 
@@ -134,7 +137,7 @@ export class VoiceGatewayManager {
       await this.ttsManager.speak(text);
       return true;
     } catch (error) {
-      console.error('❌ 语音合成失败:', error);
+      logger.error('❌ 语音合成失败:', error);
       return false;
     }
   }
@@ -154,7 +157,7 @@ export class VoiceGatewayManager {
       // 如果有音频数据，先识别
       if (request.audioData) {
         // TODO: 处理音频文件的识别（未来功能）
-        console.warn('⚠️  音频文件识别功能待实现');
+        logger.warn('⚠️  音频文件识别功能待实现');
       }
 
       // 如果有文本，直接使用
@@ -204,7 +207,7 @@ export class VoiceGatewayManager {
       };
 
     } catch (error) {
-      console.error('❌ 处理请求失败:', error);
+      logger.error('❌ 处理请求失败:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : '未知错误'
@@ -224,7 +227,7 @@ export class VoiceGatewayManager {
    */
   wakeUp(): void {
     this.isAwake = true;
-    console.log('🎯 已手动唤醒启源');
+    logger.debug('🎯 已手动唤醒启源');
   }
 
   /**
@@ -232,7 +235,7 @@ export class VoiceGatewayManager {
    */
   resetWakeState(): void {
     this.isAwake = false;
-    console.log('😴 启源已进入休眠状态');
+    logger.debug('😴 启源已进入休眠状态');
   }
 
   /**

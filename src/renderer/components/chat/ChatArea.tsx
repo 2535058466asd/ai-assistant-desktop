@@ -18,6 +18,9 @@ import type { UIMessage } from '../../types/chat';
 import { getTTSManager } from '../../core/tts/ttsManager';
 import { DEFAULT_TTS_CONFIG } from '../../config/ttsConfig';
 import DOMPurify from 'dompurify';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('ui');
 
 /**
  * PCM 音频数据转 WAV 格式
@@ -244,7 +247,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
       await navigator.clipboard.writeText(textContent);
       showToast?.('已复制到剪贴板', 'success');
     } catch (err) {
-      console.error('复制失败:', err);
+      logger.error('Copy message failed', { messageId, error: err });
       showToast?.('复制失败，请手动选择文本复制', 'error');
     }
   };
@@ -274,20 +277,20 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
   const handlePlayTTS = async (message: UIMessage) => {
     // 如果正在播放这条消息，则停止
     if (playingMessageId === message.id) {
-      console.log('⏸️ [ChatArea] 暂停播放');
+      logger.info('TTS playback stopped by clicking current message', { messageId: message.id });
       handleStopTTS();
       return;
     }
 
     // 如果正在播放其他消息，先停止
     if (playingMessageId) {
-      console.log('⏸️ [ChatArea] 停止当前播放');
+      logger.info('TTS playback switched to another message', { from: playingMessageId, to: message.id });
       handleStopTTS();
     }
 
     try {
       setPlayingMessageId(message.id);
-      console.log('🎤 [ChatArea] 开始 TTS 合成...');
+      logger.info('Chat message TTS synthesis started', { messageId: message.id });
 
       // 调用 TTS 合成（使用 speak 方法）
       const result = await ttsManagerRef.current.speak({
@@ -296,7 +299,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
       });
 
       if (result.success && result.audioData) {
-        console.log('✅ [ChatArea] TTS 合成成功，音频大小:', result.audioData.byteLength, 'bytes');
+        logger.info('Chat message TTS synthesis succeeded', { messageId: message.id, audioSizeBytes: result.audioData.byteLength });
 
         // PCM 转 WAV 格式（浏览器需要 WAV 头部才能播放 PCM）
         const wavBlob = new Blob([pcmToWav(result.audioData)], { type: 'audio/wav' });
@@ -305,16 +308,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
         const audio = new Audio(url);
         audioRef.current = audio;
 
-        console.log('🔊 [ChatArea] 开始播放音频...');
+        logger.info('Chat message audio playback started', { messageId: message.id });
 
         audio.onended = () => {
-          console.log('✅ [ChatArea] 音频播放完成');
+          logger.info('Chat message audio playback ended', { messageId: message.id });
           setPlayingMessageId(null);
           URL.revokeObjectURL(url);
         };
 
         audio.onerror = (e) => {
-          console.error('❌ [ChatArea] 音频播放失败:', e);
+          logger.error('Chat message audio playback failed', { messageId: message.id, error: e });
           setPlayingMessageId(null);
           showToast?.('语音播放失败', 'error');
           URL.revokeObjectURL(url);
@@ -322,13 +325,13 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
 
         await audio.play();
       } else {
-        console.error('❌ [ChatArea] TTS 合成失败:', result.error);
+        logger.error('Chat message TTS synthesis failed', { messageId: message.id, error: result.error });
         setPlayingMessageId(null);
         showToast?.(result.error || '语音合成失败', 'error');
       }
 
     } catch (error) {
-      console.error('❌ [ChatArea] TTS 播放失败:', error);
+      logger.error('Chat message TTS playback failed', { messageId: message.id, error });
       setPlayingMessageId(null);
       showToast?.('语音播放失败，请稍后重试', 'error');
     }
@@ -338,7 +341,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
    * 停止当前播放的语音
    */
   const handleStopTTS = () => {
-    console.log('⏸️ [ChatArea] 停止 TTS 播放');
+    logger.info('Chat message TTS playback stopped', { messageId: playingMessageId });
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -514,7 +517,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
                                   stroke="currentColor"
                                   strokeWidth="2"
                                 >
-                                  <polygon points="11 5 6 9 2 9 2 15 6 19 11 15 19 20 8 15 5" />
+                                  <polygon points="8 5 19 12 8 19 8 5" />
                                 </svg>
                                 播放
                               </>

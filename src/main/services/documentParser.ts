@@ -53,7 +53,7 @@ export async function parseFile(filePath: string): Promise<ParseResult> {
  * 解析 PDF 文件
  */
 async function parsePDF(filePath: string): Promise<ParseResult> {
-  const pdfParseModule = await import('pdf-parse');
+  const pdfParseModule: any = await import('pdf-parse');
   const pdfParse = pdfParseModule.default || pdfParseModule;
   const buffer = fs.readFileSync(filePath);
   const data = await (pdfParse as any)(buffer);

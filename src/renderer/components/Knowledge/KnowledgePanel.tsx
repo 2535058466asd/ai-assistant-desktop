@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styles from './KnowledgePanel.module.css';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('rag');
 
 interface KnowledgeStats {
   count: number;
@@ -14,6 +17,13 @@ interface ImportResult {
   chunks?: number;
 }
 
+interface KnowledgeSource {
+  source: string;
+  category: string;
+  count: number;
+  createdAt?: string;
+}
+
 const KnowledgePanel: React.FC = () => {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,6 +31,7 @@ const KnowledgePanel: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState<string>('');
   const [searching, setSearching] = useState(false);
+  const [sources, setSources] = useState<KnowledgeSource[]>([]);
 
   const api = (window as any).electronAPI;
 
@@ -31,8 +42,12 @@ const KnowledgePanel: React.FC = () => {
       if (result.success) {
         setStats(result.data);
       }
+      const sourceResult = await api.knowledgeSources();
+      if (sourceResult.success) {
+        setSources(sourceResult.data || []);
+      }
     } catch (e) {
-      console.error('加载知识库统计失败:', e);
+      logger.error('Load knowledge stats failed', e);
     }
   }, [api]);
 
@@ -88,6 +103,17 @@ const KnowledgePanel: React.FC = () => {
       setSearchResult(`❌ ${e.message}`);
     }
     setSearching(false);
+  };
+
+  const handleDeleteSource = async (source: string) => {
+    if (!window.confirm(`确定删除来源「${source}」的所有知识片段吗？`)) return;
+    const result = await api.knowledgeDeleteBySource(source);
+    if (result.success) {
+      setImportResult({ success: true, info: `已删除 ${result.deletedCount || 0} 个片段` });
+      loadStats();
+    } else {
+      setImportResult({ success: false, error: result.error });
+    }
   };
 
   // 文件路径和分类
@@ -182,6 +208,25 @@ const KnowledgePanel: React.FC = () => {
         {searchResult && (
           <div className={styles.searchResult}>
             <pre className={styles.searchPre}>{searchResult}</pre>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.section}>
+        <h4 className={styles.sectionTitle}>🗂️ 来源文件</h4>
+        {sources.length === 0 ? (
+          <p className={styles.sectionDesc}>暂无来源文件。导入文档后这里会显示来源、分类和片段数。</p>
+        ) : (
+          <div className={styles.searchResult}>
+            {sources.map((source) => (
+              <div key={`${source.source}-${source.category}`}>
+                <strong>{source.source}</strong>
+                <span> · {source.category} · {source.count} 个片段</span>
+                <button className={styles.btnSecondary} onClick={() => handleDeleteSource(source.source)}>
+                  删除来源
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>

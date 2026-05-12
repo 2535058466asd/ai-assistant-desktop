@@ -7,6 +7,9 @@ import type { ASRService, ASRRequest, ASRResult } from './asrInterface';
 import { WebSpeechASR } from './webSpeechASR';
 import { VolcengineASRV3, type VolcengineASRV3Config } from './volcengineASRV3';
 import type { ASRConfig as GlobalASRConfig } from '../../config/asrConfig';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('asr');
 
 export type ASRType = 'volcengine' | 'web-speech';
 
@@ -33,17 +36,17 @@ export class ASRManager {
       case 'volcengine':
         // 豆包 ASR 2.0 WebSocket v3 双向流式优化版
         if (this.config.volcengine?.appId && this.config.volcengine?.accessToken) {
-          console.log('🔄 初始化豆包语音 ASR 2.0（WebSocket v3 双向流式优化版）');
+          logger.info('Initializing Volcengine ASR v3');
           return new VolcengineASRV3(this.config.volcengine);
         } else {
-          console.warn('⚠️  豆包 ASR 配置不完整，降级使用 Web Speech API');
+          logger.warn('Volcengine ASR config incomplete, falling back to Web Speech API');
           return new WebSpeechASR();
         }
       case 'web-speech':
-        console.log('🔄 使用浏览器原生 Web Speech API');
+        logger.info('Using Web Speech ASR');
         return new WebSpeechASR();
       default:
-        console.warn('⚠️  未知的 ASR 类型，使用 Web Speech API');
+        logger.warn('Unknown ASR type, using Web Speech API', { type });
         return new WebSpeechASR();
     }
   }
@@ -59,7 +62,7 @@ export class ASRManager {
     };
     
     this.currentService = this.createService(this.config.type);
-    console.log('🎵 ASR 管理器已初始化，类型:', this.config.type);
+    logger.info('ASR manager initialized', { type: this.config.type });
   }
 
   /**
@@ -104,7 +107,7 @@ export class ASRManager {
   switchType(type: ASRType): void {
     if (this.config.type === type) return;
     
-    console.log(`🔄 切换 ASR 方案: ${this.config.type} -> ${type}`);
+    logger.info('ASR type switched', { from: this.config.type, to: type });
     this.config.type = type;
     this.currentService = this.createService(type);
   }

@@ -33,6 +33,7 @@ import InputArea from '../input/InputArea';
 import type { InputAreaHandle } from '../input/InputArea';
 import WorkspaceDashboard from '../Workspace/WorkspaceDashboard';
 import SettingsDrawer from '../Settings/SettingsDrawer';
+import { createLogger } from '../../../shared/logger';
 
 /* 导入类型定义 */
 import type {
@@ -97,7 +98,7 @@ const getMessagesForChat = (chatId: string): Message[] => {
     const saved = localStorage.getItem(STORAGE_KEY_MESSAGES + chatId);
     return saved ? JSON.parse(saved) : [];
   } catch (error) {
-    console.error('加载消息失败:', error);
+    logger.error('Load chat messages failed', { chatId, error });
     return [];
   }
 };
@@ -109,7 +110,7 @@ const saveMessagesForChat = (chatId: string, messages: Message[]) => {
   try {
     localStorage.setItem(STORAGE_KEY_MESSAGES + chatId, JSON.stringify(messages));
   } catch (error) {
-    console.error('保存消息失败:', error);
+    logger.error('Save chat messages failed', { chatId, error });
   }
 };
 
@@ -177,6 +178,7 @@ const defaultModels: ModelOption[] = [
   { id: 'doubao-seed-2-0-mini-260215', name: '豆包2.0 Mini', isOnline: true },
 ];
 const defaultCurrentModel: ModelOption = defaultModels[0];
+const logger = createLogger('ui');
 
 /**
  * AppLayout 主布局组件
@@ -223,7 +225,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         return JSON.parse(saved);
       }
     } catch (error) {
-      console.error('加载对话列表失败:', error);
+      logger.error('Load chat list failed', error);
     }
     return [];
   });
@@ -256,7 +258,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     try {
       localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(chatList));
     } catch (error) {
-      console.error('保存对话列表失败:', error);
+      logger.error('Save chat list failed', error);
     }
   }, [chatList]);
 
@@ -292,6 +294,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     if (!content.trim()) return;
 
     let currentChatId = activeChatId;
+    logger.info('布局层接收到输入消息', {
+      activeChatId,
+      textPreview: content.slice(0, 120),
+      length: content.length,
+    });
 
     /* 如果没有当前对话，自动创建一个新对话 */
     if (!currentChatId) {
@@ -312,6 +319,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       setChatList((prev) => [newChat, ...prev]);
       setActiveChatId(newChat.id);
       currentChatId = newChat.id;
+      logger.info('首条消息自动创建新对话', {
+        chatId: newChat.id,
+        title: newChat.title,
+      });
 
     }
 
@@ -322,6 +333,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 切换侧边栏展开/收起
    */
   const handleSidebarToggle = () => {
+    logger.info('侧边栏展开状态切换', { from: sidebarOpen, to: !sidebarOpen });
     setSidebarOpen((prev) => !prev);
   };
 
@@ -329,6 +341,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 打开设置抽屉
    */
   const handleOpenSettings = () => {
+    logger.info('设置抽屉已打开');
     setSettingsDrawerOpen(true);
   };
 
@@ -336,6 +349,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 关闭设置抽屉
    */
   const handleCloseSettings = () => {
+    logger.info('设置抽屉已关闭');
     setSettingsDrawerOpen(false);
   };
 
@@ -345,6 +359,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 用户发送第一条消息时会自动创建新对话
    */
   const handleNewChat = () => {
+    logger.info('点击新建对话', { previousChatId: activeChatId });
     setActiveChatId(null);
     onClearMessages(); /* 通知 App.tsx 清空消息，显示欢迎页 */
   };
@@ -355,6 +370,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * @param chatId - 要切换到的对话 ID
    */
   const handleSelectChat = (chatId: string) => {
+    logger.info('选择对话', { from: activeChatId, to: chatId });
     setActiveChatId(chatId);
     /* 加载该对话的历史消息并通知App.tsx */
     const chatMessages = getMessagesForChat(chatId);
@@ -368,6 +384,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * @param keyword - 搜索关键词
    */
   const handleSearch = (keyword: string) => {
+    logger.debug('对话搜索关键词变化', { keyword, length: keyword.length });
     setSearchKeyword(keyword);
   };
 
@@ -375,6 +392,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 重命名对话
    */
   const handleRenameChat = useCallback((chatId: string, newTitle: string) => {
+    logger.info('请求重命名对话', { chatId, newTitle });
     setChatList((prev) => {
       const updated = prev.map((chat) =>
         chat.id === chatId ? { ...chat, title: newTitle } : chat
@@ -382,7 +400,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       try {
         localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
       } catch (e) {
-        console.error('保存对话列表失败:', e);
+        logger.error('Save chat list failed after rename', e);
       }
       return updated;
     });
@@ -392,6 +410,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 删除对话
    */
   const handleDeleteChat = useCallback((chatId: string) => {
+    logger.warn('请求删除对话', { chatId, isActive: activeChatId === chatId });
     setChatList((prev) => {
       const updated = prev.filter((chat) => chat.id !== chatId);
       try {
@@ -399,7 +418,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         // 清理该对话的消息存储
         localStorage.removeItem(`qiyuan_messages_${chatId}`);
       } catch (e) {
-        console.error('删除对话失败:', e);
+        logger.error('Delete chat persistence failed', e);
       }
       // 如果删除的是当前激活的对话，清空消息
       if (activeChatId === chatId) {
@@ -413,6 +432,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 置顶/取消置顶对话
    */
   const handlePinChat = useCallback((chatId: string) => {
+    logger.info('切换对话置顶状态', { chatId });
     setChatList((prev) => {
       const updated = prev.map((chat) =>
         chat.id === chatId ? { ...chat, isPinned: !chat.isPinned } : chat
@@ -426,7 +446,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       try {
         localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
       } catch (e) {
-        console.error('保存对话列表失败:', e);
+        logger.error('Save chat list failed after pin toggle', e);
       }
       return updated;
     });
@@ -436,6 +456,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   const handleModelChange = (modelId: string) => {
     const model = defaultModels.find((m) => m.id === modelId);
     if (model) {
+      logger.info('在顶部栏选择模型', { from: currentModel.id, to: modelId, name: model.name });
       setCurrentModel(model);
       onModelChange?.(modelId);
     }
@@ -447,6 +468,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * @param prompt - 建议文本（不含 emoji）
    */
   const handleSuggestionClick = (prompt: string) => {
+    logger.info('点击快捷建议', { prompt });
     if (inputRef.current) {
       inputRef.current.setText(prompt);
     }

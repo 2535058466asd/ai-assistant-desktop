@@ -22,6 +22,9 @@ import { getVoiceChatMode } from './core/voiceChat/VoiceChatMode';
 import type { VoiceChatState } from './core/voiceChat/VoiceChatMode';
 import type { Message } from './types';
 import type { StreamCallbacks } from './core/orchestrator';
+import { createLogger } from '../shared/logger';
+
+const logger = createLogger('ui');
 
 function AppContent() {
   const toast = useToast();
@@ -58,10 +61,10 @@ function AppContent() {
         setVoiceChatState(state);
       },
       onUserText: (text) => {
-        console.log('🎤 [App] 用户正在说:', text);
+        logger.info('语音识别到用户说话', { text });
       },
       onAIText: (text) => {
-        console.log('🎤 [App] AI 回复:', text.substring(0, 50) + '...');
+        logger.info('语音模式收到 AI 回复', { textPreview: text.substring(0, 80) });
       },
       onSendMessage: async (text) => {
         // 不手动 setMessages，由 processTextInput 内部的 onMessageCallback 统一添加
@@ -82,7 +85,7 @@ function AppContent() {
     // 设置流式回调
     const streamCallbacks: StreamCallbacks = {
       onStreamStart: (message: Message) => {
-        console.log('📝 [App] 流式开始:', message.id);
+        logger.info('助手回复开始输出', { messageId: message.id });
         setIsLoading(false);
         setMessages((prev) => [...prev, message]);
       },
@@ -96,7 +99,7 @@ function AppContent() {
         );
       },
       onStreamEnd: (messageId: string) => {
-        console.log('✅ [App] 流式结束:', messageId);
+        logger.info('助手回复输出结束', { messageId });
 
         // 只做状态更新（纯函数），不在这里触发 TTS 等副作用
         setMessages((prev) =>
@@ -112,7 +115,7 @@ function AppContent() {
         // 副作用：触发 TTS 播放（放在 updater 外面，且用 Set 防重复）
         if (isVoiceChatEnabledRef.current && content && !spokenMessageIds.current.has(messageId)) {
           spokenMessageIds.current.add(messageId);
-          console.log('🎤 [App] 触发 TTS 播放:', content.substring(0, 50) + '...');
+          logger.info('触发语音播放', { messageId, textPreview: content.substring(0, 80) });
           voiceChatMode.speakResponse(content);
         }
       }
@@ -143,12 +146,13 @@ function AppContent() {
   // 切换语音对话模式
   const handleToggleVoiceChat = useCallback(async () => {
     try {
+      logger.info('用户切换语音对话模式');
       const enabled = await voiceChatModeRef.current.toggle();
       setIsVoiceChatEnabled(enabled);
       isVoiceChatEnabledRef.current = enabled;
       showToast(enabled ? '语音对话模式已开启' : '语音对话模式已关闭', 'info');
     } catch (error) {
-      console.error('❌ 切换语音对话模式失败:', error);
+      logger.error('切换语音对话模式失败', error);
       showToast('切换语音对话模式失败', 'error');
     }
   }, [showToast]);
@@ -158,21 +162,23 @@ function AppContent() {
     try {
       localStorage.setItem('qiyuan_theme', theme);
     } catch (e) {
-      console.error('保存主题设置失败:', e);
+      logger.error('保存主题设置失败', e);
     }
   }, [theme]);
 
   const handleToggleTheme = () => {
+    logger.info('用户切换主题', { from: theme, to: theme === 'dark' ? 'light' : 'dark' });
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim()) return;
+    logger.info('用户提交消息', { textPreview: content.slice(0, 120), length: content.length });
     setIsLoading(true); // 显示加载动画
     try {
       await orchestratorRef.current.processTextInput(content);
     } catch (error) {
-      console.error('❌ 发送消息失败:', error);
+      logger.error('发送消息失败', error);
       showToast?.('发送消息失败，请重试', 'error');
     } finally {
       setIsLoading(false);
@@ -180,25 +186,28 @@ function AppContent() {
   };
 
   const handleModelChange = (modelId: string) => {
+    logger.info('用户切换模型', { modelId });
     orchestratorRef.current.setModel(modelId);
   };
 
   const handleClearMessages = useCallback(() => {
+    logger.info('用户清空当前对话');
     setMessages([]);
     // 清理 spokenMessageIds，避免内存泄漏
     spokenMessageIds.current.clear();
     // 新建对话时重置 Orchestrator 上下文
     orchestratorRef.current.resetConversation([]);
-    console.log('🧹 [App] 已清理 spokenMessageIds 并重置对话上下文');
+    logger.info('应用已重置对话状态');
   }, []);
 
   const handleSetMessages = useCallback((newMessages: Message[]) => {
+    logger.info('用户切换对话消息', { messageCount: newMessages.length });
     setMessages(newMessages);
     // 清理 spokenMessageIds，避免内存泄漏
     spokenMessageIds.current.clear();
     // 重置 Orchestrator 的对话上下文，确保不同对话的 session 隔离
     orchestratorRef.current.resetConversation(newMessages);
-    console.log('🔄 [App] 已设置新的消息列表并重置对话上下文');
+    logger.info('应用已恢复对话上下文', { messageCount: newMessages.length });
   }, []);
 
   return (

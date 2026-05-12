@@ -5,6 +5,10 @@
  */
 
 import { addToolLog, createTask, previewValue, updateProject } from '../../services/workspaceStore';
+import { createLogger } from '../../../shared/logger';
+import { executeRegisteredTool } from './toolRegistry';
+
+const logger = createLogger('tool');
 
 export interface ToolExecutionResult {
   success: boolean;
@@ -13,7 +17,7 @@ export interface ToolExecutionResult {
 }
 
 export async function executeTool(name: string, args: Record<string, any>): Promise<ToolExecutionResult> {
-  console.log(`🔧 [工具调用] ${name}(${JSON.stringify(args)})`);
+  logger.info('工具调用开始', { name, args });
   const api = (window as any).electronAPI;
   const startedAt = performance.now();
 
@@ -21,82 +25,6 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
     let result: ToolExecutionResult;
 
     switch (name) {
-      case 'exec_command':
-        result = await api.execCommand(args.command);
-        break;
-
-      case 'read_file':
-        result = await api.readFile(args.path);
-        break;
-
-      case 'write_file':
-        result = await api.writeFile(args.path, args.content);
-        break;
-
-      case 'web_search':
-        result = await api.webSearch(args.query);
-        break;
-
-      case 'web_fetch':
-        result = await api.webFetch(args.url);
-        break;
-
-      case 'list_dir':
-        result = await api.listDir(args.path);
-        break;
-
-      case 'search_files':
-        result = await api.searchFiles(
-          args.path ?? args.directory,
-          args.pattern ?? args.keyword
-        );
-        break;
-
-      case 'grep_content':
-        result = await api.grepContent(
-          args.path ?? args.file_path,
-          args.keyword ?? args.pattern,
-          args.file_pattern
-        );
-        break;
-
-      case 'clipboard_read':
-        result = await api.clipboardRead();
-        break;
-
-      case 'clipboard_write':
-        result = await api.clipboardWrite(args.text);
-        break;
-
-      case 'screenshot':
-        result = await api.screenshot();
-        break;
-
-      case 'open_app':
-        result = await api.openApp(args.target);
-        break;
-
-      case 'knowledge_search':
-        result = await api.knowledgeSearch(args.query, args.n_results);
-        break;
-
-      case 'knowledge_add': {
-        const docs = args.documents || [];
-        const metas = args.category
-          ? docs.map(() => ({ category: args.category, created_at: new Date().toISOString() }))
-          : undefined;
-        result = await api.knowledgeAdd(docs, metas);
-        break;
-      }
-
-      case 'knowledge_import_file':
-        result = await api.knowledgeImportFile(args.file_path, args.category);
-        break;
-
-      case 'knowledge_import_image':
-        result = await api.knowledgeImportImage(args.image_path, args.category);
-        break;
-
       case 'workspace_create_task': {
         const task = createTask(args.title, args.project_id, args.priority);
         result = { success: true, data: `已创建任务：${task.title}` };
@@ -117,10 +45,10 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       }
 
       default:
-        result = { success: false, error: `未知工具: ${name}` };
+        result = await executeRegisteredTool(api, name, args);
     }
 
-    console.log(`🔧 [工具结果] ${name}: ${result.success ? '✅成功' : '❌失败'} - ${JSON.stringify(result)}`);
+    logger.info('工具调用结束', { name, success: result.success, result: result.data || result.error });
     addToolLog({
       name,
       argsPreview: previewValue(args),
@@ -130,7 +58,7 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
     });
     return result;
   } catch (error: any) {
-    console.error(`🔧 [工具异常] ${name}: ${error.message}`);
+    logger.error('工具调用异常崩溃', { name, error: error.message });
     addToolLog({
       name,
       argsPreview: previewValue(args),

@@ -1,5 +1,8 @@
 import { ipcMain } from 'electron'
 import TurndownService from 'turndown'
+import { createLogger } from '../../shared/logger'
+
+const logger = createLogger('tool')
 
 // HTML 转 Markdown 实例（保留标题、列表、链接、代码块、表格等结构）
 const turndown = new TurndownService({
@@ -124,7 +127,7 @@ export function registerWebSearch() {
     try {
       // 方案1: SearXNG（本地自建搜索，返回干净 JSON）
       try {
-        console.log(`🔍 [web_search] 方案1: 尝试 SearXNG...`);
+        logger.debug('web_search trying SearXNG', { query });
         const response = await fetch(`http://localhost:8888/search?q=${encodeURIComponent(query)}&format=json`, {
           signal: AbortSignal.timeout(8000),
           headers: {
@@ -138,17 +141,17 @@ export function registerWebSearch() {
             .map((r: any, i: number) => `[${i + 1}] ${r.title}\n    ${r.content || ''}\n    ${r.url}`)
             .join('\n\n');
           if (results) {
-            console.log(`🔍 [web_search] SearXNG 成功，返回 ${data.results?.length || 0} 条结果`);
+            logger.info('web_search SearXNG succeeded', { resultCount: data.results?.length || 0 });
             return { success: true, data: results };
           }
         }
       } catch (e: any) {
-        console.log(`🔍 [web_search] SearXNG 失败: ${e.message}`);
+        logger.debug('web_search SearXNG failed', { error: e.message });
       }
 
       // 方案2: 百度搜索（HTML 转纯文本）
       try {
-        console.log(`🔍 [web_search] 方案2: 尝试百度搜索...`);
+        logger.debug('web_search trying Baidu', { query });
         const bdResponse = await fetch(`https://www.baidu.com/s?wd=${encodeURIComponent(query)}&rn=10`, {
           signal: AbortSignal.timeout(10000),
           headers: {
@@ -161,17 +164,17 @@ export function registerWebSearch() {
           const html = await bdResponse.text();
           const results = parseBaiduResults(html);
           if (results.length > 50) {
-            console.log(`🔍 [web_search] 百度成功，提取到搜索结果`);
+            logger.info('web_search Baidu succeeded');
             return { success: true, data: results };
           }
         }
       } catch (e: any) {
-        console.log(`🔍 [web_search] 百度失败: ${e.message}`);
+        logger.debug('web_search Baidu failed', { error: e.message });
       }
 
       // 方案3: 必应国内版（HTML 转纯文本）
       try {
-        console.log(`🔍 [web_search] 方案3: 尝试必应国内版...`);
+        logger.debug('web_search trying Bing CN', { query });
         const bingResponse = await fetch(`https://cn.bing.com/search?q=${encodeURIComponent(query)}&count=10`, {
           signal: AbortSignal.timeout(10000),
           headers: {
@@ -184,15 +187,15 @@ export function registerWebSearch() {
           const html = await bingResponse.text();
           const results = parseBingResults(html);
           if (results.length > 50) {
-            console.log(`🔍 [web_search] 必应成功，提取到搜索结果`);
+            logger.info('web_search Bing CN succeeded');
             return { success: true, data: results };
           }
         }
       } catch (e: any) {
-        console.log(`🔍 [web_search] 必应失败: ${e.message}`);
+        logger.debug('web_search Bing CN failed', { error: e.message });
       }
 
-      console.log(`🔍 [web_search] 所有搜索方式均失败`);
+      logger.warn('web_search all providers failed', { query });
       return { success: false, error: '所有搜索方式均失败，请检查网络连接' };
     } catch (error: any) {
       return { success: false, error: error.message };

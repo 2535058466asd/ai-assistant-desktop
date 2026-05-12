@@ -7,6 +7,9 @@ import type { TTSService, TTSRequest, TTSResult } from './ttsInterface';
 import { WebSpeechTTS } from './webSpeechTTS';
 import { VolcengineTTSV3, type VolcengineTTSV3Config } from './volcengineTTSV3';
 import type { TTSConfig as GlobalTTSConfig } from '../../config/ttsConfig';
+import { createLogger } from '../../../shared/logger';
+
+const logger = createLogger('tts');
 
 export type TTSType = 'volcengine' | 'web-speech';
 
@@ -44,7 +47,7 @@ export class TTSManager {
     };
     
     this.currentService = this.createService(this.config.type);
-    console.log('🎵 TTS 管理器已初始化，类型:', this.config.type);
+    logger.info('TTS manager initialized', { type: this.config.type });
   }
 
   private createService(type: TTSType): TTSService {
@@ -52,17 +55,17 @@ export class TTSManager {
       case 'volcengine':
         // 豆包 TTS 2.0 WebSocket v3 双向流式
         if (this.config.volcengine?.appId && this.config.volcengine?.accessToken) {
-          console.log('🔄 初始化豆包语音 TTS 2.0（WebSocket v3 双向流式）');
+          logger.info('Initializing Volcengine TTS v3');
           return new VolcengineTTSV3(this.config.volcengine);
         } else {
-          console.warn('⚠️  豆包 TTS 配置不完整，降级使用 Web Speech API');
+          logger.warn('Volcengine TTS config incomplete, falling back to Web Speech API');
           return new WebSpeechTTS();
         }
       case 'web-speech':
-        console.log('🔄 使用浏览器原生 Web Speech API');
+        logger.info('Using Web Speech TTS');
         return new WebSpeechTTS();
       default:
-        console.warn('⚠️  未知的 TTS 类型，使用 Web Speech API');
+        logger.warn('Unknown TTS type, using Web Speech API', { type });
         return new WebSpeechTTS();
     }
   }
@@ -90,17 +93,17 @@ export class TTSManager {
     // 第1步：检查内存缓存（同会话内快速访问）
     const cachedAudio = this.audioCache.get(cacheKey);
     if (cachedAudio) {
-      console.log('🎵 [TTS 内存缓存] 命中缓存，直接返回已合成的音频');
+      logger.debug('TTS memory cache hit');
       return { success: true, audioData: cachedAudio };
     }
 
     // 第2步：检查本地持久化缓存（跨会话复用）
     try {
-      console.log('🔍 [TTS 本地缓存] 检查本地缓存是否存在...');
+      logger.debug('Checking TTS local cache');
       const localCacheResult = await window.electronAPI!.ttsCacheCheck(mergedRequest.text, mergedRequest.voice);
       
       if (localCacheResult.exists && localCacheResult.audioData) {
-        console.log('💾 [TTS 本地缓存] 命中缓存！从本地加载音频');
+        logger.info('TTS local cache hit');
         // 将 base64 转换为 ArrayBuffer
         const binaryString = atob(localCacheResult.audioData);
         const bytes = new Uint8Array(binaryString.length);
@@ -111,12 +114,12 @@ export class TTSManager {
         
         // 同时存入内存缓存
         this.audioCache.set(cacheKey, audioBuffer);
-        console.log('🎵 [TTS 本地缓存] 已加载到内存，当前内存缓存数量:', this.audioCache.size);
+        logger.debug('TTS local cache loaded into memory', { memoryCacheSize: this.audioCache.size });
         
         return { success: true, audioData: audioBuffer };
       }
     } catch (error) {
-      console.warn('⚠️ [TTS 本地缓存] 检查缓存失败，继续请求豆包:', error);
+      logger.warn('TTS local cache check failed, continuing with provider', error);
     }
 
     // 第3步：向豆包请求 TTS
@@ -128,7 +131,7 @@ export class TTSManager {
       if (result.success && result.audioData) {
         // 存入内存缓存
         this.audioCache.set(cacheKey, result.audioData);
-        console.log('🎵 [TTS 内存缓存] 已缓存音频，当前缓存数量:', this.audioCache.size);
+        logger.debug('TTS audio cached in memory', { memoryCacheSize: this.audioCache.size });
 
         // 第4步：保存到本地持久化缓存（异步，不阻塞播放）
         this.saveToLocalCache(mergedRequest.text, mergedRequest.voice, result.audioData);
@@ -138,8 +141,7 @@ export class TTSManager {
     } catch (error) {
       // 如果当前不是 Web Speech，则降级到 Web Speech
       if (this.config.type !== 'web-speech') {
-        console.warn(`⚠️  当前 TTS 服务 (${this.config.type}) 失败，自动降级到 Web Speech API`);
-        console.error('TTS 失败详情:', error);
+        logger.warn('Current TTS service failed, falling back to Web Speech API', { type: this.config.type, error });
         
         // 自动切换到 Web Speech TTS
         const fallbackService = new WebSpeechTTS();
@@ -148,15 +150,15 @@ export class TTSManager {
         
         // 使用 Web Speech 重新尝试
         try {
-          console.log('🔄 使用 Web Speech API 重新尝试语音合成');
+          logger.info('Retrying TTS with Web Speech API');
           return await fallbackService.speak(mergedRequest);
         } catch (fallbackError) {
-          console.error('❌ Web Speech API 也失败了:', fallbackError);
+          logger.error('Web Speech API fallback failed', fallbackError);
           throw new Error('所有 TTS 服务都失败了');
         }
       } else {
         // 已经在用 Web Speech，直接报错
-        console.error('❌ Web Speech API 失败:', error);
+        logger.error('Web Speech API failed', error);
         throw new Error('TTS 服务失败');
       }
     }
@@ -173,16 +175,16 @@ export class TTSManager {
       }
       const base64Audio = btoa(binary);
       
-      console.log('💾 [TTS 本地缓存] 正在保存音频到本地...');
+      logger.debug('Saving TTS audio to local cache');
       const result = await window.electronAPI!.ttsCacheSave(text, voice || '', base64Audio);
       
       if (result.success) {
-        console.log('💾 [TTS 本地缓存] 音频已保存到本地持久化存储');
+        logger.info('TTS audio saved to local cache');
       } else {
-        console.warn('⚠️ [TTS 本地缓存] 保存失败:', result.error);
+        logger.warn('TTS local cache save failed', { error: result.error });
       }
     } catch (error) {
-      console.warn('⚠️ [TTS 本地缓存] 保存异常:', error);
+      logger.warn('TTS local cache save exception', error);
     }
   }
 
@@ -204,7 +206,7 @@ export class TTSManager {
   switchType(type: TTSType): void {
     if (this.config.type === type) return;
     
-    console.log(`🔄 切换 TTS 方案: ${this.config.type} -> ${type}`);
+    logger.info('TTS type switched', { from: this.config.type, to: type });
     this.config.type = type;
     this.currentService = this.createService(type);
   }

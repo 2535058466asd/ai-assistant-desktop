@@ -72,6 +72,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   knowledgeStats: async () => {
     return ipcRenderer.invoke('knowledge-stats');
   },
+  knowledgeSources: async () => {
+    return ipcRenderer.invoke('knowledge-sources');
+  },
+  knowledgeDeleteBySource: async (source: string) => {
+    return ipcRenderer.invoke('knowledge-delete-by-source', source);
+  },
   // 导入文件到知识库（PDF/Word/Excel/TXT/MD）
   knowledgeImportFile: async (filePath: string, category?: string) => {
     return ipcRenderer.invoke('knowledge-import-file', filePath, category);
@@ -126,28 +132,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('tts-cache-save', text, voice, audioBase64);
   },
 
-  // ========== 通用 IPC 方法（用于 TTS/ASR 等模块化服务）==========
+  // ========== TTS / ASR 白名单 IPC ==========
+  ttsV3Connect: async (config: any) => ipcRenderer.invoke('tts-v3-connect', config),
+  ttsV3Synthesize: async (config: any, text: string, options?: { sessionId?: string }) =>
+    ipcRenderer.invoke('tts-v3-synthesize', config, text, options),
+  ttsV3Disconnect: async () => ipcRenderer.invoke('tts-v3-disconnect'),
+  asrV3Connect: async (config: any) => ipcRenderer.invoke('asr-v3-connect', config),
+  asrV3StartRecognition: async (config: any) => ipcRenderer.invoke('asr-v3-start-recognition', config),
+  asrV3SendAudio: async (config: any, audioBase64: string, isLast: boolean) =>
+    ipcRenderer.invoke('asr-v3-send-audio', config, audioBase64, isLast),
+  asrV3StopRecognition: async (config: any) => ipcRenderer.invoke('asr-v3-stop-recognition', config),
   
-  // 通用调用（用于 invoke 模式）
-  invoke: (channel: string, ...args: any[]) => {
-    return ipcRenderer.invoke(channel, ...args);
-  },
-  
-  // 监听主进程消息（用于 on 模式）
+  // 监听主进程消息（仅允许 TTS/ASR 事件）
   on: (channel: string, callback: (...args: any[]) => void) => {
-    console.log('[Preload] 注册监听器 channel:', channel)
+    const allowedChannels = new Set([
+      'tts-session-started',
+      'tts-audio-chunk',
+      'tts-audio-complete',
+      'tts-error',
+      'asr-result',
+      'asr-complete',
+      'asr-error',
+    ]);
+    if (!allowedChannels.has(channel)) {
+      throw new Error(`IPC channel is not allowed: ${channel}`);
+    }
     ipcRenderer.on(channel, (_event, ...args) => {
-      console.log('[Preload] 收到 ipcRenderer 事件, channel:', channel, 'args.length:', args.length)
-      if (args.length > 0) {
-        console.log('[Preload] 第一个参数:', typeof args[0], args[0] ? '有值' : 'null/undefined')
-        if (args[0] && typeof args[0] === 'object') {
-          const obj = args[0] as any
-          console.log('[Preload] 对象 keys:', Object.keys(obj))
-          if (obj.audioBase64) {
-            console.log('[Preload] audioBase64 长度:', obj.audioBase64.length)
-          }
-        }
-      }
       callback(...args)
     })
   }
@@ -175,6 +185,8 @@ declare global {
       knowledgeSearch: (query: string, nResults?: number) => Promise<{ success: boolean; data?: string; error?: string }>;
       knowledgeAdd: (documents: string[], metadatas?: Record<string, string>[]) => Promise<{ success: boolean; count?: number; error?: string }>;
       knowledgeStats: () => Promise<{ success: boolean; data?: { count: number; collections: string[] }; error?: string }>;
+      knowledgeSources: () => Promise<{ success: boolean; data?: Array<{ source: string; category: string; count: number; createdAt?: string }>; error?: string }>;
+      knowledgeDeleteBySource: (source: string) => Promise<{ success: boolean; deletedCount?: number; error?: string }>;
       knowledgeImportFile: (filePath: string, category?: string) => Promise<{ success: boolean; count?: number; chunks?: number; info?: string; error?: string }>;
       knowledgeImportImage: (imagePath: string, category?: string) => Promise<{ success: boolean; count?: number; info?: string; error?: string }>;
       memorySetPreference: (key: string, value: any) => Promise<void>;
@@ -189,8 +201,14 @@ declare global {
       // TTS 持久化缓存
       ttsCacheCheck: (text: string, voice: string) => Promise<{ exists: boolean; audioData?: string }>;
       ttsCacheSave: (text: string, voice: string, audioBase64: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
-      // 通用 IPC 方法（用于 TTS/ASR 等模块化服务）
-      invoke: (channel: string, ...args: any[]) => Promise<any>;
+      // TTS / ASR 白名单 IPC
+      ttsV3Connect: (config: any) => Promise<any>;
+      ttsV3Synthesize: (config: any, text: string, options?: { sessionId?: string }) => Promise<any>;
+      ttsV3Disconnect: () => Promise<any>;
+      asrV3Connect: (config: any) => Promise<any>;
+      asrV3StartRecognition: (config: any) => Promise<any>;
+      asrV3SendAudio: (config: any, audioBase64: string, isLast: boolean) => Promise<any>;
+      asrV3StopRecognition: (config: any) => Promise<any>;
       on: (channel: string, callback: (...args: any[]) => void) => void;
   };
   }
