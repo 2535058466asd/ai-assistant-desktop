@@ -93,6 +93,15 @@ export interface MessageToolCall {
   };
 }
 
+/** 工具调用摘要（给 UI 展示用） */
+export interface ToolCallSummary {
+  name: string;
+  argsPreview: string;
+  resultPreview: string;
+  durationMs: number;
+  status: 'success' | 'error';
+}
+
 /** 消息 */
 export interface Message {
   id: string;
@@ -105,6 +114,9 @@ export interface Message {
   reasoning_content?: string;
   tool_calls?: MessageToolCall[];
   tool_call_id?: string;
+  // 简化后的思考面板数据
+  reasoningContent?: string;
+  toolCallSummary?: ToolCallSummary[];
 }
 
 /** Agent 处理过程分类 */

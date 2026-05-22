@@ -3,7 +3,7 @@
  * 定义侧边栏、对话列表、模型选择等 UI 相关数据结构
  */
 
-import type { AgentProcessEvent, ToolProcessEvent } from './index';
+import type { AgentProcessEvent, ToolProcessEvent, ToolCallSummary } from './index';
 
 // ==========================================
 // 1. 对话/会话相关类型
@@ -79,6 +79,10 @@ export interface UIMessage {
   processEvents?: AgentProcessEvent[];
   /** 兼容旧字段：这条助手消息关联的工具执行过程 */
   toolEvents?: ToolProcessEvent[];
+  /** 推理内容（模型的思考过程） */
+  reasoningContent?: string;
+  /** 工具调用摘要列表 */
+  toolCallSummary?: ToolCallSummary[];
 }
 
 // ==========================================

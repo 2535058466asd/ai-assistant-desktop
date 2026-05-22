@@ -42,6 +42,8 @@ import SearchPanel from '../Settings/SearchPanel';
 import ShortcutsPanel from '../Settings/ShortcutsPanel';
 import { createLogger } from '../../../shared/logger';
 import { getActiveModelConfig } from '../../config/modelConfig';
+import { normalizeModelSelection } from '../../core/model/modelRuntime';
+import { getModelsForProvider } from '../../config/modelCatalog';
 
 /* 导入类型定义 */
 import type {
@@ -96,10 +98,14 @@ interface AppLayoutProps {
    localStorage 键名常量
    用于持久化保存对话列表和消息
    ========================================== */
-const STORAGE_KEY_CHAT_LIST = 'qiyuan_chat_list';
-const STORAGE_KEY_ACTIVE_CHAT = 'qiyuan_active_chat_id';
-const STORAGE_KEY_MESSAGES = 'qiyuan_messages_'; // 前缀 + chatId
-const STORAGE_KEY_ACTIVE_VIEW = 'qiyuan_active_view';
+const STORAGE_KEY_CHAT_LIST = 'nova.chat.list';
+const LEGACY_STORAGE_KEY_CHAT_LIST = 'qiyuan_chat_list';
+const STORAGE_KEY_ACTIVE_CHAT = 'nova.chat.activeId';
+const LEGACY_STORAGE_KEY_ACTIVE_CHAT = 'qiyuan_active_chat_id';
+const STORAGE_KEY_MESSAGES = 'nova.messages.'; // 前缀 + chatId
+const LEGACY_STORAGE_KEY_MESSAGES = 'qiyuan_messages_';
+const STORAGE_KEY_ACTIVE_VIEW = 'nova.activeView';
+const LEGACY_STORAGE_KEY_ACTIVE_VIEW = 'qiyuan_active_view';
 
 type AppView = 'chat' | 'workspace' | 'knowledge' | 'memory' | 'eval' | 'settings';
 type SettingsPageTab = 'model-api' | 'voice' | 'search' | 'shortcuts';
@@ -121,7 +127,7 @@ const settingsTabs: { id: SettingsPageTab; label: string; description: string }[
 ];
 
 const getInitialAppView = (): AppView => {
-  const saved = localStorage.getItem(STORAGE_KEY_ACTIVE_VIEW) as AppView | null;
+  const saved = (localStorage.getItem(STORAGE_KEY_ACTIVE_VIEW) || localStorage.getItem(LEGACY_STORAGE_KEY_ACTIVE_VIEW)) as AppView | null;
   return appViews.some((view) => view.id === saved) ? saved : 'chat';
 };
 
@@ -130,7 +136,7 @@ const getInitialAppView = (): AppView => {
  */
 const getMessagesForChat = (chatId: string): Message[] => {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY_MESSAGES + chatId);
+    const saved = localStorage.getItem(STORAGE_KEY_MESSAGES + chatId) || localStorage.getItem(LEGACY_STORAGE_KEY_MESSAGES + chatId);
     return saved ? JSON.parse(saved) : [];
   } catch (error) {
     logger.error('加载对话消息失败', { chatId, error });
@@ -144,6 +150,7 @@ const getMessagesForChat = (chatId: string): Message[] => {
 const saveMessagesForChat = (chatId: string, messages: Message[]) => {
   try {
     localStorage.setItem(STORAGE_KEY_MESSAGES + chatId, JSON.stringify(messages));
+    localStorage.removeItem(LEGACY_STORAGE_KEY_MESSAGES + chatId);
   } catch (error) {
     logger.error('保存对话消息失败', { chatId, error });
   }
@@ -209,59 +216,6 @@ const defaultUserInfo: UserInfo = {
    根据用户在设置页的配置动态生成模型列表
    ========================================== */
 
-/**
- * 动态获取可用模型列表
- * 优先显示用户在设置页配置的模型，然后添加该 Provider 的其他常用模型
- */
-function getAvailableModels(): ModelOption[] {
-  const activeConfig = getActiveModelConfig();
-  const models: ModelOption[] = [];
-
-  // ✅ 首先添加当前配置的模型（带 "(当前)" 标记）
-  models.push({
-    id: activeConfig.model,
-    name: `${activeConfig.model} (当前)`,
-    isOnline: true
-  });
-
-  // 根据当前 Provider 添加其他可选模型
-  if (activeConfig.provider === 'mimo') {
-    // 小米 MiMo 的其他模型
-    if (activeConfig.model !== 'mimo-v2.5-pro') {
-      models.push({ id: 'mimo-v2.5-pro', name: 'MiMo 2.5 Pro', isOnline: true });
-    }
-    if (activeConfig.model !== 'mimo-v2.5') {
-      models.push({ id: 'mimo-v2.5', name: 'MiMo 2.5', isOnline: true });
-    }
-    if (activeConfig.model !== 'mimo-v2-pro') {
-      models.push({ id: 'mimo-v2-pro', name: 'MiMo 2 Pro', isOnline: true });
-    }
-  } else if (activeConfig.provider === 'doubao') {
-    // 豆包的其他模型
-    if (activeConfig.model !== 'doubao-seed-2-0-pro-260215') {
-      models.push({ id: 'doubao-seed-2-0-pro-260215', name: '豆包 2.0 Pro', isOnline: true });
-    }
-    if (activeConfig.model !== 'doubao-seed-2-0-lite-260215') {
-      models.push({ id: 'doubao-seed-2-0-lite-260215', name: '豆包 2.0 Lite', isOnline: true });
-    }
-    if (activeConfig.model !== 'doubao-seed-2-0-mini-260215') {
-      models.push({ id: 'doubao-seed-2-0-mini-260215', name: '豆包 2.0 Mini', isOnline: true });
-    }
-  } else if (activeConfig.provider === 'openai-compatible') {
-    // OpenAI 兼容模式的通用选项
-    models.push({ id: 'gpt-4', name: 'GPT-4', isOnline: true });
-    models.push({ id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', isOnline: true });
-  }
-
-  // 去重：防止用户配置的模型恰好就是列表中的某个模型
-  const seen = new Set<string>();
-  return models.filter(model => {
-    if (seen.has(model.id)) return false;
-    seen.add(model.id);
-    return true;
-  });
-}
-
 const logger = createLogger('ui');
 
 /**
@@ -270,23 +224,7 @@ const logger = createLogger('ui');
  */
 function getInitialModelOption(): ModelOption {
   const activeConfig = getActiveModelConfig();
-  const models = getAvailableModels();
-  const found = models.find(model => model.id === activeConfig.model);
-  if (found) return found;
-
-  // 如果找不到精确匹配，尝试智能匹配（忽略后缀）
-  const normalizedActive = activeConfig.model.replace(/-\d+$/, '');
-  const smartMatch = models.find(model =>
-    model.id.startsWith(normalizedActive) || normalizedActive.startsWith(model.id.replace(/-\d+$/, ''))
-  );
-  if (smartMatch) return smartMatch;
-
-  // 兜底：返回第一个可用模型或当前配置
-  return models[0] || {
-    id: activeConfig.model,
-    name: activeConfig.model,
-    isOnline: true,
-  };
+  return normalizeModelSelection(activeConfig.provider, activeConfig.model).option;
 }
 
 /**
@@ -314,7 +252,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   /** 当前选中的对话 ID */
   const [activeChatId, setActiveChatId] = useState<string | null>(() => {
     /* 从 localStorage 恢复上次选中的对话 */
-    return localStorage.getItem(STORAGE_KEY_ACTIVE_CHAT) || null;
+    return localStorage.getItem(STORAGE_KEY_ACTIVE_CHAT) || localStorage.getItem(LEGACY_STORAGE_KEY_ACTIVE_CHAT) || null;
   });
 
   /** 侧边栏是否展开（移动端使用）*/
@@ -333,7 +271,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   const [chatList, setChatList] = useState<ChatItem[]>(() => {
     /* 从 localStorage 加载保存的对话列表 */
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_CHAT_LIST);
+      const saved = localStorage.getItem(STORAGE_KEY_CHAT_LIST) || localStorage.getItem(LEGACY_STORAGE_KEY_CHAT_LIST);
       if (saved) {
         return JSON.parse(saved);
       }
@@ -355,8 +293,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       setCurrentModel(nextModel);
       onModelChange?.(nextModel.id);
     };
-    window.addEventListener('qiyuan-model-config-saved', handleModelConfigSaved);
-    return () => window.removeEventListener('qiyuan-model-config-saved', handleModelConfigSaved);
+    window.addEventListener('nova-model-config-saved', handleModelConfigSaved);
+    return () => window.removeEventListener('nova-model-config-saved', handleModelConfigSaved);
   }, [onModelChange]);
 
   /** 输入框内容的 ref（用于快捷建议填入）*/
@@ -380,6 +318,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(chatList));
+      localStorage.removeItem(LEGACY_STORAGE_KEY_CHAT_LIST);
     } catch (error) {
       logger.error('保存对话列表失败', error);
     }
@@ -391,8 +330,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   useEffect(() => {
     if (activeChatId) {
       localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, activeChatId);
+      localStorage.removeItem(LEGACY_STORAGE_KEY_ACTIVE_CHAT);
     } else {
       localStorage.removeItem(STORAGE_KEY_ACTIVE_CHAT);
+      localStorage.removeItem(LEGACY_STORAGE_KEY_ACTIVE_CHAT);
     }
   }, [activeChatId]);
 
@@ -402,6 +343,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    */
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_ACTIVE_VIEW, activeView);
+    localStorage.removeItem(LEGACY_STORAGE_KEY_ACTIVE_VIEW);
   }, [activeView]);
 
   /**
@@ -529,6 +471,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       );
       try {
         localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
+        localStorage.removeItem(LEGACY_STORAGE_KEY_CHAT_LIST);
       } catch (e) {
         logger.error('重命名后保存对话列表失败', e);
       }
@@ -545,8 +488,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       const updated = prev.filter((chat) => chat.id !== chatId);
       try {
         localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
+        localStorage.removeItem(LEGACY_STORAGE_KEY_CHAT_LIST);
         // 清理该对话的消息存储
-        localStorage.removeItem(`qiyuan_messages_${chatId}`);
+        localStorage.removeItem(STORAGE_KEY_MESSAGES + chatId);
+        localStorage.removeItem(LEGACY_STORAGE_KEY_MESSAGES + chatId);
       } catch (e) {
         logger.error('删除对话持久化数据失败', e);
       }
@@ -575,6 +520,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       });
       try {
         localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
+        localStorage.removeItem(LEGACY_STORAGE_KEY_CHAT_LIST);
       } catch (e) {
         logger.error('切换置顶后保存对话列表失败', e);
       }
@@ -584,8 +530,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
   /** 模型切换 */
   const handleModelChange = (modelId: string) => {
-    // ✅ 使用动态模型列表
-    const model = getAvailableModels().find((m) => m.id === modelId);
+    const activeConfig = getActiveModelConfig();
+    const model = getModelsForProvider(activeConfig.provider, currentModel.id).find((m) => m.id === modelId);
     if (model) {
       logger.info('在顶部栏选择模型', { from: currentModel.id, to: modelId, name: model.name });
       setCurrentModel(model);
@@ -618,6 +564,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     timestamp: msg.timestamp,
     isStreaming: msg.isStreaming,
     processEvents: processEventsByMessageId[msg.id] || [],
+    reasoningContent: msg.reasoningContent,
+    toolCallSummary: msg.toolCallSummary,
   });
 
   /** 是否显示欢迎页（无消息时显示）*/
@@ -749,7 +697,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         {/* 1. 顶栏 */}
         <Header
         currentModel={currentModel}
-        models={getAvailableModels()}
+        models={getModelsForProvider(getActiveModelConfig().provider, currentModel.id)}
         onModelChange={handleModelChange}
         onSidebarToggle={handleSidebarToggle}
         showToast={showToast}

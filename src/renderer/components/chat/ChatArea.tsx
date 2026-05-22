@@ -417,16 +417,19 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
   };
 
   const renderAgentProcess = (message: UIMessage) => {
-    const events = message.processEvents;
-    if (!events || events.length === 0) return null;
-    const isRunning = events.some((event) => event.status === 'running');
-    const hasError = events.some((event) => event.status === 'error');
+    const hasReasoning = !!message.reasoningContent;
+    const hasToolCalls = message.toolCallSummary && message.toolCallSummary.length > 0;
+
+    // 如果没有思考内容和工具调用，不渲染
+    if (!hasReasoning && !hasToolCalls) return null;
+
     const isExpanded = message.isStreaming || processExpandedIds.has(message.id);
-    const summaryText = isRunning
+    const toolCount = message.toolCallSummary?.length || 0;
+    const summaryText = message.isStreaming
       ? '思考中'
-      : hasError
-        ? '思考完成，有异常'
-        : `思考过程 ${events.length} 步`;
+      : toolCount > 0
+        ? `思考过程 · ${toolCount} 个工具调用`
+        : '思考过程';
 
     return (
       <div className={styles.agentProcessPanel}>
@@ -436,7 +439,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
           onClick={() => handleToggleProcess(message.id)}
           aria-expanded={isExpanded}
         >
-          <span className={`${styles.agentProcessSummaryDot} ${isRunning ? styles.processSummaryRunning : ''} ${hasError ? styles.processSummaryError : ''}`} />
+          <span className={`${styles.agentProcessSummaryDot} ${message.isStreaming ? styles.processSummaryRunning : ''}`} />
           <span className={styles.agentProcessSummaryText}>{summaryText}</span>
           <span className={styles.agentProcessSummaryHint}>{isExpanded ? '收起' : '展开'}</span>
           <svg
@@ -452,36 +455,47 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
 
         {isExpanded && (
           <div className={styles.agentProcessList}>
-            {events.map((event) => {
-              const duration = formatDuration(event.durationMs);
-              const title = event.kind === 'tool' && event.toolName
-                ? getToolDisplayName(event.toolName)
-                : event.title;
-
-              return (
-                <div
-                  key={event.id}
-                  className={`${styles.agentProcessItem} ${styles[`processKind_${event.kind}`] || ''} ${styles[`processStatus_${event.status}`] || ''}`}
-                >
-                  <span className={styles.agentProcessDot} />
-                  <div className={styles.agentProcessBody}>
-                    <div className={styles.agentProcessHeader}>
-                      <span className={styles.agentProcessName}>{title}</span>
-                      <span className={styles.agentProcessStatus}>{PROCESS_STATUS_LABELS[event.status]}</span>
-                      {duration && <span className={styles.agentProcessDuration}>{duration}</span>}
-                    </div>
-                    <div className={styles.agentProcessMeta}>
-                      {event.detail || event.argsPreview || event.title}
-                    </div>
-                    {event.resultPreview && (
-                      <div className={styles.agentProcessResult}>
-                        {event.resultPreview}
-                      </div>
-                    )}
+            {/* 推理内容 */}
+            {hasReasoning && (
+              <div className={styles.agentProcessItem}>
+                <span className={styles.agentProcessDot} />
+                <div className={styles.agentProcessBody}>
+                  <div className={styles.agentProcessHeader}>
+                    <span className={styles.agentProcessName}>推理内容</span>
+                  </div>
+                  <div className={styles.agentProcessResult}>
+                    {message.reasoningContent}
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            )}
+
+            {/* 工具调用列表 */}
+            {hasToolCalls && message.toolCallSummary?.map((tool, index) => (
+              <div
+                key={index}
+                className={`${styles.agentProcessItem} ${styles.processKind_tool} ${styles[`processStatus_${tool.status}`] || ''}`}
+              >
+                <span className={styles.agentProcessDot} />
+                <div className={styles.agentProcessBody}>
+                  <div className={styles.agentProcessHeader}>
+                    <span className={styles.agentProcessName}>{getToolDisplayName(tool.name)}</span>
+                    <span className={styles.agentProcessStatus}>{tool.status === 'success' ? '完成' : '失败'}</span>
+                    <span className={styles.agentProcessDuration}>{formatDuration(tool.durationMs)}</span>
+                  </div>
+                  {tool.argsPreview && (
+                    <div className={styles.agentProcessMeta}>
+                      {tool.argsPreview}
+                    </div>
+                  )}
+                  {tool.resultPreview && (
+                    <div className={styles.agentProcessResult}>
+                      {tool.resultPreview}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
