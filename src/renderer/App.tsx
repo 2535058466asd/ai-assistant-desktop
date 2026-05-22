@@ -1,6 +1,6 @@
 /**
  * ==========================================
- * 启源 AI - 应用根组件（App.tsx）
+ * Nova AI - 应用根组件（App.tsx）
  * 已升级为模块化架构，使用 AppLayout 整合所有组件
  *
  * 架构说明：
@@ -20,16 +20,50 @@ import { ToastProvider, useToast } from './components/Toast';
 import { getOrchestrator } from './core/orchestrator';
 import { getVoiceChatMode } from './core/voiceChat/VoiceChatMode';
 import type { VoiceChatState } from './core/voiceChat/VoiceChatMode';
-import type { Message } from './types';
+import type { AgentProcessEvent, Message } from './types';
 import type { StreamCallbacks } from './core/orchestrator';
 import { createLogger } from '../shared/logger';
+import { createModelProvider, setModelProvider } from './core/model';
+import { getModelConfigForProvider, type ModelProviderId } from './config/modelConfig';
 
 const logger = createLogger('ui');
+
+function inferProviderFromModel(modelId: string): ModelProviderId | null {
+  // ✅ 改进的 Provider 推断逻辑：
+  // 1. 首先从 localStorage 读取当前配置的 Provider
+  // 2. 如果模型 ID 匹配当前 Provider，直接返回
+  // 3. 如果不匹配，尝试从模型名前缀推断
+  // 4. 如果无法推断，保持当前 Provider
+
+  const currentProvider = localStorage.getItem('qiyuan.model.provider') as ModelProviderId | null;
+
+  // 检查模型 ID 是否与当前 Provider 匹配
+  if (currentProvider === 'mimo' && modelId.startsWith('mimo-')) {
+    return 'mimo';
+  }
+  if (currentProvider === 'doubao' && modelId.startsWith('doubao-')) {
+    return 'doubao';
+  }
+  if (currentProvider === 'openai-compatible') {
+    // OpenAI 兼容模式不依赖前缀匹配，保持当前 Provider
+    return 'openai-compatible';
+  }
+
+  // 如果不匹配当前 Provider，尝试从模型名推断
+  if (modelId.startsWith('mimo-')) return 'mimo';
+  if (modelId.startsWith('doubao-')) return 'doubao';
+
+  // ❌ 无法推断时，返回 null（不切换 Provider）
+  // 这样可以避免在顶部栏切换模型时意外覆盖设置页的配置
+  logger.warn('无法从模型名推断 Provider，保持当前配置', { modelId, currentProvider });
+  return null;
+}
 
 function AppContent() {
   const toast = useToast();
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [processEventsByMessageId, setProcessEventsByMessageId] = useState<Record<string, AgentProcessEvent[]>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [voiceChatState, setVoiceChatState] = useState<VoiceChatState>('idle');
   const [isVoiceChatEnabled, setIsVoiceChatEnabled] = useState(false);
@@ -118,6 +152,21 @@ function AppContent() {
           logger.info('触发语音播放', { messageId, textPreview: content.substring(0, 80) });
           voiceChatMode.speakResponse(content);
         }
+      },
+      onProcessEvent: (messageId: string, event: AgentProcessEvent) => {
+        setProcessEventsByMessageId((prev) => {
+          const currentEvents = prev[messageId] || [];
+          const existingIndex = currentEvents.findIndex((item) => item.id === event.id);
+          const nextEvents =
+            existingIndex >= 0
+              ? currentEvents.map((item) => (item.id === event.id ? { ...item, ...event } : item))
+              : [...currentEvents, event];
+
+          return {
+            ...prev,
+            [messageId]: nextEvents.slice(-8),
+          };
+        });
       }
     };
     
@@ -186,13 +235,31 @@ function AppContent() {
   };
 
   const handleModelChange = (modelId: string) => {
-    logger.info('用户切换模型', { modelId });
+    const inferredProvider = inferProviderFromModel(modelId);
+    logger.info('用户切换模型', { modelId, inferredProvider });
+
+    if (inferredProvider) {
+      // 顶部模型下拉只代表“当前对话临时使用哪个模型”，不要写回设置页默认配置。
+      // 设置页保存 API Key / Base URL / 默认模型；这里只复用该 Provider 的鉴权和地址。
+      const nextConfig = {
+        ...getModelConfigForProvider(inferredProvider),
+        provider: inferredProvider,
+        model: modelId,
+      };
+      setModelProvider(createModelProvider(nextConfig));
+      logger.info('已根据模型名称同步切换模型提供商', {
+        provider: inferredProvider,
+        model: modelId,
+      });
+    }
+
     orchestratorRef.current.setModel(modelId);
   };
 
   const handleClearMessages = useCallback(() => {
     logger.info('用户清空当前对话');
     setMessages([]);
+    setProcessEventsByMessageId({});
     // 清理 spokenMessageIds，避免内存泄漏
     spokenMessageIds.current.clear();
     // 新建对话时重置 Orchestrator 上下文
@@ -203,6 +270,7 @@ function AppContent() {
   const handleSetMessages = useCallback((newMessages: Message[]) => {
     logger.info('用户切换对话消息', { messageCount: newMessages.length });
     setMessages(newMessages);
+    setProcessEventsByMessageId({});
     // 清理 spokenMessageIds，避免内存泄漏
     spokenMessageIds.current.clear();
     // 重置 Orchestrator 的对话上下文，确保不同对话的 session 隔离
@@ -213,6 +281,7 @@ function AppContent() {
   return (
     <AppLayout
       messages={messages}
+      processEventsByMessageId={processEventsByMessageId}
       isLoading={isLoading}
       onSendMessage={handleSendMessage}
       onClearMessages={handleClearMessages}

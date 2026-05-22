@@ -1,5 +1,5 @@
 /**
- * 启源 AI - 文档解析服务
+ * Nova AI - 文档解析服务
  *
  * 支持 PDF、Word(.docx)、Excel(.xlsx)、TXT、MD 文件的文本提取
  * 提取后的文本可导入 RAG 知识库

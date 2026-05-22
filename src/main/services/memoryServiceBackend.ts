@@ -311,29 +311,6 @@ export class MemoryService {
   }
 
   /**
-   * 更新记忆
-   * @param id 记忆ID
-   * @param newContent 新内容
-   */
-  async updateMemory(id: string, newContent: string): Promise<void> {
-    await this.ensureDbReady();
-    if (!this.db) {
-      logger.error('Memory database is not initialized');
-      return;
-    }
-
-    try {
-      await this.db.run(
-        'UPDATE memories SET content = ?, updated_at = ? WHERE id = ?',
-        [newContent.trim(), Date.now(), id]
-      );
-      logger.info('Memory updated', { id });
-    } catch (error) {
-      logger.error('Update memory failed', { id, error });
-    }
-  }
-
-  /**
    * 搜索记忆（关键词+类别+时间衰减+重要性加权）
    * @param query 搜索查询
    * @param limit 限制数量

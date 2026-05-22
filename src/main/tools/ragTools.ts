@@ -1,5 +1,5 @@
 /**
- * 启源 AI - RAG 知识库工具
+ * Nova AI - RAG 知识库工具
  *
  * 注册知识库相关的 IPC Handler
  * 遵循项目现有工具的注册模式
@@ -10,7 +10,6 @@ import {
   addDocuments,
   searchKnowledge,
   getKnowledgeStats,
-  deleteDocuments,
   listKnowledgeSources,
   deleteDocumentsBySource,
 } from '../services/ragService';
@@ -50,15 +49,6 @@ export function registerKnowledgeStats() {
 export function registerKnowledgeSources() {
   ipcMain.handle('knowledge-sources', async () => {
     return await listKnowledgeSources();
-  });
-}
-
-/**
- * 注册知识库删除工具
- */
-export function registerKnowledgeDelete() {
-  ipcMain.handle('knowledge-delete', async (_event, ids: string[]) => {
-    return await deleteDocuments(ids);
   });
 }
 

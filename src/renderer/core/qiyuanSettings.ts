@@ -74,7 +74,6 @@ export function getQiyuanSystemPrompt(): string {
 📁 我可以帮你读写文件
 🌐 我可以搜索互联网
 📋 我可以帮你复制粘贴内容
-📸 我可以截取屏幕查看
 
 当然也可以陪你聊天、谈心～😊
 

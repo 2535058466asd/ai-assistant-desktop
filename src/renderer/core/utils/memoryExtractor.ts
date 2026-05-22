@@ -4,7 +4,8 @@
 // ==========================================
 
 import { getMemoryService } from '../../services/memoryServiceClient';
-import { sendMessageToDoubao } from '../../services/doubaoApiClient';
+import { getModelProvider } from '../model';
+import { getActiveModelConfig } from '../../config/modelConfig';
 import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('memory');
@@ -62,10 +63,18 @@ export async function extractMemoriesWithLLM(
 只输出JSON，不要其他文字。`;
 
     // 调用LLM（使用mini模型，成本低）
-    const response = await sendMessageToDoubao(prompt, [], '你是一个记忆提取助手，只负责提取关键信息，不做其他回答。');
-    
+    const provider = getModelProvider();
+    const modelConfig = getActiveModelConfig();
+    const response = await provider.chatWithTools({
+      model: modelConfig.compactModel || modelConfig.model,
+      messages: [
+        { role: 'system', content: '你是一个记忆提取助手，只负责提取关键信息，不做其他回答。' },
+        { role: 'user', content: prompt }
+      ]
+    });
+
     // 解析JSON响应
-    const memories = JSON.parse(response);
+    const memories = JSON.parse(response.choices[0].message.content || '[]');
     return Array.isArray(memories) ? memories : [];
   } catch (error) {
     logger.error('LLM 记忆提取失败', error);

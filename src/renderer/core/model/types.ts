@@ -1,6 +1,7 @@
 export interface ModelMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content?: string;
+  reasoning_content?: string;
   tool_call_id?: string;
   tool_calls?: ToolCall[];
 }
@@ -46,6 +47,8 @@ export interface ChatWithToolsRequest {
   messages: ModelMessage[];
   tools?: ToolDefinition[];
   stream?: boolean;
+  temperature?: number;
+  maxTokens?: number;
 }
 
 export interface StreamChunk {
@@ -62,6 +65,8 @@ export interface StreamChunk {
 export interface ModelProvider {
   id: string;
   displayName: string;
+  defaultModel: string;
+  compactModel: string;
   chatWithTools(request: ChatWithToolsRequest): Promise<ModelResponse>;
   chatWithToolsStream?(
     request: ChatWithToolsRequest,

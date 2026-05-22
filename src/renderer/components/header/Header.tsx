@@ -1,10 +1,10 @@
 /**
  * Header 顶栏组件
- * 功能：品牌展示、侧边栏切换、模型选择器（下拉）、分享、更多菜单
+ * 功能：品牌展示、侧边栏切换、当前对话模型选择器、主题切换
  *
  * 布局结构：
- * - 左侧：侧边栏切换 | Logo | 品牌名「启源 AI」| 模型选择器（可点击展开）
- * - 右侧：分享按钮 | 更多按钮（三点，点击展开菜单）
+ * - 左侧：侧边栏切换 | Logo | 品牌名「Nova」| 当前对话模型选择器
+ * - 右侧：主题切换
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -36,7 +36,7 @@ interface HeaderProps {
   theme: 'dark' | 'light';
   /** 切换主题回调 */
   onToggleTheme: () => void;
-  /** 打开设置回调 */
+  /** 保留兼容旧调用；设置入口现在由左侧一级导航负责 */
   onOpenSettings?: () => void;
 }
 
@@ -60,25 +60,16 @@ const Header: React.FC<HeaderProps> = ({
   /** 模型选择器下拉是否展开 */
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
-  /** 更多菜单是否展开 */
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-
   /* ===== Ref 引用 ===== */
 
   /** 模型下拉容器 ref（用于点击外部关闭）*/
   const modelDropdownRef = useRef<HTMLDivElement>(null);
-
-  /** 更多菜单容器 ref */
-  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   /* ===== 点击外部关闭下拉菜单 ===== */
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target as Node)) {
         setModelDropdownOpen(false);
-      }
-      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
-        setMoreMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -91,7 +82,6 @@ const Header: React.FC<HeaderProps> = ({
   const toggleModelDropdown = () => {
     logger.info('模型下拉框展开状态切换', { from: modelDropdownOpen, to: !modelDropdownOpen });
     setModelDropdownOpen((prev) => !prev);
-    setMoreMenuOpen(false); /* 同时关闭更多菜单 */
   };
 
   /**
@@ -101,26 +91,6 @@ const Header: React.FC<HeaderProps> = ({
     logger.info('点击模型选项', { from: currentModel.id, to: modelId });
     onModelChange(modelId);
     setModelDropdownOpen(false);
-  };
-
-  /**
-   * 切换更多菜单
-   */
-  const toggleMoreMenu = () => {
-    logger.info('更多菜单展开状态切换', { from: moreMenuOpen, to: !moreMenuOpen });
-    setMoreMenuOpen((prev) => !prev);
-    setModelDropdownOpen(false); /* 同时关闭模型菜单 */
-  };
-
-
-
-  /**
-   * 更多菜单项：设置
-   */
-  const handleSettings = () => {
-    logger.info('点击设置菜单项');
-    setMoreMenuOpen(false);
-    onOpenSettings?.();
   };
 
   /**
@@ -178,9 +148,10 @@ const Header: React.FC<HeaderProps> = ({
           <div
             className={styles.modelSelector}
             onClick={toggleModelDropdown}
-            title={`当前模型: ${currentModel.name}（点击切换）`}
+            title={`当前对话模型: ${currentModel.name}（点击切换）`}
           >
             <span className={styles.modelDot}></span>
+            <span className={styles.modelPrefix}>当前模型</span>
             <span>{currentModel.name}</span>
             <svg
               className={`${styles.modelSelectorArrow} ${modelDropdownOpen ? styles.modelSelectorArrowOpen : ''}`}
@@ -227,40 +198,6 @@ const Header: React.FC<HeaderProps> = ({
           <span className={styles.themeIcon}>{theme === 'dark' ? '☀️' : '🌙'}</span>
         </button>
 
-
-
-        {/* 更多按钮 */}
-        <div className={styles.moreMenuWrapper} ref={moreMenuRef}>
-          <button
-            className={styles.headerBtn}
-            title="更多"
-            onClick={toggleMoreMenu}
-          >
-            <svg
-              className={styles.headerBtnSvg}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="1" />
-              <circle cx="19" cy="12" r="1" />
-              <circle cx="5" cy="12" r="1" />
-            </svg>
-          </button>
-
-          {/* 更多菜单下拉 */}
-          {moreMenuOpen && (
-            <div className={styles.moreMenu}>
-              <button className={styles.moreMenuItem} onClick={handleSettings}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-                设置
-              </button>
-            </div>
-          )}
-        </div>
       </div>
     </header>
   );

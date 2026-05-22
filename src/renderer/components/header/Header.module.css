@@ -34,12 +34,6 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 20px rgba(8, 145, 178, 0.08);
 }
 
-[data-theme="light"] .moreMenu {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 20px rgba(8, 145, 178, 0.08);
-}
-
 /* ===== 左侧区域：Logo + 品牌名 + 模型选择器 ===== */
 .headerLeft {
   display: flex;
@@ -139,6 +133,10 @@
   width: 12px;
   height: 12px;
   flex-shrink: 0;
+}
+
+.modelPrefix {
+  color: var(--text-tertiary);
 }
 
 /* ===== 右侧区域：操作按钮组 ===== */
@@ -248,55 +246,6 @@
   width: 14px;
   height: 14px;
   color: var(--accent-cyan);
-  flex-shrink: 0;
-}
-
-/* ===== 更多菜单（三点）===== */
-.moreMenuWrapper {
-  position: relative;
-}
-
-.moreMenu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 150px;
-  background: rgba(17, 24, 39, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(6, 182, 212, 0.08);
-  padding: 4px;
-  z-index: 100;
-  animation: dropdownFadeIn 0.15s ease;
-}
-
-.moreMenuItem {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 14px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.12s ease;
-  text-align: left;
-  font-family: inherit;
-}
-
-.moreMenuItem:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.moreMenuItem svg {
-  width: 16px;
-  height: 16px;
   flex-shrink: 0;
 }
 

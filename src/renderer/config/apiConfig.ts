@@ -1,7 +1,4 @@
-/**
- * 启源 AI 助手 - API 配置文件
- * 在此配置豆包 API 的相关参数
- */
+import { getActiveModelConfig } from './modelConfig';
 
 export interface ApiConfig {
   // API 密钥
@@ -18,29 +15,16 @@ export interface ApiConfig {
   maxTokens: number;
 }
 
-function readStoredValue(key: string): string {
-  if (typeof window === 'undefined') return '';
-  return window.localStorage.getItem(key) || '';
-}
-
-function readEnvValue(key: string): string {
-  return (import.meta.env[key] as string | undefined) || '';
-}
-
-// 豆包 API 配置
-// 密钥不要写死在代码里。优先读取 .env.local，其次读取设置页写入的 localStorage。
-export const DOUBAO_CONFIG: ApiConfig = {
-  apiKey: readEnvValue('VITE_DOUBAO_API_KEY') || readStoredValue('qiyuan.doubao.apiKey'),
-  apiUrl: '/api/chat/completions',
-  model: readEnvValue('VITE_DOUBAO_MODEL') || readStoredValue('qiyuan.doubao.model') || 'doubao-seed-2-0-pro-260215',
-  temperature: 0.8,
-  topP: 0.95,
-  maxTokens: 1024,
-};
-
-// 根据环境选择配置
 export const getApiConfig = (): ApiConfig => {
-  return DOUBAO_CONFIG;
+  const modelConfig = getActiveModelConfig();
+  return {
+    apiKey: modelConfig.apiKey,
+    apiUrl: modelConfig.baseUrl,
+    model: modelConfig.model,
+    temperature: modelConfig.temperature,
+    topP: 0.95,
+    maxTokens: modelConfig.maxTokens,
+  };
 };
 
 export default getApiConfig();

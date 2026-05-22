@@ -1,6 +1,7 @@
 /**
  * AppLayout 主布局组件
- * 整合所有子组件的核心容器
+ * 整合所有子组件的核心容器。
+ * 当前版本把应用拆成“一级导航 + 可选侧栏 + 主内容区”，避免所有能力都挤在聊天页或设置抽屉里。
  *
  * 布局结构：
  * ┌─────────────────────────────────────┐
@@ -32,8 +33,15 @@ import ChatArea from '../chat/ChatArea';
 import InputArea from '../input/InputArea';
 import type { InputAreaHandle } from '../input/InputArea';
 import WorkspaceDashboard from '../Workspace/WorkspaceDashboard';
-import SettingsDrawer from '../Settings/SettingsDrawer';
+import KnowledgePanel from '../Knowledge/KnowledgePanel';
+import MemoryPanel from '../Memory/MemoryPanel';
+import EvalPanel from '../Eval/EvalPanel';
+import ModelApiPanel from '../Settings/ModelApiPanel';
+import VoicePanel from '../Settings/VoicePanel';
+import SearchPanel from '../Settings/SearchPanel';
+import ShortcutsPanel from '../Settings/ShortcutsPanel';
 import { createLogger } from '../../../shared/logger';
+import { getActiveModelConfig } from '../../config/modelConfig';
 
 /* 导入类型定义 */
 import type {
@@ -47,7 +55,7 @@ import type {
 } from '../../types/chat';
 
 /* 导入基础 Message 类型 */
-import type { Message } from '../../types';
+import type { AgentProcessEvent, Message } from '../../types';
 
 /* 导入语音对话模式类型 */
 import type { VoiceChatState } from '../../core/voiceChat/VoiceChatMode';
@@ -58,6 +66,8 @@ import type { VoiceChatState } from '../../core/voiceChat/VoiceChatMode';
 interface AppLayoutProps {
   /** 来自 Orchestrator 的消息列表 */
   messages: Message[];
+  /** 每条助手消息关联的 Agent 处理过程 */
+  processEventsByMessageId?: Record<string, AgentProcessEvent[]>;
   /** 是否正在加载（显示打字动画）*/
   isLoading: boolean;
   /** 发送消息回调（调用 Orchestrator）*/
@@ -89,6 +99,31 @@ interface AppLayoutProps {
 const STORAGE_KEY_CHAT_LIST = 'qiyuan_chat_list';
 const STORAGE_KEY_ACTIVE_CHAT = 'qiyuan_active_chat_id';
 const STORAGE_KEY_MESSAGES = 'qiyuan_messages_'; // 前缀 + chatId
+const STORAGE_KEY_ACTIVE_VIEW = 'qiyuan_active_view';
+
+type AppView = 'chat' | 'workspace' | 'knowledge' | 'memory' | 'eval' | 'settings';
+type SettingsPageTab = 'model-api' | 'voice' | 'search' | 'shortcuts';
+
+const appViews: { id: AppView; label: string; icon: string; description: string }[] = [
+  { id: 'chat', label: '聊天', icon: '💬', description: '和 Nova 对话、调用工具、处理日常任务' },
+  { id: 'workspace', label: '工作台', icon: '⌂', description: '查看项目、任务、知识库和记忆概览' },
+  { id: 'knowledge', label: '知识库', icon: '▣', description: '导入、检索和管理本地知识片段' },
+  { id: 'memory', label: '记忆库', icon: '◉', description: '查看和管理 Nova 记住的长期信息' },
+  { id: 'eval', label: '评估', icon: '✓', description: '维护固定评估问题，检查 Agent 表现' },
+  { id: 'settings', label: '设置', icon: '⚙', description: '配置模型、语音、搜索和快捷键' },
+];
+
+const settingsTabs: { id: SettingsPageTab; label: string; description: string }[] = [
+  { id: 'model-api', label: '模型与 API', description: '配置当前模型、Provider 和密钥来源' },
+  { id: 'voice', label: '语音', description: '配置 ASR、TTS 和语音交互体验' },
+  { id: 'search', label: '搜索', description: '配置联网搜索和结果处理方式' },
+  { id: 'shortcuts', label: '快捷键', description: '查看常用快捷操作' },
+];
+
+const getInitialAppView = (): AppView => {
+  const saved = localStorage.getItem(STORAGE_KEY_ACTIVE_VIEW) as AppView | null;
+  return appViews.some((view) => view.id === saved) ? saved : 'chat';
+};
 
 /**
  * 获取某个对话的消息列表
@@ -98,7 +133,7 @@ const getMessagesForChat = (chatId: string): Message[] => {
     const saved = localStorage.getItem(STORAGE_KEY_MESSAGES + chatId);
     return saved ? JSON.parse(saved) : [];
   } catch (error) {
-    logger.error('Load chat messages failed', { chatId, error });
+    logger.error('加载对话消息失败', { chatId, error });
     return [];
   }
 };
@@ -110,7 +145,7 @@ const saveMessagesForChat = (chatId: string, messages: Message[]) => {
   try {
     localStorage.setItem(STORAGE_KEY_MESSAGES + chatId, JSON.stringify(messages));
   } catch (error) {
-    logger.error('Save chat messages failed', { chatId, error });
+    logger.error('保存对话消息失败', { chatId, error });
   }
 };
 
@@ -170,15 +205,89 @@ const defaultUserInfo: UserInfo = {
 };
 
 /* ==========================================
-   默认模型配置
+   动态模型配置
+   根据用户在设置页的配置动态生成模型列表
    ========================================== */
-const defaultModels: ModelOption[] = [
-  { id: 'doubao-seed-2-0-pro-260215', name: '豆包2.0 Pro', isOnline: true },
-  { id: 'doubao-seed-2-0-lite-260215', name: '豆包2.0 Lite', isOnline: true },
-  { id: 'doubao-seed-2-0-mini-260215', name: '豆包2.0 Mini', isOnline: true },
-];
-const defaultCurrentModel: ModelOption = defaultModels[0];
+
+/**
+ * 动态获取可用模型列表
+ * 优先显示用户在设置页配置的模型，然后添加该 Provider 的其他常用模型
+ */
+function getAvailableModels(): ModelOption[] {
+  const activeConfig = getActiveModelConfig();
+  const models: ModelOption[] = [];
+
+  // ✅ 首先添加当前配置的模型（带 "(当前)" 标记）
+  models.push({
+    id: activeConfig.model,
+    name: `${activeConfig.model} (当前)`,
+    isOnline: true
+  });
+
+  // 根据当前 Provider 添加其他可选模型
+  if (activeConfig.provider === 'mimo') {
+    // 小米 MiMo 的其他模型
+    if (activeConfig.model !== 'mimo-v2.5-pro') {
+      models.push({ id: 'mimo-v2.5-pro', name: 'MiMo 2.5 Pro', isOnline: true });
+    }
+    if (activeConfig.model !== 'mimo-v2.5') {
+      models.push({ id: 'mimo-v2.5', name: 'MiMo 2.5', isOnline: true });
+    }
+    if (activeConfig.model !== 'mimo-v2-pro') {
+      models.push({ id: 'mimo-v2-pro', name: 'MiMo 2 Pro', isOnline: true });
+    }
+  } else if (activeConfig.provider === 'doubao') {
+    // 豆包的其他模型
+    if (activeConfig.model !== 'doubao-seed-2-0-pro-260215') {
+      models.push({ id: 'doubao-seed-2-0-pro-260215', name: '豆包 2.0 Pro', isOnline: true });
+    }
+    if (activeConfig.model !== 'doubao-seed-2-0-lite-260215') {
+      models.push({ id: 'doubao-seed-2-0-lite-260215', name: '豆包 2.0 Lite', isOnline: true });
+    }
+    if (activeConfig.model !== 'doubao-seed-2-0-mini-260215') {
+      models.push({ id: 'doubao-seed-2-0-mini-260215', name: '豆包 2.0 Mini', isOnline: true });
+    }
+  } else if (activeConfig.provider === 'openai-compatible') {
+    // OpenAI 兼容模式的通用选项
+    models.push({ id: 'gpt-4', name: 'GPT-4', isOnline: true });
+    models.push({ id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', isOnline: true });
+  }
+
+  // 去重：防止用户配置的模型恰好就是列表中的某个模型
+  const seen = new Set<string>();
+  return models.filter(model => {
+    if (seen.has(model.id)) return false;
+    seen.add(model.id);
+    return true;
+  });
+}
+
 const logger = createLogger('ui');
+
+/**
+ * 获取初始选中的模型
+ * 优先使用用户在设置页配置的模型
+ */
+function getInitialModelOption(): ModelOption {
+  const activeConfig = getActiveModelConfig();
+  const models = getAvailableModels();
+  const found = models.find(model => model.id === activeConfig.model);
+  if (found) return found;
+
+  // 如果找不到精确匹配，尝试智能匹配（忽略后缀）
+  const normalizedActive = activeConfig.model.replace(/-\d+$/, '');
+  const smartMatch = models.find(model =>
+    model.id.startsWith(normalizedActive) || normalizedActive.startsWith(model.id.replace(/-\d+$/, ''))
+  );
+  if (smartMatch) return smartMatch;
+
+  // 兜底：返回第一个可用模型或当前配置
+  return models[0] || {
+    id: activeConfig.model,
+    name: activeConfig.model,
+    isOnline: true,
+  };
+}
 
 /**
  * AppLayout 主布局组件
@@ -187,6 +296,7 @@ const logger = createLogger('ui');
  */
 const AppLayout: React.FC<AppLayoutProps> = ({
   messages,
+  processEventsByMessageId = {},
   isLoading,
   onSendMessage,
   onClearMessages,
@@ -210,8 +320,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   /** 侧边栏是否展开（移动端使用）*/
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  /** 设置抽屉是否打开 */
-  const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false);
+  /** 当前一级页面：聊天 / 工作台 / 知识库 / 记忆库 / 评估 / 设置 */
+  const [activeView, setActiveView] = useState<AppView>(getInitialAppView);
+
+  /** 设置页内部标签，只管理配置项，不再承载知识库/记忆库等业务页面 */
+  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsPageTab>('model-api');
 
   /** 是否正在加载（AI 回复中）- 使用父组件传来的值 */
   // const [isLoading, setIsLoading] = useState(false);
@@ -225,7 +338,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         return JSON.parse(saved);
       }
     } catch (error) {
-      logger.error('Load chat list failed', error);
+      logger.error('加载对话列表失败', error);
     }
     return [];
   });
@@ -234,7 +347,17 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   const [searchKeyword, setSearchKeyword] = useState('');
 
   /** 当前使用的 AI 模型 */
-  const [currentModel, setCurrentModel] = useState<ModelOption>(defaultCurrentModel);
+  const [currentModel, setCurrentModel] = useState<ModelOption>(getInitialModelOption);
+
+  useEffect(() => {
+    const handleModelConfigSaved = () => {
+      const nextModel = getInitialModelOption();
+      setCurrentModel(nextModel);
+      onModelChange?.(nextModel.id);
+    };
+    window.addEventListener('qiyuan-model-config-saved', handleModelConfigSaved);
+    return () => window.removeEventListener('qiyuan-model-config-saved', handleModelConfigSaved);
+  }, [onModelChange]);
 
   /** 输入框内容的 ref（用于快捷建议填入）*/
   const inputRef = useRef<InputAreaHandle | null>(null);
@@ -258,7 +381,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     try {
       localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(chatList));
     } catch (error) {
-      logger.error('Save chat list failed', error);
+      logger.error('保存对话列表失败', error);
     }
   }, [chatList]);
 
@@ -272,6 +395,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       localStorage.removeItem(STORAGE_KEY_ACTIVE_CHAT);
     }
   }, [activeChatId]);
+
+  /**
+   * 记住用户上次打开的一级页面。
+   * 这样桌面工作台更像一个真实应用，而不是每次都回到单一聊天页。
+   */
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_ACTIVE_VIEW, activeView);
+  }, [activeView]);
 
   /**
    * 监听消息变化，保存到当前对话的 localStorage
@@ -333,24 +464,21 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 切换侧边栏展开/收起
    */
   const handleSidebarToggle = () => {
+    if (activeView !== 'chat') {
+      setActiveView('chat');
+      return;
+    }
     logger.info('侧边栏展开状态切换', { from: sidebarOpen, to: !sidebarOpen });
     setSidebarOpen((prev) => !prev);
   };
 
   /**
-   * 打开设置抽屉
+   * 打开设置主页面。
+   * 设置不再使用右侧抽屉，避免配置项过窄、层级混乱。
    */
   const handleOpenSettings = () => {
-    logger.info('设置抽屉已打开');
-    setSettingsDrawerOpen(true);
-  };
-
-  /**
-   * 关闭设置抽屉
-   */
-  const handleCloseSettings = () => {
-    logger.info('设置抽屉已关闭');
-    setSettingsDrawerOpen(false);
+    logger.info('切换到设置页面');
+    setActiveView('settings');
   };
 
   /**
@@ -360,6 +488,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    */
   const handleNewChat = () => {
     logger.info('点击新建对话', { previousChatId: activeChatId });
+    setActiveView('chat');
     setActiveChatId(null);
     onClearMessages(); /* 通知 App.tsx 清空消息，显示欢迎页 */
   };
@@ -371,6 +500,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    */
   const handleSelectChat = (chatId: string) => {
     logger.info('选择对话', { from: activeChatId, to: chatId });
+    setActiveView('chat');
     setActiveChatId(chatId);
     /* 加载该对话的历史消息并通知App.tsx */
     const chatMessages = getMessagesForChat(chatId);
@@ -400,7 +530,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       try {
         localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
       } catch (e) {
-        logger.error('Save chat list failed after rename', e);
+        logger.error('重命名后保存对话列表失败', e);
       }
       return updated;
     });
@@ -418,7 +548,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         // 清理该对话的消息存储
         localStorage.removeItem(`qiyuan_messages_${chatId}`);
       } catch (e) {
-        logger.error('Delete chat persistence failed', e);
+        logger.error('删除对话持久化数据失败', e);
       }
       // 如果删除的是当前激活的对话，清空消息
       if (activeChatId === chatId) {
@@ -446,7 +576,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       try {
         localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
       } catch (e) {
-        logger.error('Save chat list failed after pin toggle', e);
+        logger.error('切换置顶后保存对话列表失败', e);
       }
       return updated;
     });
@@ -454,7 +584,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
   /** 模型切换 */
   const handleModelChange = (modelId: string) => {
-    const model = defaultModels.find((m) => m.id === modelId);
+    // ✅ 使用动态模型列表
+    const model = getAvailableModels().find((m) => m.id === modelId);
     if (model) {
       logger.info('在顶部栏选择模型', { from: currentModel.id, to: modelId, name: model.name });
       setCurrentModel(model);
@@ -469,6 +600,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    */
   const handleSuggestionClick = (prompt: string) => {
     logger.info('点击快捷建议', { prompt });
+    setActiveView('chat');
     if (inputRef.current) {
       inputRef.current.setText(prompt);
     }
@@ -485,10 +617,88 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     content: msg.content,
     timestamp: msg.timestamp,
     isStreaming: msg.isStreaming,
+    processEvents: processEventsByMessageId[msg.id] || [],
   });
 
   /** 是否显示欢迎页（无消息时显示）*/
   const showWelcome = messages.length === 0 && !isLoading;
+  const activeViewMeta = appViews.find((view) => view.id === activeView) || appViews[0];
+
+  const handleSelectView = (view: AppView) => {
+    logger.info('切换一级页面', { from: activeView, to: view });
+    setActiveView(view);
+  };
+
+  const renderSettingsContent = () => {
+    switch (activeSettingsTab) {
+      case 'model-api':
+        return <ModelApiPanel />;
+      case 'voice':
+        return <VoicePanel />;
+      case 'search':
+        return <SearchPanel />;
+      case 'shortcuts':
+        return <ShortcutsPanel />;
+      default:
+        return null;
+    }
+  };
+
+  const renderPrimaryPage = () => {
+    switch (activeView) {
+      case 'workspace':
+        return <WorkspaceDashboard messages={messages} onSuggestionClick={handleSuggestionClick} />;
+      case 'knowledge':
+        return <KnowledgePanel />;
+      case 'memory':
+        return <MemoryPanel />;
+      case 'eval':
+        return <EvalPanel />;
+      case 'settings':
+        return (
+          <div className={styles.settingsPage}>
+            <aside className={styles.settingsNav} aria-label="设置分类">
+              {settingsTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  className={`${styles.settingsNavItem} ${activeSettingsTab === tab.id ? styles.settingsNavItemActive : ''}`}
+                  onClick={() => setActiveSettingsTab(tab.id)}
+                  type="button"
+                >
+                  <span className={styles.settingsNavLabel}>{tab.label}</span>
+                  <span className={styles.settingsNavDesc}>{tab.description}</span>
+                </button>
+              ))}
+            </aside>
+            <section className={styles.settingsContent}>
+              {renderSettingsContent()}
+            </section>
+          </div>
+        );
+      case 'chat':
+      default:
+        return showWelcome ? (
+          <section className={styles.chatWelcome}>
+            <div className={styles.chatWelcomeIcon}>✦</div>
+            <h2>开始和 Nova 对话</h2>
+            <p>这里专注聊天和工具调用；项目、知识库、记忆库和评估已经放到左侧一级导航里。</p>
+            <div className={styles.quickPrompts}>
+              {['总结一下今天要做什么', '帮我分析当前项目下一步', '搜索一个技术问题'].map((prompt) => (
+                <button key={prompt} type="button" onClick={() => handleSuggestionClick(prompt)}>
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <ChatArea
+            messages={messages.map(convertToUIMessage)}
+            isLoading={isLoading}
+            showToast={showToast}
+          />
+        );
+    }
+  };
 
   return (
     <div className={styles.app}>
@@ -496,32 +706,50 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       <div className="bg-glow bg-glow-1"></div>
       <div className="bg-glow bg-glow-2"></div>
 
-      {/* ===== 左侧：侧边栏 ===== */}
-      <Sidebar
-        chatGroups={chatGroups}
-        activeChatId={activeChatId}
-        userInfo={defaultUserInfo}
-        isOpen={sidebarOpen}
-        onNewChat={handleNewChat}
-        onSelectChat={handleSelectChat}
-        onSearch={handleSearch}
-        onRenameChat={handleRenameChat}
-        onDeleteChat={handleDeleteChat}
-        onPinChat={handlePinChat}
-      />
+      {/* ===== 一级导航：应用级页面入口 ===== */}
+      <nav className={styles.primaryNav} aria-label="主导航">
+        <div className={styles.primaryBrand}>
+          <span className={styles.primaryBrandIcon}>N</span>
+          <span className={styles.primaryBrandText}>Nova</span>
+        </div>
+        <div className={styles.primaryNavItems}>
+          {appViews.map((view) => (
+            <button
+              key={view.id}
+              type="button"
+              className={`${styles.primaryNavItem} ${activeView === view.id ? styles.primaryNavItemActive : ''}`}
+              onClick={() => handleSelectView(view.id)}
+              title={view.description}
+            >
+              <span className={styles.primaryNavIcon}>{view.icon}</span>
+              <span className={styles.primaryNavLabel}>{view.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
 
-      {/* ===== 设置抽屉 ===== */}
-      <SettingsDrawer
-        isOpen={settingsDrawerOpen}
-        onClose={handleCloseSettings}
-      />
+      {/* ===== 聊天页专属二级栏：对话列表 ===== */}
+      {activeView === 'chat' && (
+        <Sidebar
+          chatGroups={chatGroups}
+          activeChatId={activeChatId}
+          userInfo={defaultUserInfo}
+          isOpen={sidebarOpen}
+          onNewChat={handleNewChat}
+          onSelectChat={handleSelectChat}
+          onSearch={handleSearch}
+          onRenameChat={handleRenameChat}
+          onDeleteChat={handleDeleteChat}
+          onPinChat={handlePinChat}
+        />
+      )}
 
       {/* ===== 右侧：主内容区 ===== */}
       <main className={styles.main}>
         {/* 1. 顶栏 */}
         <Header
         currentModel={currentModel}
-        models={defaultModels}
+        models={getAvailableModels()}
         onModelChange={handleModelChange}
         onSidebarToggle={handleSidebarToggle}
         showToast={showToast}
@@ -530,30 +758,33 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         onOpenSettings={handleOpenSettings}
       />
 
-        {/* 2. 聊天区域 或 欢迎页（二选一显示）*/}
-        {showWelcome ? (
-          /* 无对话时显示项目驾驶舱 */
-          <WorkspaceDashboard messages={messages} onSuggestionClick={handleSuggestionClick} />
-        ) : (
-          /* 有对话时显示聊天区（使用props.messages）*/
-          <ChatArea
-            messages={messages.map(convertToUIMessage)}
-            isLoading={isLoading}
-            showToast={showToast}
-          />
+        {/* 2. 非聊天页使用统一页面标题，聊天页保持更轻的沉浸式体验 */}
+        {activeView !== 'chat' && (
+          <section className={styles.pageHeader}>
+            <span className={styles.pageEyebrow}>{activeViewMeta.label}</span>
+            <h1>{activeViewMeta.label}</h1>
+            <p>{activeViewMeta.description}</p>
+          </section>
         )}
 
-        {/* 3. 输入区域（始终显示在底部）*/}
-        <InputArea
-          ref={inputRef}
-          isLoading={isLoading}
-          showSuggestions={showWelcome}
-          onSendMessage={handleSendMessage}
-          onSuggestionClick={handleSuggestionClick}
-          voiceChatState={voiceChatState}
-          isVoiceChatEnabled={isVoiceChatEnabled}
-          onToggleVoiceChat={onToggleVoiceChat}
-        />
+        {/* 3. 当前一级页面内容 */}
+        <section className={`${styles.pageContent} ${activeView === 'chat' ? styles.chatContent : ''}`}>
+          {renderPrimaryPage()}
+        </section>
+
+        {/* 4. 输入区域只在聊天页显示 */}
+        {activeView === 'chat' && (
+          <InputArea
+            ref={inputRef}
+            isLoading={isLoading}
+            showSuggestions={showWelcome}
+            onSendMessage={handleSendMessage}
+            onSuggestionClick={handleSuggestionClick}
+            voiceChatState={voiceChatState}
+            isVoiceChatEnabled={isVoiceChatEnabled}
+            onToggleVoiceChat={onToggleVoiceChat}
+          />
+        )}
       </main>
     </div>
   );

@@ -4,31 +4,34 @@ import KnowledgePanel from '../Knowledge/KnowledgePanel';
 import MemoryPanel from '../Memory/MemoryPanel';
 import ToolLogPanel from '../Observability/ToolLogPanel';
 import EvalPanel from '../Eval/EvalPanel';
+import ModelApiPanel from './ModelApiPanel';
+import VoicePanel from './VoicePanel';
+import SearchPanel from './SearchPanel';
+import ShortcutsPanel from './ShortcutsPanel';
 
 interface SettingsDrawerProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type SettingsTab = 'models' | 'api' | 'memory' | 'knowledge' | 'observability' | 'eval' | 'voice' | 'search' | 'shortcuts';
+type SettingsTab = 'model-api' | 'memory' | 'knowledge' | 'observability' | 'eval' | 'voice' | 'search' | 'shortcuts';
 
 type SettingsView = 'menu' | 'subpanel';
 
 const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
   const [currentView, setCurrentView] = useState<SettingsView>('menu');
-  const [activeTab, setActiveTab] = useState<SettingsTab>('models');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('model-api');
 
   // 每次打开设置时重置状态到主菜单
   useEffect(() => {
     if (isOpen) {
       setCurrentView('menu');
-      setActiveTab('models');
+      setActiveTab('model-api');
     }
   }, [isOpen]);
 
   const tabs: { id: SettingsTab; label: string; icon: string }[] = [
-    { id: 'models', label: '模型管理', icon: '🤖' },
-    { id: 'api', label: 'API 配置', icon: '🔑' },
+    { id: 'model-api', label: '模型与 API', icon: '🤖' },
     { id: 'memory', label: '记忆管理', icon: '🧠' },
     { id: 'knowledge', label: '知识库', icon: '📚' },
     { id: 'observability', label: 'Agent 日志', icon: '📈' },
@@ -40,20 +43,8 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
 
   const renderSubpanelContent = () => {
     switch (activeTab) {
-      case 'models':
-        return (
-          <div className={styles.tabContent}>
-            <h3>模型管理</h3>
-            <p>模型列表展示、添加/删除模型入口</p>
-          </div>
-        );
-      case 'api':
-        return (
-          <div className={styles.tabContent}>
-            <h3>API 配置</h3>
-            <p>API Key 输入框（火山引擎）</p>
-          </div>
-        );
+      case 'model-api':
+        return <ModelApiPanel />;
       case 'memory':
         return <MemoryPanel />;
       case 'knowledge':
@@ -63,26 +54,11 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
       case 'eval':
         return <EvalPanel />;
       case 'voice':
-        return (
-          <div className={styles.tabContent}>
-            <h3>语音设置</h3>
-            <p>ASR/TTS 引擎选择下拉</p>
-          </div>
-        );
+        return <VoicePanel />;
       case 'search':
-        return (
-          <div className={styles.tabContent}>
-            <h3>搜索设置</h3>
-            <p>搜索引擎 URL 配置</p>
-          </div>
-        );
+        return <SearchPanel />;
       case 'shortcuts':
-        return (
-          <div className={styles.tabContent}>
-            <h3>快捷键</h3>
-            <p>快捷键列表展示</p>
-          </div>
-        );
+        return <ShortcutsPanel />;
       default:
         return null;
     }

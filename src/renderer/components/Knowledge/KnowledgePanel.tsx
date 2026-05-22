@@ -47,7 +47,7 @@ const KnowledgePanel: React.FC = () => {
         setSources(sourceResult.data || []);
       }
     } catch (e) {
-      logger.error('Load knowledge stats failed', e);
+      logger.error('加载知识库统计失败', e);
     }
   }, [api]);
 

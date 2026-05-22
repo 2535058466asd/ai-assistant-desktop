@@ -1,5 +1,5 @@
 // ==========================================
-// 启源 AI 助手 - 类型定义文件
+// Nova AI 助手 - 类型定义文件
 // 定义核心数据结构
 // ==========================================
 
@@ -32,7 +32,7 @@ export interface ConversationContext {
 }
 
 // ==========================================
-// 4. 启源人设相关类型
+// 4. Nova人设相关类型
 // ==========================================
 
 /** 性格特质 */
@@ -64,7 +64,7 @@ export interface ImportantDay {
   repeat: 'never' | 'yearly' | 'monthly';
 }
 
-/** 启源设定 */
+/** Nova设定 */
 export interface QiyuanSettings {
   name: string;
   personality: Personality;
@@ -81,7 +81,17 @@ export interface QiyuanSettings {
 // ==========================================
 
 /** 消息角色 */
-export type MessageRole = 'user' | 'assistant' | 'system';
+export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
+
+/** 工具调用 */
+export interface MessageToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
 
 /** 消息 */
 export interface Message {
@@ -92,7 +102,35 @@ export interface Message {
   sessionId: SessionId;
   isTTS?: boolean;
   isStreaming?: boolean;
+  reasoning_content?: string;
+  tool_calls?: MessageToolCall[];
+  tool_call_id?: string;
 }
+
+/** Agent 处理过程分类 */
+export type AgentProcessKind = 'analysis' | 'memory' | 'model' | 'tool' | 'response';
+
+/** Agent 处理过程状态 */
+export type AgentProcessStatus = 'pending' | 'running' | 'success' | 'error' | 'cancelled';
+
+/** 聊天消息内展示的 Agent 处理过程 */
+export interface AgentProcessEvent {
+  id: string;
+  kind: AgentProcessKind;
+  title: string;
+  status: AgentProcessStatus;
+  detail?: string;
+  toolName?: string;
+  argsPreview?: string;
+  resultPreview?: string;
+  durationMs?: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+/** 兼容旧命名：工具执行过程也是 Agent 处理过程的一部分 */
+export type ToolProcessStatus = AgentProcessStatus;
+export type ToolProcessEvent = AgentProcessEvent;
 
 // ==========================================
 // 6. 整体流程类型

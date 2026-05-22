@@ -6,47 +6,30 @@
 
 import type {
   Message,
-  SessionId
+  SessionId,
+  AgentProcessEvent,
+  ToolProcessEvent,
 } from '../types';
 
-import { getVoiceGatewayManager } from './layer1-gateway';
-import { getBrainManager } from './layer2-brain';
+import { getVoiceGatewayManager } from './voice';
+import { getHistoryManager } from './history';
 import { getQiyuanSystemPrompt, DEFAULT_QIYUAN_SETTINGS } from './qiyuanSettings';
 import { getMemoryService } from '../services/memoryServiceClient';
 import { tryExtractAndSaveMemory } from './utils/memoryExtractor';
 import { toolDefinitions } from './tools/toolDefinitions';
-import { executeTool } from './tools/toolExecutor';
+import { executeTool, type ToolExecutionResult } from './tools/toolExecutor';
 import { getModelProvider, type ModelMessage, type StreamChunk } from './model';
 import { createLogger } from '../../shared/logger';
-import apiConfig from '../config/apiConfig';
+import { getActiveModelConfig } from '../config/modelConfig';
 
 const logger = createLogger('agent');
 
+// 默认模型来自统一配置；设置页切换 Provider 后会通过 getActiveRequestModel 重新同步。
 function getDefaultModelId(): string {
-  const providerId = import.meta.env.VITE_MODEL_PROVIDER || 'doubao';
-  if (providerId === 'mimo' && import.meta.env.VITE_MIMO_MODEL) {
-    return import.meta.env.VITE_MIMO_MODEL;
-  }
-  if (providerId === 'openai-compatible' && import.meta.env.VITE_OPENAI_COMPATIBLE_MODEL) {
-    return import.meta.env.VITE_OPENAI_COMPATIBLE_MODEL;
-  }
-  return apiConfig.model || 'doubao-seed-2-0-pro-260215';
+  return getActiveModelConfig().model;
 }
 
-function summarizeModelMessage(message: any) {
-  if (!message) return null;
-  return {
-    role: message.role,
-    content: message.content || '',
-    tool_calls: message.tool_calls?.map((toolCall: any) => ({
-      id: toolCall.id,
-      type: toolCall.type,
-      name: toolCall.function?.name,
-      arguments: toolCall.function?.arguments,
-    })),
-  };
-}
-
+// 开发环境默认输出完整请求/响应，生产环境不打印，避免泄露 prompt 和上下文。
 function isVerboseAgentLog(): boolean {
   return process.env.NODE_ENV !== 'production' && import.meta.env.VITE_VERBOSE_AGENT_LOGS !== 'false';
 }
@@ -63,6 +46,10 @@ export interface StreamCallbacks {
   onStreamChunk: (messageId: string, content: string) => void;
   /** 流式结束时调用 */
   onStreamEnd: (messageId: string) => void;
+  /** 工具执行过程更新 */
+  onToolEvent?: (messageId: string, event: ToolProcessEvent) => void;
+  /** Agent 处理过程更新 */
+  onProcessEvent?: (messageId: string, event: AgentProcessEvent) => void;
 }
 
 /**
@@ -70,16 +57,14 @@ export interface StreamCallbacks {
  */
 export class Orchestrator {
   private voiceGateway = getVoiceGatewayManager();
-  private brain = getBrainManager();
+  private historyManager = getHistoryManager();
   private memoryService = getMemoryService();
-  private modelProvider = getModelProvider();
   private sessionId: SessionId;
   private onMessageCallback: ((message: Message) => void) | null = null;
   private streamCallbacks: StreamCallbacks | null = null; // 流式回调
   private isVoiceMode: boolean = false;
-  private conversationHistory: any[] = [];
-  private static readonly MAX_HISTORY_MESSAGES = 20; // 最大保留20条消息（约10轮对话）
   private currentModelId: string = getDefaultModelId(); // 当前使用的模型
+  private currentProviderId: string = getModelProvider().id;
   
   // 工具结果截断和上下文压缩相关常量
   private static readonly MAX_TOOL_RESULT_TOKENS = 500; // 工具返回结果最大token数
@@ -95,6 +80,52 @@ export class Orchestrator {
   /** 切换模型 */
   setModel(modelId: string) {
     this.currentModelId = modelId;
+    this.currentProviderId = getModelProvider().id;
+  }
+
+  /**
+   * 获取本次请求实际使用的模型。
+   *
+   * 顶部栏只切 modelId，设置页会切 Provider。这里负责兜底：
+   * 如果 Provider 已经变化，就把 currentModelId 重置成新 Provider 的默认模型，
+   * 避免出现“小米 Provider 还在请求豆包模型名”的错配。
+   *
+   * ✅ 增强：一致性检查，防止 Provider 和 Model 不匹配
+   */
+  private getActiveRequestModel(): string {
+    const provider = getModelProvider();
+    const activeConfig = getActiveModelConfig();
+
+    // ✅ 检查 Provider 和 Model 是否匹配
+    if (provider.id === 'mimo' && !this.currentModelId.startsWith('mimo-')) {
+      logger.warn('⚠️ Provider 与模型名不匹配，MiMo Provider 但模型名不以 mimo- 开头', {
+        provider: provider.id,
+        currentModel: this.currentModelId,
+        defaultModel: provider.defaultModel
+      });
+      this.currentModelId = provider.defaultModel || 'mimo-v2.5';
+      this.currentProviderId = provider.id;
+    } else if (provider.id === 'doubao' && !this.currentModelId.startsWith('doubao-')) {
+      logger.warn('⚠️ Provider 与模型名不匹配，豆包 Provider 但模型名不以 doubao- 开头', {
+        provider: provider.id,
+        currentModel: this.currentModelId,
+        defaultModel: provider.defaultModel
+      });
+      this.currentModelId = provider.defaultModel || 'doubao-seed-2-0-pro-260215';
+      this.currentProviderId = provider.id;
+    } else if (provider.id !== this.currentProviderId) {
+      // Provider 发生变化，自动同步
+      logger.info('Provider 切换，自动同步模型', {
+        from: this.currentProviderId,
+        to: provider.id,
+        currentModel: this.currentModelId,
+        defaultModel: provider.defaultModel
+      });
+      this.currentProviderId = provider.id;
+      this.currentModelId = provider.defaultModel || activeConfig.model;
+    }
+
+    return this.currentModelId || provider.defaultModel || activeConfig.model;
   }
 
   /**
@@ -103,22 +134,23 @@ export class Orchestrator {
    * @param history - 新对话的历史消息（用于恢复上下文）
    */
   resetConversation(history: Message[] = []) {
-    this.conversationHistory = history.map((msg) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
     this.sessionId = this.generateSessionId();
-    logger.info('对话上下文已重置', { sessionId: this.sessionId });
+    this.historyManager.initialize(this.sessionId);
+    // 将历史消息写入 brain，使其成为唯一消息源
+    for (const msg of history) {
+      this.historyManager.addMessage(this.sessionId, msg);
+    }
+    logger.info('对话上下文已重置', { sessionId: this.sessionId, historyCount: history.length });
   }
 
   /**
    * 初始化
    */
   private async initialize(): Promise<void> {
-    logger.info('Agent 协调器启动中');
+    logger.info('智能体协调器启动中');
     
     this.voiceGateway.initialize(this.sessionId);
-    this.brain.initialize(this.sessionId);
+    this.historyManager.initialize(this.sessionId);
 
     // 设置语音消息回调
     this.voiceGateway.onMessage((text) => {
@@ -126,7 +158,7 @@ export class Orchestrator {
       this.processTextInput(text);
     });
 
-    logger.info('Agent 协调器已就绪');
+    logger.info('智能体协调器已就绪');
   }
 
   /**
@@ -157,6 +189,34 @@ export class Orchestrator {
   }
 
   /**
+   * 生成适合 UI 展示的短摘要，避免把完整文件、长网页或敏感请求体塞进聊天区。
+   */
+  private previewValue(value: unknown, maxLength: number = 180): string {
+    let text: string;
+    if (typeof value === 'string') {
+      text = value;
+    } else {
+      try {
+        text = JSON.stringify(value);
+      } catch {
+        text = String(value);
+      }
+    }
+
+    if (!text) return '';
+    return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+  }
+
+  private emitToolEvent(messageId: string, event: ToolProcessEvent): void {
+    this.streamCallbacks?.onToolEvent?.(messageId, event);
+    this.streamCallbacks?.onProcessEvent?.(messageId, event);
+  }
+
+  private emitProcessEvent(messageId: string, event: AgentProcessEvent): void {
+    this.streamCallbacks?.onProcessEvent?.(messageId, event);
+  }
+
+  /**
    * 估算当前上下文的token数
    * @param messages 消息数组
    * @returns 估算的token数
@@ -181,7 +241,8 @@ export class Orchestrator {
    * @returns 是否需要压缩
    */
   private async shouldCompact(): Promise<boolean> {
-    const estimatedTokens = this.estimateTokens(this.conversationHistory);
+    const history = this.historyManager.getHistoryForLLM(this.sessionId);
+    const estimatedTokens = this.estimateTokens(history);
     return estimatedTokens > Orchestrator.MAX_CONTEXT_TOKENS * Orchestrator.COMPACT_THRESHOLD;
   }
 
@@ -189,11 +250,13 @@ export class Orchestrator {
    * 压缩上下文历史
    */
   private async compactHistory(): Promise<void> {
+    const fullHistory = this.historyManager.getHistoryForLLM(this.sessionId);
+
     // 1. 分离：需要压缩的消息 + 保留的消息
-    const toCompact = this.conversationHistory.slice(
-      0, this.conversationHistory.length - Orchestrator.KEEP_RECENT_MESSAGES
+    const toCompact = fullHistory.slice(
+      0, fullHistory.length - Orchestrator.KEEP_RECENT_MESSAGES
     );
-    const toKeep = this.conversationHistory.slice(
+    const toKeep = fullHistory.slice(
       -Orchestrator.KEEP_RECENT_MESSAGES
     );
 
@@ -202,11 +265,22 @@ export class Orchestrator {
     // 2. 调用LLM压缩
     const summary = await this.callLLMForCompaction(toCompact);
 
-    // 3. 替换：用摘要消息替代被压缩的消息
-    this.conversationHistory = [
-      { role: 'system', content: `[历史摘要] ${summary}` },
-      ...toKeep
+    // 3. 替换：用摘要消息替代被压缩的消息，写回 brain
+    const now = Date.now();
+    const compactedHistory: Message[] = [
+      { id: `compact-${now}`, role: 'system', content: `[历史摘要] ${summary}`, timestamp: now, sessionId: this.sessionId },
+      ...toKeep.map((msg, i) => ({
+        id: `kept-${now}-${i}`,
+        role: msg.role as Message['role'],
+        content: msg.content,
+        timestamp: now + i + 1,
+        sessionId: this.sessionId,
+        ...(msg.reasoning_content ? { reasoning_content: msg.reasoning_content } : {}),
+        ...(msg.tool_calls ? { tool_calls: msg.tool_calls } : {}),
+        ...(msg.tool_call_id ? { tool_call_id: msg.tool_call_id } : {}),
+      }))
     ];
+    this.historyManager.setHistory(this.sessionId, compactedHistory);
 
     logger.info('对话历史已压缩', { kept: Orchestrator.KEEP_RECENT_MESSAGES });
   }
@@ -218,7 +292,7 @@ export class Orchestrator {
    */
   private async callLLMForCompaction(messages: any[]): Promise<string> {
     try {
-      return await this.modelProvider.compact(messages as ModelMessage[]);
+      return await getModelProvider().compact(messages as ModelMessage[]);
     } catch (error) {
       logger.error('对话历史压缩失败', error);
       return '无重要信息';
@@ -237,7 +311,7 @@ export class Orchestrator {
       this.isVoiceMode = false;
     }
 
-    logger.info('Agent 收到用户输入', { textPreview: text.slice(0, 120) });
+    logger.info('智能体收到用户输入', { textPreview: text.slice(0, 120) });
 
     // 1. 创建用户消息并通知 UI
     const userMessage: Message = {
@@ -248,17 +322,14 @@ export class Orchestrator {
       sessionId: this.sessionId
     };
 
-    this.brain.addMessage(this.sessionId, userMessage);
+    this.historyManager.addMessage(this.sessionId, userMessage);
 
     if (this.onMessageCallback) {
       this.onMessageCallback(userMessage);
     }
 
     try {
-      // 2. 构建消息历史
-      this.conversationHistory.push({ role: 'user', content: text });
-
-      // 检查是否需要压缩上下文
+      // 2. 检查是否需要压缩上下文
       if (await this.shouldCompact()) {
         await this.compactHistory();
       }
@@ -285,22 +356,54 @@ export class Orchestrator {
         this.onMessageCallback(assistantMessage);
       }
 
+      const inputEventCreatedAt = Date.now();
+      this.emitProcessEvent(messageId, {
+        id: `${messageId}-input`,
+        kind: 'analysis',
+        title: '理解用户输入',
+        status: 'success',
+        detail: this.previewValue(text, 120),
+        createdAt: inputEventCreatedAt,
+        updatedAt: inputEventCreatedAt,
+      });
+
       // 4. 执行 Agent 循环（流式）
       const MAX_TOOL_ROUNDS = 5;
       let round = 0;
       let finalResponse = '';
+      let finalReasoningContent = '';
 
+      /**
+       * Agent Loop 结构：
+       * 1. 把系统提示词、历史消息、工具 schema 发给模型
+       * 2. 模型要么直接返回 content，要么返回 tool_calls
+       * 3. 如果有 tool_calls，就执行工具，把工具结果作为 tool 消息写回历史
+       * 4. 再请求模型，让它基于工具结果整理最终回答
+       * 5. 最多循环 MAX_TOOL_ROUNDS 次，避免模型无限调用工具
+       */
       while (round < MAX_TOOL_ROUNDS) {
         round++;
-        logger.info('Agent 循环轮次开始', {
+        logger.info('智能体循环轮次开始', {
           round,
           maxRounds: MAX_TOOL_ROUNDS,
-          historyLength: this.conversationHistory.length,
+          historyLength: this.historyManager.getHistory(this.sessionId).length,
+        });
+        const modelEventId = `${messageId}-model-${round}`;
+        const modelEventCreatedAt = Date.now();
+        const modelStartedAt = performance.now();
+        this.emitProcessEvent(messageId, {
+          id: modelEventId,
+          kind: 'model',
+          title: round === 1 ? '请求模型判断下一步' : '带工具结果继续请求模型',
+          status: 'running',
+          detail: `第 ${round} 轮，历史消息 ${this.historyManager.getHistory(this.sessionId).length} 条`,
+          createdAt: modelEventCreatedAt,
+          updatedAt: modelEventCreatedAt,
         });
 
         // 流式调用模型，实时推送文字到 UI
         const previousContent = finalResponse;
-        const { content, toolCalls, error } = await this.callDoubaoWithToolsStream(text, (accumulated) => {
+        const { content, reasoningContent, toolCalls, error } = await this.callModelWithToolsStream(text, (accumulated) => {
           // 跨轮次累积：前面轮次的文字 + 当前轮次的流式文字
           if (this.streamCallbacks) {
             this.streamCallbacks.onStreamChunk(messageId, previousContent + accumulated);
@@ -317,24 +420,90 @@ export class Orchestrator {
             'AccountOverdueError': '哎呀，API账号余额不足了，需要充值才能继续使用哦～',
             'RateLimitError': '请求太频繁了，稍等一下再试吧～',
             'InvalidApiKey': 'API密钥配置有误，请检查一下设置～',
+            'AuthenticationError': 'API Key 格式不对或无效，请检查当前模型服务的密钥配置。',
           };
           finalResponse = userMessages[errorCode] || `出了点问题：${errorMsg}`;
+          this.emitProcessEvent(messageId, {
+            id: modelEventId,
+            kind: 'model',
+            title: '模型请求失败',
+            status: 'error',
+            detail: errorCode || '模型 API 返回错误',
+            resultPreview: errorMsg,
+            durationMs: Math.round(performance.now() - modelStartedAt),
+            createdAt: modelEventCreatedAt,
+            updatedAt: Date.now(),
+          });
           break;
         }
 
-        // 把助手消息（含可能的工具调用）加入历史
-        const assistantMsg: any = { role: 'assistant', content: content || null };
-        if (toolCalls.length > 0) {
-          assistantMsg.tool_calls = toolCalls;
-        }
-        this.conversationHistory.push(assistantMsg);
+        this.emitProcessEvent(messageId, {
+          id: modelEventId,
+          kind: 'model',
+          title: toolCalls.length > 0 ? '模型决定调用工具' : '模型直接生成回复',
+          status: 'success',
+          detail: toolCalls.length > 0
+            ? toolCalls.map((tc: any) => tc.function?.name).filter(Boolean).join('、')
+            : this.previewValue(content || finalResponse, 120),
+          durationMs: Math.round(performance.now() - modelStartedAt),
+          createdAt: modelEventCreatedAt,
+          updatedAt: Date.now(),
+        });
 
-        // 累积文字内容（多轮工具调用时，每轮的文字都要拼接）
-        if (content) finalResponse += content;
+        if (content) {
+          const contentEventCreatedAt = Date.now();
+          // 这里展示的是 API 返回的 content，不是模型隐藏的完整推理链。
+          // 如果模型同轮还要调用工具，这段 content 只放进“思考过程”，避免和最终答案重复。
+          this.emitProcessEvent(messageId, {
+            id: `${modelEventId}-content`,
+            kind: 'analysis',
+            title: toolCalls.length > 0 ? '模型中间回复' : '模型返回内容',
+            status: 'success',
+            detail: toolCalls.length > 0
+              ? '模型在调用工具前返回的 content，已放入思考过程，不直接作为最终回复。'
+              : '模型 API 返回的 content。',
+            resultPreview: content,
+            createdAt: contentEventCreatedAt,
+            updatedAt: contentEventCreatedAt,
+          });
+        }
+        if (reasoningContent) {
+          finalReasoningContent += reasoningContent;
+          const reasoningEventCreatedAt = Date.now();
+          this.emitProcessEvent(messageId, {
+            id: `${modelEventId}-reasoning`,
+            kind: 'analysis',
+            title: toolCalls.length > 0 ? '模型思考并决定调用工具' : '模型思考过程',
+            status: 'success',
+            detail: `第 ${round} 轮模型返回的 reasoning_content`,
+            resultPreview: reasoningContent,
+            createdAt: reasoningEventCreatedAt,
+            updatedAt: reasoningEventCreatedAt,
+          });
+        }
+
+        // 把助手消息（含可能的工具调用）加入历史
+        const assistantMsgForBrain: Message = {
+          id: `${messageId}-round${round}`,
+          role: 'assistant',
+          content: content || '',
+          timestamp: Date.now(),
+          sessionId: this.sessionId,
+          ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
+          ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+        };
+        this.historyManager.addMessage(this.sessionId, assistantMsgForBrain);
+
+        // 如果同一轮还要调用工具，content 只作为过程展示；最终回答交给工具结果回填后的下一轮模型整理。
+        if (content && toolCalls.length === 0) {
+          finalResponse += content;
+        } else if (content && toolCalls.length > 0 && this.streamCallbacks) {
+          this.streamCallbacks.onStreamChunk(messageId, previousContent);
+        }
 
         if (toolCalls.length === 0) {
           // 没有工具调用 → 最终文本回复
-          logger.info('Agent 循环结束：无需继续调用工具', { round, content: finalResponse });
+          logger.info('智能体循环结束：无需继续调用工具', { round, content: finalResponse });
           break;
         }
 
@@ -350,22 +519,86 @@ export class Orchestrator {
         // 执行所有工具调用
         for (const toolCall of toolCalls) {
           const toolName = toolCall.function.name;
-          const toolArgs = JSON.parse(toolCall.function.arguments);
+          const toolEventId = toolCall.id || `${messageId}-${round}-${toolName}`;
+          const toolCreatedAt = Date.now();
+          const toolStartedAt = performance.now();
+          let toolArgs: Record<string, any> = {};
+          let argsPreview = this.previewValue(toolCall.function.arguments);
+          let result: ToolExecutionResult | null = null;
 
-          logger.info('开始执行工具', { toolName, toolArgs });
+          try {
+            toolArgs = JSON.parse(toolCall.function.arguments || '{}');
+            argsPreview = this.previewValue(toolArgs);
+          } catch (parseError: any) {
+            result = {
+              success: false,
+              error: `工具参数解析失败：${parseError?.message || '参数不是合法 JSON'}`,
+            };
+            logger.error('工具参数解析失败', {
+              toolName,
+              rawArguments: toolCall.function.arguments,
+              error: parseError,
+            });
+            this.emitToolEvent(messageId, {
+              id: toolEventId,
+              kind: 'tool',
+              title: `${toolName} 参数解析失败`,
+              toolName,
+              argsPreview,
+              status: 'error',
+              detail: argsPreview,
+              resultPreview: result.error,
+              durationMs: 0,
+              createdAt: toolCreatedAt,
+              updatedAt: Date.now(),
+            });
+          }
 
-          const result = await executeTool(toolName, toolArgs);
+          if (!result) {
+            logger.info('开始执行工具', { toolName, toolArgs });
+            this.emitToolEvent(messageId, {
+              id: toolEventId,
+              kind: 'tool',
+              title: `执行工具：${toolName}`,
+              toolName,
+              argsPreview,
+              status: 'running',
+              detail: argsPreview,
+              createdAt: toolCreatedAt,
+              updatedAt: Date.now(),
+            });
+
+            result = await executeTool(toolName, toolArgs);
+          }
+
           logger.info('工具执行结果', { toolName, success: result.success, result: result.data || result.error });
+          this.emitToolEvent(messageId, {
+            id: toolEventId,
+            kind: 'tool',
+            title: result.success ? `工具完成：${toolName}` : `工具失败：${toolName}`,
+            toolName,
+            argsPreview,
+            status: result.success ? 'success' : 'error',
+            detail: argsPreview,
+            resultPreview: this.previewValue(result.data || result.error || ''),
+            durationMs: Math.round(performance.now() - toolStartedAt),
+            createdAt: toolCreatedAt,
+            updatedAt: Date.now(),
+          });
 
           const truncatedResult = {
             ...result,
             data: result.data ? this.truncateToolResult(result.data) : result.data
           };
 
-          this.conversationHistory.push({
+          // 工具结果必须以 role=tool 写回模型历史，否则模型不知道工具刚才执行出了什么结果。
+          this.historyManager.addMessage(this.sessionId, {
+            id: `${toolEventId}-result`,
             role: 'tool',
+            content: JSON.stringify(truncatedResult),
+            timestamp: Date.now(),
+            sessionId: this.sessionId,
             tool_call_id: toolCall.id,
-            content: JSON.stringify(truncatedResult)
           });
 
           logger.info('工具结果已回填到模型上下文', {
@@ -378,6 +611,16 @@ export class Orchestrator {
 
       // 流式输出最终回复
       accumulatedContent = finalResponse || '抱歉，处理超时了，请再试一次。';
+      const responseEventCreatedAt = Date.now();
+      this.emitProcessEvent(messageId, {
+        id: `${messageId}-response`,
+        kind: 'response',
+        title: '整理最终回复',
+        status: 'success',
+        detail: this.previewValue(accumulatedContent, 140),
+        createdAt: responseEventCreatedAt,
+        updatedAt: responseEventCreatedAt,
+      });
 
       // 通知 UI：收到新的 token
       if (this.streamCallbacks) {
@@ -386,9 +629,12 @@ export class Orchestrator {
 
       // 流式结束，保存完整消息
       assistantMessage.content = accumulatedContent;
+      if (finalReasoningContent) {
+        assistantMessage.reasoning_content = finalReasoningContent;
+      }
       delete (assistantMessage as any).isStreaming; // 移除流式标记
       
-      this.brain.addMessage(this.sessionId, {
+      this.historyManager.addMessage(this.sessionId, {
         ...assistantMessage,
         content: accumulatedContent
       });
@@ -413,67 +659,20 @@ export class Orchestrator {
   }
 
   /**
-   * 调用豆包 API（带 Function Calling）
-   * @param userInput 用户输入，用于构建系统提示词
-   */
-  private async callDoubaoWithTools(userInput: string = ''): Promise<any> {
-    const systemPrompt = await this.buildSystemPrompt(userInput);
-
-    const getModelId = () => {
-      return this.currentModelId;
-    };
-
-    const requestBody = {
-      model: getModelId(),
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...this.conversationHistory
-      ],
-      tools: toolDefinitions,
-      stream: false
-    };
-
-    if (isVerboseAgentLog()) {
-      logger.info('发送给模型的完整请求', requestBody);
-    } else if (process.env.NODE_ENV !== 'production') {
-      logger.debug('发送模型请求摘要', {
-        model: requestBody.model,
-        messageCount: requestBody.messages.length,
-        toolCount: requestBody.tools.length,
-      });
-    }
-
-    const responseJson = await this.modelProvider.chatWithTools(requestBody as any);
-    if (isVerboseAgentLog()) {
-      logger.info('模型完整响应', responseJson);
-    } else if (process.env.NODE_ENV !== 'production') {
-      logger.debug('收到模型响应摘要', {
-        choices: responseJson.choices?.length || 0,
-        hasError: Boolean(responseJson.error),
-        id: (responseJson as any).id,
-        model: (responseJson as any).model,
-        usage: (responseJson as any).usage,
-        message: summarizeModelMessage(responseJson.choices?.[0]?.message),
-        error: responseJson.error,
-      });
-    }
-    return responseJson;
-  }
-
-  /**
    * 流式调用模型（带 Function Calling）
    * 实时回调文字增量，流结束后返回累积的文本和工具调用
    */
-  private async callDoubaoWithToolsStream(
+  private async callModelWithToolsStream(
     userInput: string,
     onTextDelta: (accumulated: string) => void
-  ): Promise<{ content: string; toolCalls: any[]; error?: any }> {
+  ): Promise<{ content: string; reasoningContent: string; toolCalls: any[]; error?: any }> {
     const systemPrompt = await this.buildSystemPrompt(userInput);
+    // 每次请求都重新构造 messages，确保包含最新记忆、历史、工具结果。
     const requestBody = {
-      model: this.currentModelId,
+      model: this.getActiveRequestModel(),
       messages: [
         { role: 'system', content: systemPrompt },
-        ...this.conversationHistory
+        ...this.historyManager.getHistoryForLLM(this.sessionId)
       ],
       tools: toolDefinitions,
       stream: true,
@@ -483,17 +682,18 @@ export class Orchestrator {
       logger.info('发送给模型的流式请求', requestBody);
     }
 
-    const provider = this.modelProvider;
+    const provider = getModelProvider();
     if (!provider.chatWithToolsStream) {
       // 降级：provider 不支持流式，回退到非流式
-      logger.info('Provider 不支持流式，降级为非流式调用');
+      logger.info('当前模型提供商不支持流式，降级为非流式调用');
       const response = await provider.chatWithTools(requestBody as any);
-      if (response.error) return { content: '', toolCalls: [], error: response.error };
+      if (response.error) return { content: '', reasoningContent: '', toolCalls: [], error: response.error };
       const msg = response.choices[0]?.message;
       const content = msg?.content || '';
+      const reasoningContent = msg?.reasoning_content || '';
       const toolCalls = msg?.tool_calls || [];
       if (content) onTextDelta(content);
-      return { content, toolCalls };
+      return { content, reasoningContent, toolCalls };
     }
 
     let accumulated = '';
@@ -504,11 +704,12 @@ export class Orchestrator {
       }
     });
 
-    if (response.error) return { content: '', toolCalls: [], error: response.error };
+    if (response.error) return { content: '', reasoningContent: '', toolCalls: [], error: response.error };
 
     const msg = response.choices[0]?.message;
     return {
       content: msg?.content || accumulated,
+      reasoningContent: msg?.reasoning_content || '',
       toolCalls: msg?.tool_calls || [],
     };
   }
@@ -530,7 +731,6 @@ ${memoryPrompt || ''}
 - read_file / write_file：读写文件
 - web_search：搜索互联网
 - clipboard_read / clipboard_write：读写剪贴板
-- screenshot：截取屏幕
 - open_app：打开应用或网页
 - knowledge_search / knowledge_import_file：检索或导入本地知识库，回答需要引用本地文档时优先使用
 - workspace_create_task / workspace_update_project：维护项目任务、下一步和阻塞点
@@ -551,7 +751,7 @@ ${memoryPrompt || ''}
       isTTS: true
     };
 
-    this.brain.addMessage(this.sessionId, assistantMessage);
+    this.historyManager.addMessage(this.sessionId, assistantMessage);
 
     if (this.onMessageCallback) {
       this.onMessageCallback(assistantMessage);
@@ -604,7 +804,7 @@ ${memoryPrompt || ''}
    * 获取历史消息
    */
   getHistory(): Message[] {
-    return this.brain.getHistory(this.sessionId);
+    return this.historyManager.getHistory(this.sessionId);
   }
 
 

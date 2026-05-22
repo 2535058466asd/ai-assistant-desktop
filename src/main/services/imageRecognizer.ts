@@ -1,5 +1,5 @@
 /**
- * 启源 AI - 图片识别服务
+ * Nova AI - 图片识别服务
  *
  * 调用豆包多模态API识别图片内容，提取文字和描述
  * 识别结果可导入 RAG 知识库
@@ -84,44 +84,6 @@ export async function recognizeImage(
     return { success: true, text };
   } catch (error: any) {
     logger.error('Image recognition failed', { imagePath, error: error.message });
-    return { success: false, error: error.message };
-  }
-}
-
-/**
- * 批量识别文件夹中的所有图片
- */
-export async function recognizeImageBatch(
-  dirPath: string,
-  prompt?: string
-): Promise<{ success: boolean; results?: Array<{ file: string; text: string }>; error?: string }> {
-  try {
-    if (!fs.existsSync(dirPath)) {
-      return { success: false, error: `目录不存在: ${dirPath}` };
-    }
-
-    const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
-    const files = fs.readdirSync(dirPath).filter(f =>
-      imageExts.some(ext => f.toLowerCase().endsWith(ext))
-    );
-
-    if (files.length === 0) {
-      return { success: false, error: '目录中没有图片文件' };
-    }
-
-    const results: Array<{ file: string; text: string }> = [];
-
-    for (const file of files) {
-      const fullPath = dirPath + '/' + file;
-      const result = await recognizeImage(fullPath, prompt);
-      if (result.success && result.text) {
-        results.push({ file, text: result.text });
-      }
-    }
-
-    logger.info('Image recognition batch completed', { successCount: results.length, totalCount: files.length });
-    return { success: true, results };
-  } catch (error: any) {
     return { success: false, error: error.message };
   }
 }

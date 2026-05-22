@@ -110,6 +110,39 @@ const shouldShowTimestamp = (current: number, previous: number): boolean => {
   return gap > FIVE_MINUTES;
 };
 
+type ProcessEvent = NonNullable<UIMessage['processEvents']>[number];
+
+const TOOL_DISPLAY_NAMES: Record<string, string> = {
+  exec_command: '执行命令',
+  open_app: '打开应用',
+  read_file: '读取文件',
+  write_file: '写入文件',
+  web_search: '搜索网页',
+  web_fetch: '读取网页',
+  clipboard_read: '读取剪贴板',
+  clipboard_write: '写入剪贴板',
+  knowledge_search: '检索知识库',
+  knowledge_import_file: '导入知识库',
+  workspace_create_task: '创建任务',
+  workspace_update_project: '更新项目',
+};
+
+const PROCESS_STATUS_LABELS: Record<ProcessEvent['status'], string> = {
+  pending: '等待',
+  running: '执行中',
+  success: '完成',
+  error: '失败',
+  cancelled: '取消',
+};
+
+const getToolDisplayName = (toolName: string): string => TOOL_DISPLAY_NAMES[toolName] || toolName;
+
+const formatDuration = (durationMs?: number): string => {
+  if (typeof durationMs !== 'number') return '';
+  if (durationMs < 1000) return `${durationMs}ms`;
+  return `${(durationMs / 1000).toFixed(1)}s`;
+};
+
 /**
  * ChatArea 聊天区域组件
  * @param props - 组件属性
@@ -123,6 +156,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
 
   /** 收起状态：记录哪些消息被收起了 */
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  /** Agent 处理过程展开状态：默认流式生成中展开，完成后可手动展开 */
+  const [processExpandedIds, setProcessExpandedIds] = useState<Set<string>>(new Set());
   
   /** TTS 相关状态 */
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null); // 正在播放的消息 ID
@@ -247,7 +282,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
       await navigator.clipboard.writeText(textContent);
       showToast?.('已复制到剪贴板', 'success');
     } catch (err) {
-      logger.error('Copy message failed', { messageId, error: err });
+      logger.error('复制消息失败', { messageId, error: err });
       showToast?.('复制失败，请手动选择文本复制', 'error');
     }
   };
@@ -277,29 +312,28 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
   const handlePlayTTS = async (message: UIMessage) => {
     // 如果正在播放这条消息，则停止
     if (playingMessageId === message.id) {
-      logger.info('TTS playback stopped by clicking current message', { messageId: message.id });
+      logger.info('点击当前消息，停止语音播放', { messageId: message.id });
       handleStopTTS();
       return;
     }
 
     // 如果正在播放其他消息，先停止
     if (playingMessageId) {
-      logger.info('TTS playback switched to another message', { from: playingMessageId, to: message.id });
+      logger.info('切换语音播放消息', { from: playingMessageId, to: message.id });
       handleStopTTS();
     }
 
     try {
       setPlayingMessageId(message.id);
-      logger.info('Chat message TTS synthesis started', { messageId: message.id });
+      logger.info('聊天消息开始语音合成', { messageId: message.id });
 
-      // 调用 TTS 合成（使用 speak 方法）
+      // 调用 TTS 合成。这里不指定 voice，让 TTSManager 根据当前引擎选择默认声音。
       const result = await ttsManagerRef.current.speak({
-        text: message.content,
-        voice: DEFAULT_TTS_CONFIG.volcengine?.voice || 'zh_female_vv_uranus_bigtts'
+        text: message.content
       });
 
       if (result.success && result.audioData) {
-        logger.info('Chat message TTS synthesis succeeded', { messageId: message.id, audioSizeBytes: result.audioData.byteLength });
+        logger.info('聊天消息语音合成成功', { messageId: message.id, audioSizeBytes: result.audioData.byteLength });
 
         // PCM 转 WAV 格式（浏览器需要 WAV 头部才能播放 PCM）
         const wavBlob = new Blob([pcmToWav(result.audioData)], { type: 'audio/wav' });
@@ -308,16 +342,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
         const audio = new Audio(url);
         audioRef.current = audio;
 
-        logger.info('Chat message audio playback started', { messageId: message.id });
+        logger.info('聊天消息开始播放音频', { messageId: message.id });
 
         audio.onended = () => {
-          logger.info('Chat message audio playback ended', { messageId: message.id });
+          logger.info('聊天消息音频播放结束', { messageId: message.id });
           setPlayingMessageId(null);
           URL.revokeObjectURL(url);
         };
 
         audio.onerror = (e) => {
-          logger.error('Chat message audio playback failed', { messageId: message.id, error: e });
+          logger.error('聊天消息音频播放失败', { messageId: message.id, error: e });
           setPlayingMessageId(null);
           showToast?.('语音播放失败', 'error');
           URL.revokeObjectURL(url);
@@ -325,13 +359,13 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
 
         await audio.play();
       } else {
-        logger.error('Chat message TTS synthesis failed', { messageId: message.id, error: result.error });
+        logger.error('聊天消息语音合成失败', { messageId: message.id, error: result.error });
         setPlayingMessageId(null);
         showToast?.(result.error || '语音合成失败', 'error');
       }
 
     } catch (error) {
-      logger.error('Chat message TTS playback failed', { messageId: message.id, error });
+      logger.error('聊天消息语音播放异常', { messageId: message.id, error });
       setPlayingMessageId(null);
       showToast?.('语音播放失败，请稍后重试', 'error');
     }
@@ -341,7 +375,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
    * 停止当前播放的语音
    */
   const handleStopTTS = () => {
-    logger.info('Chat message TTS playback stopped', { messageId: playingMessageId });
+    logger.info('聊天消息语音播放已停止', { messageId: playingMessageId });
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -352,7 +386,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
 
   /**
    * 简单的 HTML 渲染（将文本中包含的 <kbd> 和 <code> 等 HTML 标签渲染出来）
-   * 注意：生产环境建议使用 react-markdown 或 DOMPurify 进行安全渲染
+   * 使用 DOMPurify 做基础净化，避免直接渲染未经处理的 HTML。
    * 这里仅用于展示设计稿效果
    * @param content - 可能包含 HTML 的消息内容
    * @returns JSX 元素或纯文本
@@ -368,6 +402,90 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
     }
     /* 纯文本直接返回 */
     return content;
+  };
+
+  const handleToggleProcess = (messageId: string) => {
+    setProcessExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) {
+        next.delete(messageId);
+      } else {
+        next.add(messageId);
+      }
+      return next;
+    });
+  };
+
+  const renderAgentProcess = (message: UIMessage) => {
+    const events = message.processEvents;
+    if (!events || events.length === 0) return null;
+    const isRunning = events.some((event) => event.status === 'running');
+    const hasError = events.some((event) => event.status === 'error');
+    const isExpanded = message.isStreaming || processExpandedIds.has(message.id);
+    const summaryText = isRunning
+      ? '思考中'
+      : hasError
+        ? '思考完成，有异常'
+        : `思考过程 ${events.length} 步`;
+
+    return (
+      <div className={styles.agentProcessPanel}>
+        <button
+          type="button"
+          className={styles.agentProcessToggle}
+          onClick={() => handleToggleProcess(message.id)}
+          aria-expanded={isExpanded}
+        >
+          <span className={`${styles.agentProcessSummaryDot} ${isRunning ? styles.processSummaryRunning : ''} ${hasError ? styles.processSummaryError : ''}`} />
+          <span className={styles.agentProcessSummaryText}>{summaryText}</span>
+          <span className={styles.agentProcessSummaryHint}>{isExpanded ? '收起' : '展开'}</span>
+          <svg
+            className={`${styles.agentProcessChevron} ${isExpanded ? styles.agentProcessChevronOpen : ''}`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+
+        {isExpanded && (
+          <div className={styles.agentProcessList}>
+            {events.map((event) => {
+              const duration = formatDuration(event.durationMs);
+              const title = event.kind === 'tool' && event.toolName
+                ? getToolDisplayName(event.toolName)
+                : event.title;
+
+              return (
+                <div
+                  key={event.id}
+                  className={`${styles.agentProcessItem} ${styles[`processKind_${event.kind}`] || ''} ${styles[`processStatus_${event.status}`] || ''}`}
+                >
+                  <span className={styles.agentProcessDot} />
+                  <div className={styles.agentProcessBody}>
+                    <div className={styles.agentProcessHeader}>
+                      <span className={styles.agentProcessName}>{title}</span>
+                      <span className={styles.agentProcessStatus}>{PROCESS_STATUS_LABELS[event.status]}</span>
+                      {duration && <span className={styles.agentProcessDuration}>{duration}</span>}
+                    </div>
+                    <div className={styles.agentProcessMeta}>
+                      {event.detail || event.argsPreview || event.title}
+                    </div>
+                    {event.resultPreview && (
+                      <div className={styles.agentProcessResult}>
+                        {event.resultPreview}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   };
 
   /* 如果没有消息且不在加载中，不渲染任何内容（由 WelcomeScreen 处理） */
@@ -483,6 +601,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
                             <span style={{ color: 'var(--text-muted)', fontSize: '12px', marginLeft: '8px' }}>...已收起</span>
                           )}
                         </div>
+
+                        {renderAgentProcess(message)}
 
                         {/* 操作按钮（默认隐藏，悬停显示）*/}
                         <div className={styles.aiActions}>

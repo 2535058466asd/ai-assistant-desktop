@@ -8,13 +8,29 @@ export type LogModule =
   | 'asr'
   | 'tts'
   | 'ipc'
-  | 'ui';
+  | 'ui'
+  | 'voice'
+  | 'history';
 
 const levelWeight: Record<LogLevel, number> = {
   debug: 10,
   info: 20,
   warn: 30,
   error: 40,
+};
+
+const moduleLabel: Record<LogModule, string> = {
+  agent: '智能体',
+  model: '模型',
+  tool: '工具',
+  rag: '知识库',
+  memory: '记忆',
+  asr: '语音识别',
+  tts: '语音合成',
+  ipc: '进程通信',
+  ui: '界面',
+  voice: '语音',
+  history: '历史',
 };
 
 function getMinLevel(): LogLevel {
@@ -49,7 +65,7 @@ export function createLogger(moduleName: LogModule) {
   const shouldLog = (level: LogLevel) => levelWeight[level] >= levelWeight[getMinLevel()];
   const emit = (level: LogLevel, message: string, meta?: unknown, ...extra: unknown[]) => {
     if (!shouldLog(level)) return;
-    const prefix = `[${moduleName}] ${message}`;
+    const prefix = `[${moduleLabel[moduleName] || moduleName}] ${message}`;
     const rawPayload = extra.length > 0 ? [meta, ...extra] : meta;
     const payload = rawPayload === undefined ? undefined : redact(rawPayload);
     const args = payload === undefined ? [prefix] : [prefix, payload];

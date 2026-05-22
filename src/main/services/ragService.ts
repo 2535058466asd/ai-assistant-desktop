@@ -1,5 +1,5 @@
 /**
- * 启源 AI - RAG 知识库服务
+ * Nova AI - RAG 知识库服务
  *
  * 基于 ChromaDB 实现向量检索增强生成（RAG）
  * 数据存储在本地 chroma_db/ 目录，与 SQLite 记忆系统互不冲突
@@ -49,7 +49,7 @@ async function getCollection(name: string = DEFAULT_COLLECTION): Promise<any> {
   } else {
     collection = await chroma.createCollection({
       name,
-      metadata: { description: '启源AI知识库' },
+      metadata: { description: 'NovaAI知识库' },
     });
     logger.debug(`📚 [RAG] 创建知识库集合: ${name}`);
   }
@@ -215,55 +215,3 @@ export async function getKnowledgeStats(): Promise<{
   }
 }
 
-/**
- * 删除知识库中的文档
- */
-export async function deleteDocuments(ids: string[]): Promise<{ success: boolean; error?: string }> {
-  try {
-    const col = await getCollection();
-    await col.delete({ ids });
-    logger.debug(`📚 [RAG] 删除 ${ids.length} 条文档`);
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
-
-/**
- * 从文本文件批量导入知识库
- * 支持 .txt, .md 文件
- */
-export async function importFromFile(
-  filePath: string,
-  category: string = 'imported'
-): Promise<{ success: boolean; count: number; error?: string }> {
-  try {
-    if (!fs.existsSync(filePath)) {
-      return { success: false, count: 0, error: `文件不存在: ${filePath}` };
-    }
-
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const fileName = path.basename(filePath);
-
-    // 按空行分段，每段作为一个文档
-    const chunks = content
-      .split(/\n{2,}/)
-      .map(chunk => chunk.trim())
-      .filter(chunk => chunk.length > 10); // 过滤太短的段落
-
-    if (chunks.length === 0) {
-      return { success: false, count: 0, error: '文件内容为空或分段后无有效内容' };
-    }
-
-    const metadatas = chunks.map(() => ({
-      source: fileName,
-      category,
-      created_at: new Date().toISOString(),
-    }));
-
-    const result = await addDocuments(chunks, metadatas);
-    return result;
-  } catch (error: any) {
-    return { success: false, count: 0, error: error.message };
-  }
-}

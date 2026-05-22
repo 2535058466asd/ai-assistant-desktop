@@ -1,20 +1,9 @@
-// ==========================================
-// 第 2 层：大脑层 - 上下文管理器
-// 负责管理对话历史和上下文状态
-// ==========================================
-
 import type { Message, ConversationContext, SessionId } from '../../types';
 
-/**
- * 上下文管理器类
- */
 export class ContextManager {
   private contexts: Map<SessionId, ConversationContext> = new Map();
-  private maxHistoryLength: number = 50; // 最多保留 50 条消息
+  private maxHistoryLength: number = 50;
 
-  /**
-   * 创建新的会话上下文
-   */
   createContext(sessionId: SessionId): ConversationContext {
     const context: ConversationContext = {
       sessionId,
@@ -26,16 +15,10 @@ export class ContextManager {
     return context;
   }
 
-  /**
-   * 获取会话上下文
-   */
   getContext(sessionId: SessionId): ConversationContext | null {
     return this.contexts.get(sessionId) || null;
   }
 
-  /**
-   * 获取或创建会话上下文
-   */
   getOrCreateContext(sessionId: SessionId): ConversationContext {
     let context = this.getContext(sessionId);
     if (!context) {
@@ -44,38 +27,31 @@ export class ContextManager {
     return context;
   }
 
-  /**
-   * 添加消息到历史
-   */
   addMessage(sessionId: SessionId, message: Message): void {
     const context = this.getOrCreateContext(sessionId);
     context.history.push(message);
     context.lastActiveTime = Date.now();
 
-    // 限制历史长度
     if (context.history.length > this.maxHistoryLength) {
       context.history = context.history.slice(-this.maxHistoryLength);
     }
   }
 
-  /**
-   * 获取对话历史
-   */
   getHistory(sessionId: SessionId): Message[] {
     const context = this.getContext(sessionId);
     return context ? [...context.history] : [];
   }
 
-  /**
-   * 清除会话上下文
-   */
+  setHistory(sessionId: SessionId, history: Message[]): void {
+    const context = this.getOrCreateContext(sessionId);
+    context.history = [...history];
+    context.lastActiveTime = Date.now();
+  }
+
   clearContext(sessionId: SessionId): void {
     this.contexts.delete(sessionId);
   }
 
-  /**
-   * 重置会话（保留历史）
-   */
   resetContext(sessionId: SessionId): void {
     const context = this.getContext(sessionId);
     if (context) {
@@ -83,16 +59,10 @@ export class ContextManager {
     }
   }
 
-  /**
-   * 获取所有活跃会话
-   */
   getAllSessions(): SessionId[] {
     return Array.from(this.contexts.keys());
   }
 
-  /**
-   * 清理长时间不活跃的会话
-   */
   cleanupInactiveSessions(maxInactiveMinutes: number = 60): number {
     const now = Date.now();
     const maxInactiveTime = maxInactiveMinutes * 60 * 1000;
@@ -108,27 +78,23 @@ export class ContextManager {
     return cleanedCount;
   }
 
-  /**
-   * 设置最大历史长度
-   */
   setMaxHistoryLength(length: number): void {
     this.maxHistoryLength = Math.max(10, length);
   }
 
-  /**
-   * 生成用于 LLM 的历史消息格式
-   */
-  formatHistoryForLLM(sessionId: SessionId): Array<{ role: string; content: string }> {
+  formatHistoryForLLM(sessionId: SessionId): Array<{ role: string; content: string; reasoning_content?: string; tool_calls?: any[]; tool_call_id?: string }> {
     const history = this.getHistory(sessionId);
-    return history.map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'assistant',
-      content: msg.content
-    }));
+    return history.map(msg => {
+      const llmMsg: any = { role: msg.role, content: msg.content };
+      if (msg.reasoning_content) llmMsg.reasoning_content = msg.reasoning_content;
+      if (msg.tool_calls) llmMsg.tool_calls = msg.tool_calls;
+      if (msg.tool_call_id) llmMsg.tool_call_id = msg.tool_call_id;
+      return llmMsg;
+    });
   }
 
 }
 
-// 创建单例
 let contextManagerInstance: ContextManager | null = null;
 
 export function getContextManager(): ContextManager {

@@ -1,6 +1,6 @@
 // ==========================================
 // TTS 配置文件
-// 豆包语音 TTS 2.0 WebSocket v3 双向流式
+// 支持：豆包 TTS 2.0、小米 MiMo TTS、浏览器 Web Speech
 // ==========================================
 
 import type { TTSType } from '../core/tts';
@@ -10,17 +10,27 @@ export interface TTSConfig {
   
   // 豆包 TTS 2.0 配置（WebSocket v3 双向流式）
   volcengine?: {
-    appId: string;            // 应用 ID（X-Api-App-Key）
-    accessToken: string;      // Access Token（X-Api-Access-Key）
-    apiUrl?: string;          // WebSocket API 地址
-    voice?: string;           // 音色（speaker，必须是 TTS 2.0 专属音色）
-    model?: string;           // 模型版本（seed-tts-2.0-expressive 或 seed-tts-2.0-standard）
-    resourceId?: string;      // 资源 ID（X-Api-Resource-Id: seed-tts-2.0）
-    format?: string;          // 音频格式（pcm/ogg_opus/mp3）
-    sampleRate?: number;      // 采样率（默认 24000）
-    speed?: number;           // 语速（speech_rate: -50~100）
-    volume?: number;          // 音量（loudness_rate: -50~100）
-    pitch?: number;           // 音调（post_process.pitch: -12~12）
+    appId: string;          // 应用 ID（X-Api-App-Key）
+    accessToken: string;    // Access Token（X-Api-Access-Key）
+    apiUrl?: string;        // WebSocket API 地址
+    voice?: string;         // 音色（speaker，必须是 TTS 2.0 专属音色）
+    model?: string;         // 模型版本（seed-tts-2.0-expressive 或 seed-tts-2.0-standard）
+    resourceId?: string;    // 资源 ID（X-Api-Resource-Id: seed-tts-2.0）
+    format?: string;        // 音频格式（pcm/ogg_opus/mp3）
+    sampleRate?: number;    // 采样率（默认 24000）
+    speed?: number;         // 语速（speech_rate: -50~100）
+    volume?: number;        // 音量（loudness_rate: -50~100）
+    pitch?: number;         // 音调（post_process.pitch: -12~12）
+  };
+
+  // 小米 MiMo TTS 配置
+  mimo?: {
+    baseUrl: string;        // API 地址，例如：https://token-plan-cn.xiaomimimo.com/v1
+    apiKey: string;         // API Key，例如：tp-xxxxx
+    model?: string;         // TTS 模型，默认：mimo-v2.5-tts
+    voice?: string;         // 音色，默认：mimo_default
+    format?: 'wav' | 'mp3' | 'pcm' | 'pcm16'; // 音频格式，默认：mp3
+    voiceStyle?: string;    // 音色风格指令（仅用于 voice-design/voice-clone 模型）
   };
   
   // 通用配置
@@ -38,27 +48,37 @@ function readEnvValue(key: string): string {
   return (import.meta.env[key] as string | undefined) || '';
 }
 
-// 默认 TTS 配置（使用豆包 TTS 2.0 WebSocket v3）
+// 默认 TTS 配置（支持豆包、小米、浏览器）。
+// TTS 负责“AI 说话的声音”，可以和聊天模型、ASR 引擎独立选择。
 export const DEFAULT_TTS_CONFIG: TTSConfig = {
-  type: 'volcengine',  // 默认使用豆包 TTS 2.0 WebSocket v3
+  type: (readStoredValue('nova.tts.type') as TTSConfig['type']) || 'volcengine',
   
   // 豆包 TTS 2.0 配置（WebSocket v3 双向流式）
   volcengine: {
-    appId: readEnvValue('VITE_VOLCENGINE_APP_ID') || readStoredValue('qiyuan.volcengine.appId'),
-    accessToken: readEnvValue('VITE_VOLCENGINE_ACCESS_TOKEN') || readStoredValue('qiyuan.volcengine.accessToken'),
-    apiUrl: 'wss://openspeech.bytedance.com/api/v3/tts/bidirection',  // WebSocket 双向流式接口
-    voice: 'zh_female_vv_uranus_bigtts',  // 音色：Vivi 2.0（TTS 2.0 专属音色，表现力强）
-    model: 'seed-tts-2.0-expressive',  // 模型：表现力强版本（推荐）
-    resourceId: 'seed-tts-2.0',  // 资源 ID（TTS 2.0 固定值，不是实例名！）
-    format: 'pcm',  // 音频格式（pcm/ogg_opus/mp3）
-    sampleRate: 24000,  // 采样率（默认 24000）
-    speed: 0,  // 语速（-50~100，0 为正常）
-    volume: 0,  // 音量（-50~100，0 为正常）
-    pitch: 0   // 音调（-12~12，0 为正常）
+    appId: readEnvValue('VITE_VOLCENGINE_APP_ID') || readStoredValue('nova.volcengine.appId'),
+    accessToken: readEnvValue('VITE_VOLCENGINE_ACCESS_TOKEN') || readStoredValue('nova.volcengine.accessToken'),
+    apiUrl: 'wss://openspeech.bytedance.com/api/v3/tts/bidirection',
+    voice: 'zh_female_vv_uranus_bigtts',
+    model: 'seed-tts-2.0-expressive',
+    resourceId: 'seed-tts-2.0',
+    format: 'pcm',
+    sampleRate: 24000,
+    speed: 0,
+    volume: 0,
+    pitch: 0
+  },
+
+  // 小米 MiMo TTS 配置（可通过环境变量设置）
+  mimo: {
+    baseUrl: readEnvValue('VITE_MIMO_BASE_URL') || readStoredValue('nova.mimo.baseUrl') || 'https://token-plan-cn.xiaomimimo.com/v1',
+    apiKey: readEnvValue('VITE_MIMO_API_KEY') || readStoredValue('nova.mimo.apiKey') || '',
+    model: 'mimo-v2.5-tts',
+    voice: 'mimo_default',
+    format: 'mp3'
   },
   
   // 通用配置
-  speed: 1.0,   // 语速：0.5-2.0
-  pitch: 1.0,   // 音调：0.5-2.0
-  volume: 1.0   // 音量：0.0-1.0
+  speed: 1.0,
+  pitch: 1.0,
+  volume: 1.0
 };

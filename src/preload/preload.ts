@@ -6,10 +6,6 @@ import { contextBridge, ipcRenderer } from 'electron'
  * 就像"安全门"，只允许特定的信息通过
  */
 contextBridge.exposeInMainWorld('electronAPI', {
-  // HTTP请求代理（解决CORS问题）
-  httpProxy: async (options: any) => {
-    return ipcRenderer.invoke('http-proxy', options);
-  },
   // 执行系统命令
   execCommand: async (command: string) => {
     return ipcRenderer.invoke('exec-command', command);
@@ -31,6 +27,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   webFetch: async (url: string) => {
     return ipcRenderer.invoke('web-fetch', url);
   },
+  searchSetConfig: async (config: { preferredEngine?: string; searxngUrl?: string }) => {
+    return ipcRenderer.invoke('search-set-config', config);
+  },
   // 列出目录内容
   listDir: async (dirPath: string) => {
     return ipcRenderer.invoke('list-dir', dirPath);
@@ -50,10 +49,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 写入剪贴板
   clipboardWrite: async (text: string) => {
     return ipcRenderer.invoke('clipboard-write', text);
-  },
-  // 屏幕截图
-  screenshot: async () => {
-    return ipcRenderer.invoke('screenshot');
   },
   // 打开应用
   openApp: async (target: string) => {
@@ -133,6 +128,35 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // ========== TTS / ASR 白名单 IPC ==========
+  modelFetch: async (request: { endpoint: string; headers?: Record<string, string>; body?: string }) =>
+    ipcRenderer.invoke('model-fetch', request),
+  modelFetchStream: async (
+    request: { requestId: string; endpoint: string; headers?: Record<string, string>; body?: string },
+    onChunk: (chunk: string) => void
+  ) => {
+    const chunkHandler = (_event: Electron.IpcRendererEvent, requestId: string, chunk: string) => {
+      if (requestId === request.requestId) onChunk(chunk);
+    };
+    const cleanup = () => {
+      ipcRenderer.removeListener('model-fetch-stream-chunk', chunkHandler);
+      ipcRenderer.removeListener('model-fetch-stream-end', endHandler);
+      ipcRenderer.removeListener('model-fetch-stream-error', errorHandler);
+    };
+    const endHandler = (_event: Electron.IpcRendererEvent, requestId: string) => {
+      if (requestId === request.requestId) cleanup();
+    };
+    const errorHandler = (_event: Electron.IpcRendererEvent, requestId: string) => {
+      if (requestId === request.requestId) cleanup();
+    };
+    ipcRenderer.on('model-fetch-stream-chunk', chunkHandler);
+    ipcRenderer.on('model-fetch-stream-end', endHandler);
+    ipcRenderer.on('model-fetch-stream-error', errorHandler);
+    try {
+      return await ipcRenderer.invoke('model-fetch-stream', request);
+    } finally {
+      cleanup();
+    }
+  },
   ttsV3Connect: async (config: any) => ipcRenderer.invoke('tts-v3-connect', config),
   ttsV3Synthesize: async (config: any, text: string, options?: { sessionId?: string }) =>
     ipcRenderer.invoke('tts-v3-synthesize', config, text, options),
@@ -167,19 +191,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
 declare global {
   interface Window {
     electronAPI: {
-      httpProxy: (options: any) => Promise<{ success: boolean; status?: number; headers?: any; data?: string; error?: string; isBinary?: boolean }>;
       // 新的工具 API
       execCommand: (command: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       readFile: (path: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       writeFile: (path: string, content: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       webSearch: (query: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       webFetch: (url: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      searchSetConfig: (config: { preferredEngine?: string; searxngUrl?: string }) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       listDir: (dirPath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       searchFiles: (dirPath: string, pattern: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       grepContent: (dirPath: string, keyword: string, filePattern?: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       clipboardRead: () => Promise<{ success: boolean; data?: string; error?: string }>;
       clipboardWrite: (text: string) => Promise<{ success: boolean; data?: string; error?: string }>;
-      screenshot: () => Promise<{ success: boolean; data?: string; error?: string }>;
       openApp: (target: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       // 知识库 RAG
       knowledgeSearch: (query: string, nResults?: number) => Promise<{ success: boolean; data?: string; error?: string }>;
@@ -209,6 +232,21 @@ declare global {
       asrV3StartRecognition: (config: any) => Promise<any>;
       asrV3SendAudio: (config: any, audioBase64: string, isLast: boolean) => Promise<any>;
       asrV3StopRecognition: (config: any) => Promise<any>;
+      modelFetch: (request: { endpoint: string; headers?: Record<string, string>; body?: string }) => Promise<{
+        ok: boolean;
+        status: number;
+        statusText: string;
+        body: string;
+      }>;
+      modelFetchStream: (
+        request: { requestId: string; endpoint: string; headers?: Record<string, string>; body?: string },
+        onChunk: (chunk: string) => void
+      ) => Promise<{
+        ok: boolean;
+        status: number;
+        statusText: string;
+        body: string;
+      }>;
       on: (channel: string, callback: (...args: any[]) => void) => void;
   };
   }

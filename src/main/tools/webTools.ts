@@ -4,6 +4,25 @@ import { createLogger } from '../../shared/logger'
 
 const logger = createLogger('tool')
 
+// 搜索配置（可通过 settings UI 动态修改）
+let searchConfig = {
+  preferredEngine: 'auto' as 'auto' | 'searxng' | 'baidu' | 'bing',
+  searxngUrl: 'http://localhost:8888',
+}
+
+export function registerSearchSetConfig() {
+  ipcMain.handle('search-set-config', async (_event, nextConfig: Partial<typeof searchConfig>) => {
+    if (nextConfig.preferredEngine && ['auto', 'searxng', 'baidu', 'bing'].includes(nextConfig.preferredEngine)) {
+      searchConfig.preferredEngine = nextConfig.preferredEngine;
+    }
+    if (typeof nextConfig.searxngUrl === 'string' && nextConfig.searxngUrl.trim()) {
+      searchConfig.searxngUrl = nextConfig.searxngUrl.trim().replace(/\/$/, '');
+    }
+    logger.info('Search config updated', searchConfig);
+    return { success: true, data: searchConfig };
+  });
+}
+
 // HTML 转 Markdown 实例（保留标题、列表、链接、代码块、表格等结构）
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -121,79 +140,119 @@ function parseBingResults(html: string): string {
   return results.join('\n\n');
 }
 
+// 各搜索引擎实现
+async function trySearXNG(query: string): Promise<{ success: boolean; data?: string } | null> {
+  try {
+    logger.debug('web_search trying SearXNG', { query, url: searchConfig.searxngUrl });
+    const response = await fetch(`${searchConfig.searxngUrl}/search?q=${encodeURIComponent(query)}&format=json`, {
+      signal: AbortSignal.timeout(8000),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+      }
+    });
+    if (response.ok) {
+      const data: any = await response.json();
+      const results = (data.results || []).slice(0, 8)
+        .map((r: any, i: number) => `[${i + 1}] ${r.title}\n    ${r.content || ''}\n    ${r.url}`)
+        .join('\n\n');
+      if (results) {
+        logger.info('web_search SearXNG succeeded', { resultCount: data.results?.length || 0 });
+        return { success: true, data: results };
+      }
+    }
+    return null;
+  } catch (e: any) {
+    logger.debug('web_search SearXNG failed', { error: e.message });
+    return null;
+  }
+}
+
+async function tryBaidu(query: string): Promise<{ success: boolean; data?: string } | null> {
+  try {
+    logger.debug('web_search trying Baidu', { query });
+    const bdResponse = await fetch(`https://www.baidu.com/s?wd=${encodeURIComponent(query)}&rn=10`, {
+      signal: AbortSignal.timeout(10000),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml',
+      }
+    });
+    if (bdResponse.ok) {
+      const html = await bdResponse.text();
+      const results = parseBaiduResults(html);
+      if (results.length > 50) {
+        logger.info('web_search Baidu succeeded');
+        return { success: true, data: results };
+      }
+    }
+    return null;
+  } catch (e: any) {
+    logger.debug('web_search Baidu failed', { error: e.message });
+    return null;
+  }
+}
+
+async function tryBing(query: string): Promise<{ success: boolean; data?: string } | null> {
+  try {
+    logger.debug('web_search trying Bing CN', { query });
+    const bingResponse = await fetch(`https://cn.bing.com/search?q=${encodeURIComponent(query)}&count=10`, {
+      signal: AbortSignal.timeout(10000),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml',
+      }
+    });
+    if (bingResponse.ok) {
+      const html = await bingResponse.text();
+      const results = parseBingResults(html);
+      if (results.length > 50) {
+        logger.info('web_search Bing CN succeeded');
+        return { success: true, data: results };
+      }
+    }
+    return null;
+  } catch (e: any) {
+    logger.debug('web_search Bing CN failed', { error: e.message });
+    return null;
+  }
+}
+
 // web_search — 后台静默搜索，返回文字结果（不打开浏览器）
 export function registerWebSearch() {
   ipcMain.handle('web-search', async (_event, query: string) => {
     try {
-      // 方案1: SearXNG（本地自建搜索，返回干净 JSON）
-      try {
-        logger.debug('web_search trying SearXNG', { query });
-        const response = await fetch(`http://localhost:8888/search?q=${encodeURIComponent(query)}&format=json`, {
-          signal: AbortSignal.timeout(8000),
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json',
-          }
-        });
-        if (response.ok) {
-          const data: any = await response.json();
-          const results = (data.results || []).slice(0, 8)
-            .map((r: any, i: number) => `[${i + 1}] ${r.title}\n    ${r.content || ''}\n    ${r.url}`)
-            .join('\n\n');
-          if (results) {
-            logger.info('web_search SearXNG succeeded', { resultCount: data.results?.length || 0 });
-            return { success: true, data: results };
-          }
-        }
-      } catch (e: any) {
-        logger.debug('web_search SearXNG failed', { error: e.message });
+      const engine = searchConfig.preferredEngine
+      logger.info('web_search starting', { query, preferredEngine: engine })
+
+      // 指定引擎时只尝试该引擎
+      if (engine === 'searxng') {
+        const r = await trySearXNG(query)
+        if (r) return r
+        return { success: false, error: 'SearXNG 搜索失败，请检查服务是否运行' }
+      }
+      if (engine === 'baidu') {
+        const r = await tryBaidu(query)
+        if (r) return r
+        return { success: false, error: '百度搜索失败' }
+      }
+      if (engine === 'bing') {
+        const r = await tryBing(query)
+        if (r) return r
+        return { success: false, error: '必应搜索失败' }
       }
 
-      // 方案2: 百度搜索（HTML 转纯文本）
-      try {
-        logger.debug('web_search trying Baidu', { query });
-        const bdResponse = await fetch(`https://www.baidu.com/s?wd=${encodeURIComponent(query)}&rn=10`, {
-          signal: AbortSignal.timeout(10000),
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept-Language': 'zh-CN,zh;q=0.9',
-            'Accept': 'text/html,application/xhtml+xml',
-          }
-        });
-        if (bdResponse.ok) {
-          const html = await bdResponse.text();
-          const results = parseBaiduResults(html);
-          if (results.length > 50) {
-            logger.info('web_search Baidu succeeded');
-            return { success: true, data: results };
-          }
-        }
-      } catch (e: any) {
-        logger.debug('web_search Baidu failed', { error: e.message });
-      }
+      // auto: 按优先级依次尝试
+      const searxng = await trySearXNG(query)
+      if (searxng) return searxng
 
-      // 方案3: 必应国内版（HTML 转纯文本）
-      try {
-        logger.debug('web_search trying Bing CN', { query });
-        const bingResponse = await fetch(`https://cn.bing.com/search?q=${encodeURIComponent(query)}&count=10`, {
-          signal: AbortSignal.timeout(10000),
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept-Language': 'zh-CN,zh;q=0.9',
-            'Accept': 'text/html,application/xhtml+xml',
-          }
-        });
-        if (bingResponse.ok) {
-          const html = await bingResponse.text();
-          const results = parseBingResults(html);
-          if (results.length > 50) {
-            logger.info('web_search Bing CN succeeded');
-            return { success: true, data: results };
-          }
-        }
-      } catch (e: any) {
-        logger.debug('web_search Bing CN failed', { error: e.message });
-      }
+      const baidu = await tryBaidu(query)
+      if (baidu) return baidu
+
+      const bing = await tryBing(query)
+      if (bing) return bing
 
       logger.warn('web_search all providers failed', { query });
       return { success: false, error: '所有搜索方式均失败，请检查网络连接' };

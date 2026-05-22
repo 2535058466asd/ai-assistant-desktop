@@ -72,7 +72,7 @@ const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages, onSug
         if (knowledgeResult?.success) setKnowledgeStats(knowledgeResult.data);
         if (Array.isArray(memoryResult)) setMemories(memoryResult);
       } catch (error) {
-        logger.error('Load workspace dashboard stats failed', error);
+        logger.error('加载工作台统计失败', error);
       }
     };
 

@@ -1,0 +1,70 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sectionDesc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.shortcutList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shortcutRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.description {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.separator {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.keyBadge {
+  display: inline-block;
+  padding: 3px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+  color: var(--text-primary);
+  line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}

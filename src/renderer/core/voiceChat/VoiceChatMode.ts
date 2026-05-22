@@ -62,7 +62,7 @@ export class VoiceChatMode {
    * 初始化语音对话模式
    */
   constructor() {
-    logger.info('Voice chat mode initialized');
+    logger.info('语音对话模式已初始化');
   }
 
   /**
@@ -92,7 +92,7 @@ export class VoiceChatMode {
   async enable(): Promise<void> {
     if (this.isEnabled) return;
     
-    logger.info('Voice chat mode enabled');
+    logger.info('语音对话模式已开启');
     this.isEnabled = true;
     this.asrRetryCount = 0; // 重置重试计数
     
@@ -106,7 +106,7 @@ export class VoiceChatMode {
   async disable(): Promise<void> {
     if (!this.isEnabled) return;
     
-    logger.info('Voice chat mode disabled');
+    logger.info('语音对话模式已关闭');
     this.isEnabled = false;
     
     // 停止所有活动
@@ -133,7 +133,7 @@ export class VoiceChatMode {
   private async startListening(): Promise<void> {
     if (!this.isEnabled) return;
     
-    logger.info('Voice chat listening started');
+    logger.info('语音对话开始监听用户说话');
     this.setState('listening');
     this.lastText = '';
     
@@ -153,23 +153,23 @@ export class VoiceChatMode {
         },
         // onError: 识别出错
         (error: string) => {
-          logger.error('Voice chat ASR error', { error });
+          logger.error('语音对话识别出错', { error });
           if (this.callbacks?.onError) {
             this.callbacks.onError(error);
           }
           // 出错后重新开始监听（最多重试 MAX_ASR_RETRIES 次）
           if (this.isEnabled && this.asrRetryCount < this.MAX_ASR_RETRIES) {
             this.asrRetryCount++;
-            logger.warn('Voice chat ASR retry scheduled', { retryCount: this.asrRetryCount, maxRetries: this.MAX_ASR_RETRIES });
+            logger.warn('语音识别将自动重试', { retryCount: this.asrRetryCount, maxRetries: this.MAX_ASR_RETRIES });
             setTimeout(() => this.startListening(), 500);
           } else if (this.asrRetryCount >= this.MAX_ASR_RETRIES) {
-            logger.error('Voice chat ASR retry limit reached');
+            logger.error('语音识别重试次数已达上限');
             this.callbacks?.onError('语音识别连续出错，已停止监听');
           }
         },
         // onEnd: 识别结束
         () => {
-          logger.info('Voice chat ASR ended', { textPreview: this.lastText.slice(0, 120) });
+          logger.info('语音识别已结束', { textPreview: this.lastText.slice(0, 120) });
           this.asrRetryCount = 0; // 成功结束，重置重试计数
           // 如果有识别结果，发送给 AI
           if (this.lastText.trim()) {
@@ -182,7 +182,7 @@ export class VoiceChatMode {
       );
       
       if (!success) {
-        logger.error('Voice chat ASR start returned false');
+        logger.error('语音识别启动返回失败');
         if (this.callbacks?.onError) {
           this.callbacks.onError('无法启动语音识别');
         }
@@ -192,7 +192,7 @@ export class VoiceChatMode {
         }
       }
     } catch (error) {
-      logger.error('Voice chat listening start failed', error);
+      logger.error('语音对话监听启动失败', error);
       if (this.callbacks?.onError) {
         this.callbacks.onError('启动语音识别失败');
       }
@@ -215,7 +215,7 @@ export class VoiceChatMode {
     
     // 设置新的计时器
     this.silenceTimer = setTimeout(() => {
-      logger.info('Voice chat silence detected, stopping ASR');
+      logger.info('检测到静音，停止语音识别并发送给 AI');
       this.asrManager.stopListening();
     }, this.SILENCE_TIMEOUT);
   }
@@ -226,7 +226,7 @@ export class VoiceChatMode {
   private async sendToAI(text: string): Promise<void> {
     if (!this.isEnabled) return;
     
-    logger.info('Voice chat sending text to AI', { text });
+    logger.info('语音文字发送给 AI', { text });
     this.setState('thinking');
     
     // 清除静音计时器
@@ -241,7 +241,7 @@ export class VoiceChatMode {
         await this.callbacks.onSendMessage(text);
       }
     } catch (error) {
-      logger.error('Voice chat send message failed', error);
+      logger.error('语音文字发送给 AI 失败', error);
       if (this.callbacks?.onError) {
         this.callbacks.onError('发送消息失败');
       }
@@ -261,13 +261,13 @@ export class VoiceChatMode {
     
     // 防重复调用锁：如果正在播放，忽略后续重复调用
     if (this.isSpeaking) {
-      logger.warn('Voice chat speakResponse ignored because playback is active');
+      logger.warn('语音播放中，忽略重复播放请求');
       return;
     }
     this.isSpeaking = true;
     
     if (!text || !text.trim()) {
-      logger.warn('Voice chat empty text skipped for TTS');
+      logger.warn('AI 回复为空，跳过语音合成');
       this.isSpeaking = false;
       // 播放完成后，重新开始监听
       if (this.isEnabled) {
@@ -276,7 +276,7 @@ export class VoiceChatMode {
       return;
     }
     
-    logger.info('Voice chat AI response playback started', { textPreview: text.substring(0, 80) });
+    logger.info('开始播放 AI 回复语音', { textPreview: text.substring(0, 80) });
     this.setState('speaking');
     
     // 通知 UI 显示 AI 回复
@@ -285,23 +285,22 @@ export class VoiceChatMode {
     }
     
     try {
-      // 使用 TTS 播放
+      // 使用 TTS 播放（不指定 voice，让 ttsManager 使用当前配置的默认声音）
       const result: TTSResult = await this.ttsManager.speak({
-        text,
-        voice: 'zh_female_vv_uranus_bigtts'
+        text
       });
       
       if (result && result.success && result.audioData) {
         // 播放音频
         await this.playAudio(result.audioData);
       } else {
-        logger.error('Voice chat TTS synthesis failed', { error: result?.error || '未知错误' });
+        logger.error('语音对话 TTS 合成失败', { error: result?.error || '未知错误' });
         if (this.callbacks?.onError) {
           this.callbacks.onError('语音合成失败');
         }
       }
     } catch (error) {
-      logger.error('Voice chat playback failed', error);
+      logger.error('语音对话播放失败', error);
       if (this.callbacks?.onError) {
         this.callbacks.onError('播放语音失败');
       }
@@ -312,7 +311,7 @@ export class VoiceChatMode {
     
     // 播放完成后，重新开始监听
     if (this.isEnabled) {
-      logger.info('Voice chat playback completed, restarting listening');
+      logger.info('语音播放完成，重新开始监听');
       await this.startListening();
     }
   }
@@ -336,10 +335,10 @@ export class VoiceChatMode {
         }
         const decoded = await this.audioContext.decodeAudioData(audioData.slice(0));
         wavData = this.audioBufferToWav(decoded);
-        logger.debug('Voice chat audio decoded by AudioContext');
+        logger.debug('语音音频已通过 AudioContext 解码');
       } catch (e) {
         // 解码失败说明是裸 PCM 数据，直接加 WAV 头
-        logger.warn('Voice chat AudioContext decode failed, using PCM to WAV fallback', e);
+        logger.warn('AudioContext 解码失败，改用 PCM 转 WAV 兜底', e);
         wavData = this.pcmToWav(audioData);
       }
 
@@ -354,19 +353,19 @@ export class VoiceChatMode {
         };
 
         audio.onerror = () => {
-          logger.error('Voice chat audio element playback failed');
+          logger.error('语音音频元素播放失败');
           URL.revokeObjectURL(url);
           resolve();
         };
 
         audio.play().catch(error => {
-          logger.error('Voice chat audio play rejected', error);
+          logger.error('浏览器拒绝播放语音音频', error);
           URL.revokeObjectURL(url);
           resolve();
         });
       });
     } catch (error) {
-      logger.error('Voice chat audio creation failed', error);
+      logger.error('语音音频创建失败', error);
     }
   }
 
@@ -473,7 +472,7 @@ export class VoiceChatMode {
     try {
       this.asrManager.stopListening();
     } catch (error) {
-      logger.error('Voice chat stop ASR failed', error);
+      logger.error('停止语音识别失败', error);
     }
     
     // 关闭 AudioContext 释放资源
@@ -481,9 +480,9 @@ export class VoiceChatMode {
       try {
         await this.audioContext.close();
         this.audioContext = null;
-        logger.info('Voice chat AudioContext closed');
+        logger.info('语音 AudioContext 已关闭');
       } catch (error) {
-        logger.error('Voice chat AudioContext close failed', error);
+        logger.error('语音 AudioContext 关闭失败', error);
       }
     }
   }
@@ -496,7 +495,7 @@ export class VoiceChatMode {
     
     const previous = this.currentState;
     this.currentState = state;
-    logger.info('Voice chat state changed', { from: previous, to: state });
+    logger.info('语音对话状态变化', { from: previous, to: state });
     
     if (this.callbacks?.onStateChange) {
       this.callbacks.onStateChange(state);

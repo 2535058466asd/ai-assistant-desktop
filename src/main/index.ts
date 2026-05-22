@@ -14,11 +14,8 @@ import { promisify } from 'util'
 
 const execAsync = promisify(exec)
 import path from 'path'
-import http from 'http'
-import https from 'https'
 import fs from 'fs'
 import { getMemoryService } from './services/memoryServiceBackend'
-import { getScreenshotService } from './services/screenshotService'
 import { getTTSService } from './services/tts/volcengineTTSWebSocketService'
 import { getASRService } from './services/asr/volcengineASRWebSocketService'
 import { registerAllTools } from './tools'
@@ -83,81 +80,100 @@ function createWindow() {
   })
 }
 
-ipcMain.handle('http-proxy', async (_event, options: any) => {
-  return new Promise((resolve) => {
-    try {
-      const url = new URL(options.url);
-      const isHttps = url.protocol === 'https:';
-      const client = isHttps ? https : http;
-      const isBinary = options.responseType === 'arraybuffer';
-      
-      const requestOptions = {
-        hostname: url.hostname,
-        port: url.port || (isHttps ? 443 : 80),
-        path: url.pathname + url.search,
-        method: options.method || 'GET',
-        headers: options.headers || {}
-      };
+const memoryService = getMemoryService();
 
-      mainLogger.info('HTTP proxy request started', { method: requestOptions.method, url: options.url });
-
-      const req = client.request(requestOptions, (res) => {
-        const chunks: Buffer[] = [];
-        
-        res.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
-        
-        res.on('end', () => {
-          mainLogger.info('HTTP proxy response completed', { statusCode: res.statusCode, isBinary });
-          
-          if (isBinary) {
-            const buffer = Buffer.concat(chunks);
-            const base64Data = buffer.toString('base64');
-            resolve({
-              success: true,
-              status: res.statusCode,
-              headers: res.headers,
-              data: base64Data,
-              isBinary: true
-            });
-          } else {
-            const data = Buffer.concat(chunks).toString('utf8');
-            resolve({
-              success: true,
-              status: res.statusCode,
-              headers: res.headers,
-              data: data
-            });
-          }
-        });
-      });
-
-      req.on('error', (error) => {
-        mainLogger.error('HTTP proxy request failed', error);
-        resolve({
-          success: false,
-          error: error.message
-        });
-      });
-
-      if (options.body) {
-        req.write(options.body);
-      }
-      
-      req.end();
-    } catch (error) {
-      mainLogger.error('HTTP proxy exception', error);
-      resolve({
-        success: false,
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-  });
+// ========== Model HTTP/SSE 代理 ==========
+// 渲染进程直连第三方模型接口容易遇到 CORS、浏览器安全策略或连接被关闭。
+// 大模型请求统一从 main process 发出，和 TTS/ASR 的 Node 侧接入方式保持一致。
+ipcMain.handle('model-fetch', async (_event, request: {
+  endpoint: string;
+  headers?: Record<string, string>;
+  body?: string;
+}) => {
+  try {
+    const response = await fetch(request.endpoint, {
+      method: 'POST',
+      headers: request.headers,
+      body: request.body,
+    });
+    const body = await response.text();
+    return {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      body,
+    };
+  } catch (error) {
+    mainLogger.error('Model fetch failed', error);
+    return {
+      ok: false,
+      status: 0,
+      statusText: error instanceof Error ? error.message : String(error),
+      body: '',
+    };
+  }
 });
 
-const memoryService = getMemoryService();
-const screenshotService = getScreenshotService();
+ipcMain.handle('model-fetch-stream', async (event, request: {
+  requestId: string;
+  endpoint: string;
+  headers?: Record<string, string>;
+  body?: string;
+}) => {
+  try {
+    const response = await fetch(request.endpoint, {
+      method: 'POST',
+      headers: request.headers,
+      body: request.body,
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      return {
+        ok: false,
+        status: response.status,
+        statusText: response.statusText,
+        body,
+      };
+    }
+
+    if (!response.body) {
+      return {
+        ok: false,
+        status: response.status,
+        statusText: 'Response body is empty',
+        body: '',
+      };
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunkText = decoder.decode(value, { stream: true });
+      event.sender.send('model-fetch-stream-chunk', request.requestId, chunkText);
+    }
+
+    event.sender.send('model-fetch-stream-end', request.requestId);
+    return {
+      ok: true,
+      status: response.status,
+      statusText: response.statusText,
+      body: '',
+    };
+  } catch (error) {
+    mainLogger.error('Model stream fetch failed', error);
+    event.sender.send('model-fetch-stream-error', request.requestId, error instanceof Error ? error.message : String(error));
+    return {
+      ok: false,
+      status: 0,
+      statusText: error instanceof Error ? error.message : String(error),
+      body: '',
+    };
+  }
+});
 
 ipcMain.handle('memory-set-preference', async (_event, key: string, value: any) => {
   memoryService.setPreference(key, value);
@@ -193,10 +209,6 @@ ipcMain.handle('memory-delete-memory', async (_event, id: string) => {
 
 ipcMain.handle('memory-clear-all-memories', async () => {
   memoryService.clearAllMemories();
-});
-
-ipcMain.handle('screenshot-take', async () => {
-  return await screenshotService.takeScreenshot();
 });
 
 // ========== 豆包语音 TTS WebSocket v3 IPC ==========
@@ -299,34 +311,6 @@ ipcMain.handle('tts-cache-save', async (_event, text: string, voice: string, aud
     return { success: true, filePath }
   } catch (error) {
     mainLogger.error('TTS cache save failed', error)
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-})
-
-// 获取缓存列表
-ipcMain.handle('tts-cache-list', async () => {
-  try {
-    const cacheDir = getTTSCacheDir()
-    const files = fs.readdirSync(cacheDir)
-    return { success: true, count: files.length, files }
-  } catch (error) {
-    mainLogger.error('TTS cache list failed', error)
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
-  }
-})
-
-// 清除所有缓存
-ipcMain.handle('tts-cache-clear', async () => {
-  try {
-    const cacheDir = getTTSCacheDir()
-    const files = fs.readdirSync(cacheDir)
-    for (const file of files) {
-      fs.unlinkSync(path.join(cacheDir, file))
-    }
-    mainLogger.info('TTS cache cleared', { deletedCount: files.length })
-    return { success: true, deletedCount: files.length }
-  } catch (error) {
-    mainLogger.error('TTS cache clear failed', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })

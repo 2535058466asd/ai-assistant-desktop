@@ -1,14 +1,13 @@
 /**
- * 启源 AI - 工具注册中心
+ * Nova AI - 工具注册中心
  *
  * 统一注册所有工具的 IPC Handler
  */
 
 import { registerExecCommand } from './execCommand'
 import { registerReadFile, registerWriteFile, registerListDir, registerSearchFiles, registerGrepContent } from './fileOps'
-import { registerWebSearch, registerWebFetch } from './webTools'
+import { registerWebSearch, registerWebFetch, registerSearchSetConfig } from './webTools'
 import { registerClipboardRead, registerClipboardWrite } from './clipboard'
-import { registerScreenshot } from './screenshot'
 import { registerOpenApp } from './openApp'
 import { registerKnowledgeSearch, registerKnowledgeAdd, registerKnowledgeStats, registerKnowledgeImportFile, registerKnowledgeImportImage, registerKnowledgeSources, registerKnowledgeDeleteBySource } from './ragTools'
 import { createLogger } from '../../shared/logger'
@@ -27,15 +26,13 @@ export function registerAllTools() {
   registerGrepContent()
 
   // 网络工具
+  registerSearchSetConfig()
   registerWebSearch()
   registerWebFetch()
 
   // 剪贴板
   registerClipboardRead()
   registerClipboardWrite()
-
-  // 截图
-  registerScreenshot()
 
   // 打开应用
   registerOpenApp()
@@ -49,5 +46,5 @@ export function registerAllTools() {
   registerKnowledgeImportFile()
   registerKnowledgeImportImage()
 
-  logger.info('Tools registered', { count: 17 });
+  logger.info('Tools registered', { count: 18 });
 }

@@ -3,6 +3,8 @@
  * 定义侧边栏、对话列表、模型选择等 UI 相关数据结构
  */
 
+import type { AgentProcessEvent, ToolProcessEvent } from './index';
+
 // ==========================================
 // 1. 对话/会话相关类型
 // ==========================================
@@ -73,33 +75,14 @@ export interface UIMessage {
   status?: MessageStatus;
   /** 是否正在流式输出（打字机效果） */
   isStreaming?: boolean;
+  /** 这条助手消息关联的 Agent 处理过程 */
+  processEvents?: AgentProcessEvent[];
+  /** 兼容旧字段：这条助手消息关联的工具执行过程 */
+  toolEvents?: ToolProcessEvent[];
 }
 
 // ==========================================
-// 4. 快捷建议类型
-// ==========================================
-
-/** 欢迎页快捷建议卡片 */
-export interface SuggestionCard {
-  /** 图标 emoji */
-  icon: string;
-  /** 标题 */
-  title: string;
-  /** 描述文字 */
-  description: string;
-  /** 点击后填入输入框的提示文本 */
-  prompt: string;
-}
-
-// ==========================================
-// 5. 输入区相关类型
-// ==========================================
-
-/** 输入区附件按钮类型 */
-export type ExtraButtonType = 'file' | 'voice' | 'image';
-
-// ==========================================
-// 6. 侧边栏状态类型
+// 4. 侧边栏状态类型
 // ==========================================
 
 /** 侧边栏用户信息 */
