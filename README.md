@@ -6,7 +6,7 @@
 
 ## 当前定位
 
-Nova 是一个桌面办公 AI Agent，不是代码助手。第一阶段能力边界是文件、知识库、剪贴板、截图、网页搜索、任务管理和轻量系统控制；不做自动写代码、连续键鼠桌控、自动发消息或高风险系统操作。
+Nova 是一个桌面办公 AI Agent，不是代码助手。第一阶段能力边界是文件、知识库、剪贴板、网页搜索、任务管理和轻量系统控制；不做自动写代码、连续键鼠桌控、自动发消息或高风险系统操作。
 
 ## 快速启动
 
@@ -26,7 +26,7 @@ npm run build
 
 ## Provider 配置
 
-默认模型 Provider 是豆包。后续可通过 Provider 抽象接入 OpenAI-compatible 服务和小米 MiMo：
+当前支持三个模型 Provider：豆包、小米 MiMo 和通用 OpenAI-compatible 服务。设置页保存到 localStorage 的配置优先于 `.env`，因此日常切换模型不需要改环境变量或重启应用。
 
 ```env
 VITE_MODEL_PROVIDER=doubao
@@ -42,13 +42,13 @@ VITE_MIMO_API_KEY=
 VITE_MIMO_MODEL=
 ```
 
-当前代码默认使用豆包 Provider。MiMo 的具体 endpoint、模型名、工具调用兼容性和计费，以拿到的官方 API 文档为准。
+推荐把 `.env` 当作默认值，把设置页当作运行时配置入口。模型切换、上下文和长期记忆的细节见 [docs/dev/model-provider-and-context.md](docs/dev/model-provider-and-context.md)。
 
 ## Demo 场景
 
 1. **知识库问答**：导入一份 PDF/Word/Excel/TXT/MD，提问后展示检索片段、来源、分类和 chunk 信息。
 2. **本地文件助手**：让 Agent 读取一个本地文本文件，总结内容，并把下一步记录到任务面板。
-3. **截图/剪贴板助手**：截图或读取剪贴板内容，让 Agent 分析报错、英文文本或网页片段，并给出建议。
+3. **剪贴板助手**：读取剪贴板内容，让 Agent 分析报错、英文文本或网页片段，并给出建议。
 
 ## 安全边界
 
@@ -91,7 +91,7 @@ VITE_MIMO_MODEL=
 
 ### Agent 工具调用
 - **Function Calling 全链路**：AI 推理 → 工具执行 → 结果返回 → 继续推理
-- **系统工具**：文件操作、网页搜索/抓取、应用启动、剪贴板、截图等
+- **系统工具**：文件操作、网页搜索/抓取、应用启动、剪贴板等
 - **知识库工具**：知识库搜索、文档导入、图片识别导入
 - **工作台工具**：创建任务、更新项目状态/下一步/阻塞点
 - **多工具自动编排**：AI 自主决定调用顺序，无需人工编排
@@ -103,16 +103,16 @@ VITE_MIMO_MODEL=
 - 用于面试展示“不是凭感觉判断回答好坏，而是有固定评估集”
 
 ### 语音交互
-- **流式语音识别（ASR）**：对接火山引擎 WebSocket 二进制协议
-- **流式语音合成（TTS）**：实时音频播放，低延迟
+- **ASR 管理器**：当前可使用浏览器 Web Speech，后续保留云端 ASR Provider 扩展点
+- **TTS 管理器**：支持豆包语音和 MiMo TTS 调研路径，当前优先保持稳定链路
 - **半双工对话模式**：类对讲机，ASR → LLM → TTS 完整链路
-- **音频采集与编码**：PCM/Float32 → Int16，GZIP 压缩
+- **阶段策略**：语音交互暂不追全双工，优先稳定文本对话、模型切换和上下文
 
 ### 桌面原生能力
 - **智能应用启动**：注册表 → 开始菜单 → 兜底三级查找（含命令注入防护）
 - **文件操作**：读写、列目录、按名搜索、按内容搜索
 - **路径自动映射**：`/Desktop/` 自动转为用户真实桌面路径
-- **剪贴板读写**、**屏幕截图**
+- **剪贴板读写**
 
 ---
 
@@ -124,8 +124,10 @@ VITE_MIMO_MODEL=
 | **React** + **TypeScript** | 前端 UI 框架 |
 | **Vite** | 构建工具 |
 | **CSS Modules** | 样式隔离 |
-| **豆包 API** | 大模型对话 + Function Calling（doubao-seed-2-0-pro） |
-| **火山引擎** | 流式 TTS / ASR（WebSocket 二进制协议） |
+| **豆包 API** | 大模型对话 + Function Calling |
+| **小米 MiMo** | OpenAI-compatible 聊天、推理内容和多模态/语音调研 |
+| **OpenAI-compatible Provider** | 兼容 DeepSeek、OpenRouter、本地代理等服务 |
+| **火山引擎** | 豆包语音 TTS / ASR 调研与接入 |
 | **ChromaDB** | 本地向量知识库 |
 | **SQLite** | 长期记忆持久化 |
 | **pdf-parse / mammoth / xlsx** | 文档解析 |
@@ -139,24 +141,22 @@ ai-assistant-desktop/
 ├── src/
 │   ├── main/                          # Electron 主进程
 │   │   ├── index.ts                   # 主进程入口（窗口创建、生命周期）
-│   │   ├── tools/                     # 工具模块（12个工具）
+│   │   ├── tools/                     # 工具模块
 │   │   │   ├── index.ts               # 工具注册中心 registerAllTools()
 │   │   │   ├── execCommand.ts         # exec_command（系统命令执行）
 │   │   │   ├── fileOps.ts             # read/write/list/search/grep（文件操作）
 │   │   │   ├── webTools.ts            # web_search/web_fetch（搜索与抓取）
 │   │   │   ├── clipboard.ts           # clipboard_read/write（剪贴板）
-│   │   │   ├── screenshot.ts          # screenshot（屏幕截图）
+│   │   │   ├── ragTools.ts            # knowledge_*（知识库工具）
 │   │   │   └── openApp.ts             # open_app（智能应用启动）
 │   │   └── services/                  # 主进程服务
 │   │       ├── memoryServiceBackend.ts # 记忆服务
 │   │       ├── ragService.ts          # ChromaDB RAG 服务
 │   │       ├── documentParser.ts      # 文档解析与 chunk
-│   │       ├── screenshotService.ts   # 截图服务
-│   │       ├── tts/                   # TTS 模块
-│   │       └── asr/                   # ASR 模块
+│   │       └── imageRecognizer.ts     # 图片识别导入
 │   │
 │   ├── preload/                       # 预加载脚本
-│   │   └── preload.ts                 # IPC 桥接（12个工具 API）
+│   │   └── preload.ts                 # IPC 桥接（工具、模型代理、主进程能力）
 │   │
 │   └── renderer/                      # 渲染进程（React）
 │       ├── components/                # React 组件
@@ -169,10 +169,11 @@ ai-assistant-desktop/
 │       │   ├── header/                # 顶部栏（模型切换、主题、设置）
 │       │   ├── chat/                  # 聊天区域
 │       │   ├── Settings/              # 设置面板
-│       │   ├── WelcomeScreen/         # 欢迎页
 │       │   └── AppLayout/             # 整体布局
 │       ├── core/
 │       │   ├── orchestrator.ts        # 核心编排器（Agent循环）
+│       │   ├── history/               # 短期上下文与对话历史
+│       │   ├── model/                 # Provider 抽象与模型传输
 │       │   ├── tools/                 # 工具定义与执行
 │       │   │   ├── toolDefinitions.ts # 工具 JSON Schema
 │       │   │   └── toolExecutor.ts    # 工具分发与结果处理
@@ -200,7 +201,6 @@ ai-assistant-desktop/
 | `web_fetch` | 网页 | 抓取网页纯文本内容（含 SSRF 防护） |
 | `clipboard_read` | 剪贴板 | 读取剪贴板 |
 | `clipboard_write` | 剪贴板 | 写入剪贴板 |
-| `screenshot` | 截图 | 屏幕截图 |
 | `open_app` | 应用 | 智能打开应用或网页（含命令注入防护） |
 | `knowledge_search` | RAG | 检索本地知识库 |
 | `knowledge_add` | RAG | 添加知识片段 |
@@ -222,7 +222,7 @@ ASR（语音识别）→ 文字
     ↓
 Orchestrator（编排器）→ 构建系统提示词 + 对话历史
     ↓
-豆包 API（Function Calling）
+ModelProvider（豆包 / MiMo / OpenAI-compatible）
     ↓
 AI 决定调用哪些工具（自动编排，最多5轮）
     ↓
@@ -244,13 +244,13 @@ AI 继续推理（可能调用更多工具）
   ↕ props/callbacks
 App.tsx（状态管理）
   ↕ ref
-Orchestrator（AI编排）
-  ↕ fetch
-豆包 API
+Orchestrator（AI编排 + ContextManager）
+  ↕ ModelProvider
+modelTransport（主进程代理请求）
   ↕ IPC (preload)
 主进程（Electron）
-  ↕ 系统调用
-操作系统
+  ↕ HTTPS / 系统调用
+模型 API / 操作系统
 
 本地持久化：
 - localStorage：项目、任务、工具调用日志、Eval Set
@@ -297,12 +297,13 @@ npm run electron:build
 
 | 项目 | 说明 | 优先级 |
 |------|------|--------|
-| 假流式输出 | 当前为 `stream: false`，等待完整响应后一次性显示 | 高 |
+| 多 Provider 稳定性 | 豆包、MiMo、OpenAI-compatible 的模型名、鉴权和错误提示还需要继续收敛 | 高 |
+| reasoning_content 展示 | MiMo thinking mode 会返回 `reasoning_content`，前端展示和多轮传回仍需打磨 | 高 |
 | Eval 自动化 | 当前 Eval 面板支持测试集管理和人工标注，后续可接 LLM-as-judge | 高 |
 | 引用结构化 | RAG 检索结果已有来源文本，后续可将 citation 结构化到消息 UI | 高 |
 | 成本统计 | 工具日志已有耗时，后续可加入 token 和人民币成本估算 | 中 |
-| 废弃代码层 | IntentClassifier/ContextManager/WakeWordDetector 未清理 | 低 |
-| 模型不随对话保存 | 切换对话后模型选择不恢复 | 低 |
+| 语音实时性 | 当前先保持半双工链路稳定，不追全双工和边生成边播放 | 中 |
+| 模型随对话保存 | 切换对话后是否恢复当时模型，需要产品决策和实现 | 低 |
 
 ---
 

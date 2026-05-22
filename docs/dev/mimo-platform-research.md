@@ -59,6 +59,19 @@ Token Plan 的 API Key 格式是 `tp-xxxxx`。按量付费 API Key 格式是 `sk
 
 本项目优先走 OpenAI 兼容路径，因为当前 Provider 抽象已经贴近 OpenAI Chat Completions。
 
+## 本地实测结论
+
+2026-05-19 对普通 API、Token Plan 和 LiteLLM 做过小请求验证：
+
+- 普通 `sk-` key 应使用 `https://api.xiaomimimo.com/v1`。
+- Token Plan `tp-` key 应使用 `https://token-plan-cn.xiaomimimo.com/v1`。
+- `sk-` key 请求 Token Plan 地址会返回 `401 Invalid API Key`，这是 key 类型和 base URL 不匹配。
+- Windows 宿主机直连 Token Plan + `tp-` key 可以成功请求。
+- LiteLLM Docker 容器访问 `token-plan-cn.xiaomimimo.com:443` 时出现过连接/TLS 层错误；该问题发生在鉴权之前，不代表 Token Plan key 无效。
+- LiteLLM 使用普通 `sk-` key + `https://api.xiaomimimo.com/v1` 已验证可返回 `200 OK`。
+
+当前项目不默认接入 LiteLLM。LiteLLM 只作为外部统一网关备选方案，Nova 主项目仍直接维护自己的 Provider 抽象。
+
 ## 模型
 
 官方文档中重要模型 ID：
@@ -152,20 +165,28 @@ VITE_MIMO_API_KEY=tp-xxxxx
 VITE_MIMO_MODEL=mimo-v2.5-pro
 ```
 
+普通按量付费 API 推荐 `.env` 配置：
+
+```env
+VITE_MODEL_PROVIDER=mimo
+VITE_MIMO_BASE_URL=https://api.xiaomimimo.com/v1
+VITE_MIMO_API_KEY=sk-xxxxx
+VITE_MIMO_MODEL=mimo-v2.5-pro
+```
+
 真实 API Key 不进入 Git，只放本地 `.env`。
 
 Provider 抽象的意义是：Orchestrator 只依赖统一的 `ModelProvider` 接口。以后从豆包切到 MiMo，应该只改配置和 Provider 内部实现，不重写 Agent Loop。
 
 推荐接入顺序：
 
-1. 使用 Token Plan Base URL 和 `tp-` key 验证 MiMo 普通聊天。
+1. 优先使用普通 API 或 Token Plan 的正确 key/base URL 组合验证 MiMo 普通聊天。
 2. 验证现有工具 schemas 下的 function calling。
-3. 只有当工具调用效果需要时，再加 MiMo 专属 `reasoning_content` 支持。
+3. 保留 MiMo 专属 `reasoning_content`，用于 thinking mode 和多轮工具调用。
 4. 在接入 MiMo TTS 前，先抽象 `SpeechProvider`。
 5. 在确认 MiMo 有清晰云端 ASR API 前，继续保留现有 ASR。
 
 ## 待确认问题
 
-- 用户订阅控制台显示的是中国区、新加坡区还是欧洲区 Token Plan。
 - Token Plan 是否允许通过同一个 Token Plan Base URL 调用 TTS 模型。文档倾向于支持，但需要小请求验证。
 - 是否存在独立的云端 MiMo ASR API。当前证据显示是开源本地 ASR 加多模态音频理解，不是明确的专用云端 ASR endpoint。

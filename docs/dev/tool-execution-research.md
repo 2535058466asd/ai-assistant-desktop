@@ -27,7 +27,7 @@ Electron 安全建议与当前方向一致：
 
 ## 当前工具形态
 
-当前暴露给模型的工具共 18 个：
+当前暴露给模型的工具已不包含截图能力，核心工具共 17 个：
 
 - `exec_command`
 - `read_file`
@@ -36,7 +36,6 @@ Electron 安全建议与当前方向一致：
 - `web_fetch`
 - `clipboard_read`
 - `clipboard_write`
-- `screenshot`
 - `open_app`
 - `list_dir`
 - `search_files`
@@ -47,6 +46,8 @@ Electron 安全建议与当前方向一致：
 - `knowledge_import_image`
 - `workspace_create_task`
 - `workspace_update_project`
+
+截图能力已经从当前产品范围移除，因此下面只讨论保留中的工具重叠。
 
 存在一些功能重叠：
 

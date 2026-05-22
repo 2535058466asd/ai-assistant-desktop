@@ -11,15 +11,15 @@
 
 | 文件 | 改动 |
 |------|------|
-| `src/renderer/components/header/Header.tsx` | 品牌名 "启源 AI" → "Nova" |
-| `src/renderer/components/WelcomeScreen/WelcomeScreen.tsx` | 标题 "启源 AI" → "Nova" |
+| `src/renderer/components/header/Header.tsx` | 品牌名 "Nova AI" → "Nova" |
+| `src/renderer/components/chat/ChatArea.tsx` 或当前空状态组件 | 初始空状态文案统一为 "Nova" |
 | `src/main/index.ts` 或 `index.html` | 窗口标题 → "Nova" |
 | `package.json` | `productName` → "Nova" |
 
 ### Logo
 - 保持现有青蓝渐变圆角方块形状不变
 - 内部图标改为星星/光芒元素（✦ 或自定义 SVG）
-- 不改尺寸（28x28 Header，80x80 WelcomeScreen）
+- 不改 Header 中 Logo 尺寸；空状态区域按当前实际布局调整
 
 ---
 

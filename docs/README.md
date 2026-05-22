@@ -14,12 +14,19 @@
 
 ## Dev
 
-当前没有活跃开发计划文档。后续进行项目开发时，新的技术方案和阶段计划直接放到 `docs/dev/`。
+- [`dev/model-provider-and-context.md`](dev/model-provider-and-context.md)：模型 Provider、同一对话切模型、短期上下文、长期记忆和 `reasoning_content` 说明。
+- [`dev/mimo-platform-research.md`](dev/mimo-platform-research.md)：小米 MiMo 开放平台、Token Plan、模型和语音能力调研。
+- [`dev/volcengine-voice-research.md`](dev/volcengine-voice-research.md)：火山引擎语音链路调研；当前阶段语音链路先冻结，优先稳定文本对话。
+- [`dev/tool-execution-research.md`](dev/tool-execution-research.md)：工具执行和安全边界调研。
+
+根目录的 [`../model-config-analysis.md`](../model-config-analysis.md) 是模型配置问题分析记录，后续可在稳定后合并进 dev 文档。
 
 ## Completed
 
 - [`completed/memory-context-v2-implementation.md`](completed/memory-context-v2-implementation.md)：记忆与上下文 V2 已完成内容记录。
 - [`completed/voice-chat-mode-implementation.md`](completed/voice-chat-mode-implementation.md)：语音对话模式已完成内容记录。
+
+这些文档是归档实现记录，只用于回溯已经完成的设计和阶段性决策。当前最新模型配置、上下文和 Provider 说明以 `dev/` 下的活跃文档为准。
 
 ## 目录规则
 

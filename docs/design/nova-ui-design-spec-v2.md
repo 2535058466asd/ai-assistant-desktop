@@ -21,16 +21,16 @@
 
 | 位置 | 现在 | 改为 | 涉及文件 |
 |------|------|------|---------|
-| AI 自称 | "启源" | "Nova" | `qiyuanSettings.ts` |
-| 输入框 placeholder | "和启源聊聊天吧~" | "和 Nova 聊聊天吧~" | `InputArea.tsx` |
-| 免责声明 | "启源 AI 可能会产生不准确的信息" | "Nova 可能会产生不准确的信息" | `ChatArea.tsx` 或 `InputArea.tsx` |
-| 欢迎语 | 长篇功能介绍 | 简短 2-3 句话 | `WelcomeScreen.tsx` |
+| AI 自称 | "Nova" | "Nova" | `qiyuanSettings.ts` |
+| 输入框 placeholder | "和Nova聊聊天吧~" | "和 Nova 聊聊天吧~" | `InputArea.tsx` |
+| 免责声明 | "Nova AI 可能会产生不准确的信息" | "Nova 可能会产生不准确的信息" | `ChatArea.tsx` 或 `InputArea.tsx` |
+| 初始空状态提示 | 长篇功能介绍 | 简短 2-3 句话 | `ChatArea.tsx` 或当前空状态组件 |
 
-### 欢迎语建议
+### 初始空状态提示建议
 ```
-你好，我是 Nova ✨
-我可以搜索、记忆、语音对话，还能调用工具帮你干活。
-有什么我能帮你的？
+你好，我是 Nova。
+我可以搜索、记忆、语音对话，也能调用工具帮你处理桌面任务。
+今天想先解决什么问题？
 ```
 
 ---
