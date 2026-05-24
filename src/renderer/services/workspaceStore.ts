@@ -42,29 +42,34 @@ export interface EvalCase {
   notes?: string;
 }
 
-const PROJECTS_KEY = 'qiyuan_workspace_projects';
-const TASKS_KEY = 'qiyuan_workspace_tasks';
-const TOOL_LOGS_KEY = 'qiyuan_tool_call_logs';
-const EVAL_CASES_KEY = 'qiyuan_eval_cases';
+const PROJECTS_KEY = 'nova.workspace.projects';
+const LEGACY_PROJECTS_KEY = 'qiyuan_workspace_projects';
+const TASKS_KEY = 'nova.workspace.tasks';
+const LEGACY_TASKS_KEY = 'qiyuan_workspace_tasks';
+const TOOL_LOGS_KEY = 'nova.tool.call.logs';
+const LEGACY_TOOL_LOGS_KEY = 'qiyuan_tool_call_logs';
+const EVAL_CASES_KEY = 'nova.eval.cases';
+const LEGACY_EVAL_CASES_KEY = 'qiyuan_eval_cases';
 
 const now = () => Date.now();
 const id = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-function readJson<T>(key: string, fallback: T): T {
+function readJson<T>(key: string, fallback: T, legacyKey?: string): T {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(key) || (legacyKey ? localStorage.getItem(legacyKey) : null);
     return raw ? JSON.parse(raw) : fallback;
   } catch {
     return fallback;
   }
 }
 
-function writeJson<T>(key: string, value: T): void {
+function writeJson<T>(key: string, value: T, legacyKey?: string): void {
   localStorage.setItem(key, JSON.stringify(value));
+  if (legacyKey) localStorage.removeItem(legacyKey);
 }
 
 export function getProjects(): WorkspaceProject[] {
-  const projects = readJson<WorkspaceProject[]>(PROJECTS_KEY, []);
+  const projects = readJson<WorkspaceProject[]>(PROJECTS_KEY, [], LEGACY_PROJECTS_KEY);
   if (projects.length > 0) return projects;
 
   const seeded: WorkspaceProject[] = [
@@ -94,12 +99,12 @@ export function getProjects(): WorkspaceProject[] {
       updatedAt: now() - 7200_000,
     },
   ];
-  writeJson(PROJECTS_KEY, seeded);
+  writeJson(PROJECTS_KEY, seeded, LEGACY_PROJECTS_KEY);
   return seeded;
 }
 
 export function getTasks(): WorkspaceTask[] {
-  const tasks = readJson<WorkspaceTask[]>(TASKS_KEY, []);
+  const tasks = readJson<WorkspaceTask[]>(TASKS_KEY, [], LEGACY_TASKS_KEY);
   if (tasks.length > 0) return tasks;
 
   const seeded: WorkspaceTask[] = [
@@ -131,8 +136,8 @@ export function getTasks(): WorkspaceTask[] {
       updatedAt: now(),
     },
   ];
-  writeJson(TASKS_KEY, tasks);
-  return tasks;
+  writeJson(TASKS_KEY, seeded, LEGACY_TASKS_KEY);
+  return seeded;
 }
 
 export function createTask(title: string, projectId = 'project-ai-workspace', priority: WorkspaceTask['priority'] = 'medium'): WorkspaceTask {
@@ -146,7 +151,7 @@ export function createTask(title: string, projectId = 'project-ai-workspace', pr
     createdAt: now(),
     updatedAt: now(),
   };
-  writeJson(TASKS_KEY, [task, ...tasks]);
+  writeJson(TASKS_KEY, [task, ...tasks], LEGACY_TASKS_KEY);
   return task;
 }
 
@@ -158,27 +163,27 @@ export function updateProject(projectId: string, patch: Partial<Pick<WorkspacePr
     updatedProject = { ...project, ...patch, updatedAt: now() };
     return updatedProject;
   });
-  writeJson(PROJECTS_KEY, updated);
+  writeJson(PROJECTS_KEY, updated, LEGACY_PROJECTS_KEY);
   return updatedProject;
 }
 
 export function addToolLog(log: Omit<ToolCallLog, 'id' | 'createdAt'>): ToolCallLog {
   const logs = getToolLogs();
   const next: ToolCallLog = { ...log, id: id('tool'), createdAt: now() };
-  writeJson(TOOL_LOGS_KEY, [next, ...logs].slice(0, 200));
+  writeJson(TOOL_LOGS_KEY, [next, ...logs].slice(0, 200), LEGACY_TOOL_LOGS_KEY);
   return next;
 }
 
 export function getToolLogs(): ToolCallLog[] {
-  return readJson<ToolCallLog[]>(TOOL_LOGS_KEY, []);
+  return readJson<ToolCallLog[]>(TOOL_LOGS_KEY, [], LEGACY_TOOL_LOGS_KEY);
 }
 
 export function clearToolLogs(): void {
-  writeJson(TOOL_LOGS_KEY, []);
+  writeJson(TOOL_LOGS_KEY, [], LEGACY_TOOL_LOGS_KEY);
 }
 
 export function getEvalCases(): EvalCase[] {
-  const cases = readJson<EvalCase[]>(EVAL_CASES_KEY, []);
+  const cases = readJson<EvalCase[]>(EVAL_CASES_KEY, [], LEGACY_EVAL_CASES_KEY);
   if (cases.length > 0) return cases;
 
   const seeded: EvalCase[] = [
@@ -210,7 +215,7 @@ export function getEvalCases(): EvalCase[] {
     status: 'untested' as EvalStatus,
   }));
 
-  writeJson(EVAL_CASES_KEY, seeded);
+  writeJson(EVAL_CASES_KEY, seeded, LEGACY_EVAL_CASES_KEY);
   return seeded;
 }
 
@@ -218,12 +223,13 @@ export function updateEvalCase(caseId: string, patch: Partial<Pick<EvalCase, 'st
   const updated = getEvalCases().map((testCase) =>
     testCase.id === caseId ? { ...testCase, ...patch } : testCase
   );
-  writeJson(EVAL_CASES_KEY, updated);
+  writeJson(EVAL_CASES_KEY, updated, LEGACY_EVAL_CASES_KEY);
   return updated;
 }
 
 export function resetEvalCases(): EvalCase[] {
   localStorage.removeItem(EVAL_CASES_KEY);
+  localStorage.removeItem(LEGACY_EVAL_CASES_KEY);
   return getEvalCases();
 }
 

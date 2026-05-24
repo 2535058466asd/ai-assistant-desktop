@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createModelProvider, setModelProvider } from '../../core/model';
-import { getActiveModelConfig, getModelConfigForProvider, saveActiveModelConfig, type ModelProviderId } from '../../config/modelConfig';
+import { getActiveModelConfig, getModelConfigForProvider, saveProviderConnectionConfig, type ModelProviderId } from '../../config/modelConfig';
 import { createLogger } from '../../../shared/logger';
 import styles from './ModelApiPanel.module.css';
 
@@ -16,7 +16,6 @@ export default function ModelApiPanel() {
   const [provider, setProvider] = useState<ModelProviderId>('doubao');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
-  const [modelName, setModelName] = useState('');
   const [temperature, setTemperature] = useState(0.8);
   const [maxTokens, setMaxTokens] = useState(1024);
   const [saved, setSaved] = useState(false);
@@ -26,7 +25,6 @@ export default function ModelApiPanel() {
     setProvider(config.provider);
     setApiKey(config.apiKey);
     setBaseUrl(config.baseUrl);
-    setModelName(config.model);
     setTemperature(config.temperature);
     setMaxTokens(config.maxTokens);
   }, []);
@@ -36,24 +34,20 @@ export default function ModelApiPanel() {
     const config = getModelConfigForProvider(newProvider);
     setApiKey(config.apiKey);
     setBaseUrl(config.baseUrl);
-    setModelName(config.model);
   };
 
   const handleSave = () => {
-    const nextConfig = {
+    const nextConfig = saveProviderConnectionConfig({
       provider,
       apiKey,
       baseUrl,
-      model: modelName,
-      compactModel: modelName,
       temperature,
       maxTokens,
-    };
-    saveActiveModelConfig(nextConfig);
+    });
 
     try {
       setModelProvider(createModelProvider(nextConfig));
-      window.dispatchEvent(new CustomEvent('qiyuan-model-config-saved'));
+      window.dispatchEvent(new CustomEvent('nova-model-config-saved'));
     } catch (e) {
       logger.error('模型 Provider 切换失败', e);
     }
@@ -105,14 +99,7 @@ export default function ModelApiPanel() {
             />
           </>
         )}
-        <label className={styles.label}>模型名称</label>
-        <input
-          className={styles.input}
-          type="text"
-          value={modelName}
-          onChange={(e) => setModelName(e.target.value)}
-          placeholder={provider === 'doubao' ? 'doubao-seed-2-0-pro-260215' : provider === 'mimo' ? 'mimo-v2.5' : 'model-name'}
-        />
+        <p className={styles.note}>默认模型由顶部栏下拉切换；这里不再要求手动填写模型名称。</p>
       </div>
 
       <div className={styles.section}>

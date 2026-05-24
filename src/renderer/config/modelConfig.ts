@@ -17,17 +17,63 @@ export interface ActiveModelConfig {
 }
 
 const DEFAULT_DOUBAO_MODEL = 'doubao-seed-2-0-pro-260215';
-const DEFAULT_DOUBAO_COMPACT_MODEL = 'doubao-1-5-lite-32k-250115';
 const DEFAULT_DOUBAO_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
 const DEFAULT_MIMO_MODEL = 'mimo-v2.5';
 const DEFAULT_MIMO_BASE_URL = 'https://api.xiaomimimo.com/v1';
 const MIMO_ORDINARY_API_HOST = 'api.xiaomimimo.com/v1';
 const MIMO_TOKEN_PLAN_HOST = 'token-plan-cn.xiaomimimo.com/v1';
 
+const KEYS = {
+  provider: 'nova.model.provider',
+  legacyProvider: 'qiyuan.model.provider',
+  modelApiKey: 'nova.model.apiKey',
+  legacyModelApiKey: 'qiyuan.model.apiKey',
+  modelBaseUrl: 'nova.model.baseUrl',
+  legacyModelBaseUrl: 'qiyuan.model.baseUrl',
+  modelName: 'nova.model.modelName',
+  legacyModelName: 'qiyuan.model.modelName',
+  modelTemperature: 'nova.model.temperature',
+  legacyModelTemperature: 'qiyuan.model.temperature',
+  modelMaxTokens: 'nova.model.maxTokens',
+  legacyModelMaxTokens: 'qiyuan.model.maxTokens',
+  doubaoApiKey: 'nova.doubao.apiKey',
+  legacyDoubaoApiKey: 'qiyuan.doubao.apiKey',
+  doubaoBaseUrl: 'nova.doubao.baseUrl',
+  legacyDoubaoBaseUrl: 'qiyuan.doubao.baseUrl',
+  doubaoModel: 'nova.doubao.model',
+  legacyDoubaoModel: 'qiyuan.doubao.model',
+  doubaoCompactModel: 'nova.doubao.compactModel',
+  legacyDoubaoCompactModel: 'qiyuan.doubao.compactModel',
+  mimoApiKey: 'nova.mimo.apiKey',
+  legacyMimoApiKey: 'qiyuan.mimo.apiKey',
+  mimoBaseUrl: 'nova.mimo.baseUrl',
+  legacyMimoBaseUrl: 'qiyuan.mimo.baseUrl',
+  mimoModel: 'nova.mimo.model',
+  legacyMimoModel: 'qiyuan.mimo.model',
+  mimoCompactModel: 'nova.mimo.compactModel',
+  legacyMimoCompactModel: 'qiyuan.mimo.compactModel',
+  openaiApiKey: 'nova.openai.apiKey',
+  legacyOpenaiApiKey: 'qiyuan.openai.apiKey',
+  openaiBaseUrl: 'nova.openai.baseUrl',
+  legacyOpenaiBaseUrl: 'qiyuan.openai.baseUrl',
+  openaiModel: 'nova.openai.model',
+  legacyOpenaiModel: 'qiyuan.openai.model',
+  openaiCompactModel: 'nova.openai.compactModel',
+  legacyOpenaiCompactModel: 'qiyuan.openai.compactModel',
+} as const;
+
 // 读取设置页保存的值。服务端构建阶段没有 window，所以要先判断。
-function readStored(key: string): string {
+function readStored(key: string, legacyKey?: string): string {
   if (typeof window === 'undefined') return '';
-  return window.localStorage.getItem(key) || '';
+  return window.localStorage.getItem(key) || (legacyKey ? window.localStorage.getItem(legacyKey) || '' : '');
+}
+
+function writeStored(key: string, value: string, legacyKey?: string): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(key, value);
+  if (legacyKey) {
+    window.localStorage.removeItem(legacyKey);
+  }
 }
 
 // 读取 Vite 注入的 .env 变量。变量名必须以 VITE_ 开头才会暴露给渲染进程。
@@ -62,9 +108,9 @@ function migrateStoredMimoConfigIfNeeded(): {
   baseUrl: string;
   model: string;
 } {
-  const storedApiKey = readStored('qiyuan.mimo.apiKey');
-  const storedBaseUrl = readStored('qiyuan.mimo.baseUrl');
-  const storedModel = readStored('qiyuan.mimo.model');
+  const storedApiKey = readStored(KEYS.mimoApiKey, KEYS.legacyMimoApiKey);
+  const storedBaseUrl = readStored(KEYS.mimoBaseUrl, KEYS.legacyMimoBaseUrl);
+  const storedModel = readStored(KEYS.mimoModel, KEYS.legacyMimoModel);
 
   if (!isMimoTokenPlanConfig(storedApiKey, storedBaseUrl)) {
     return { apiKey: storedApiKey, baseUrl: storedBaseUrl, model: storedModel };
@@ -79,9 +125,9 @@ function migrateStoredMimoConfigIfNeeded(): {
   }
 
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem('qiyuan.mimo.apiKey', envApiKey);
-    window.localStorage.setItem('qiyuan.mimo.baseUrl', envBaseUrl);
-    window.localStorage.setItem('qiyuan.mimo.model', firstValue(storedModel, envModel));
+    writeStored(KEYS.mimoApiKey, envApiKey, KEYS.legacyMimoApiKey);
+    writeStored(KEYS.mimoBaseUrl, envBaseUrl, KEYS.legacyMimoBaseUrl);
+    writeStored(KEYS.mimoModel, firstValue(storedModel, envModel), KEYS.legacyMimoModel);
   }
 
   return {
@@ -92,11 +138,11 @@ function migrateStoredMimoConfigIfNeeded(): {
 }
 
 function getStoredProvider(): ModelProviderId {
-  return normalizeProvider(readStored('qiyuan.model.provider'));
+  return normalizeProvider(readStored(KEYS.provider, KEYS.legacyProvider));
 }
 
 function readLegacyCurrentProviderValue(key: string, provider: ModelProviderId): string {
-  // qiyuan.model.* 是早期单模型配置遗留键。现在多 Provider 后，只有当前 Provider 一致时才允许读取，
+  // 早期单模型配置遗留键。现在多 Provider 后，只有当前 Provider 一致时才允许读取，
   // 避免“小米 key 被豆包 Provider 误用”这类串配置问题。
   return getStoredProvider() === provider ? readStored(key) : '';
 }
@@ -113,8 +159,8 @@ function readLegacyCurrentProviderValue(key: string, provider: ModelProviderId):
  * 避免每个模块自己读一套环境变量导致不同步。
  */
 export function getModelConfigForProvider(provider: ModelProviderId): ActiveModelConfig {
-  const temperature = readNumber(readStored('qiyuan.model.temperature'), 0.8);
-  const maxTokens = readNumber(readStored('qiyuan.model.maxTokens'), 1024);
+  const temperature = readNumber(readStored(KEYS.modelTemperature, KEYS.legacyModelTemperature), 0.8);
+  const maxTokens = readNumber(readStored(KEYS.modelMaxTokens, KEYS.legacyModelMaxTokens), 1024);
 
   if (provider === 'mimo') {
     // MiMo 默认走普通按量 API 的 OpenAI-compatible 地址；Token Plan 只作为可选高级方案。
@@ -129,7 +175,7 @@ export function getModelConfigForProvider(provider: ModelProviderId): ActiveMode
       apiKey: firstValue(migrated.apiKey, readEnv('VITE_MIMO_API_KEY')),
       baseUrl: firstValue(migrated.baseUrl, readEnv('VITE_MIMO_BASE_URL'), DEFAULT_MIMO_BASE_URL),
       model,
-      compactModel: firstValue(readStored('qiyuan.mimo.compactModel'), model),
+      compactModel: firstValue(readStored(KEYS.mimoCompactModel, KEYS.legacyMimoCompactModel), model),
       temperature,
       maxTokens,
     };
@@ -138,15 +184,15 @@ export function getModelConfigForProvider(provider: ModelProviderId): ActiveMode
   if (provider === 'openai-compatible') {
     // 给 DeepSeek、OpenRouter、LM Studio、Ollama 兼容服务等预留的通用入口。
     const model = firstValue(
-      readStored('qiyuan.openai.model'),
+      readStored(KEYS.openaiModel, KEYS.legacyOpenaiModel),
       readEnv('VITE_OPENAI_COMPATIBLE_MODEL'),
     );
     return {
       provider,
-      apiKey: firstValue(readStored('qiyuan.openai.apiKey'), readEnv('VITE_OPENAI_COMPATIBLE_API_KEY')),
-      baseUrl: firstValue(readStored('qiyuan.openai.baseUrl'), readEnv('VITE_OPENAI_COMPATIBLE_BASE_URL')),
+      apiKey: firstValue(readStored(KEYS.openaiApiKey, KEYS.legacyOpenaiApiKey), readEnv('VITE_OPENAI_COMPATIBLE_API_KEY')),
+      baseUrl: firstValue(readStored(KEYS.openaiBaseUrl, KEYS.legacyOpenaiBaseUrl), readEnv('VITE_OPENAI_COMPATIBLE_BASE_URL')),
       model,
-      compactModel: firstValue(readStored('qiyuan.openai.compactModel'), model),
+      compactModel: firstValue(readStored(KEYS.openaiCompactModel, KEYS.legacyOpenaiCompactModel), model),
       temperature,
       maxTokens,
     };
@@ -154,20 +200,20 @@ export function getModelConfigForProvider(provider: ModelProviderId): ActiveMode
 
   // 默认保留豆包，作为稳定 fallback；MiMo 没配 key 时项目也能继续启动。
   const model = firstValue(
-    readStored('qiyuan.doubao.model'),
+    readStored(KEYS.doubaoModel, KEYS.legacyDoubaoModel),
     readEnv('VITE_DOUBAO_MODEL'),
     DEFAULT_DOUBAO_MODEL,
   );
   return {
     provider: 'doubao',
     apiKey: firstValue(
-      readStored('qiyuan.doubao.apiKey'),
-      readLegacyCurrentProviderValue('qiyuan.model.apiKey', 'doubao'),
+      readStored(KEYS.doubaoApiKey, KEYS.legacyDoubaoApiKey),
+      readLegacyCurrentProviderValue(KEYS.legacyModelApiKey, 'doubao'),
       readEnv('VITE_DOUBAO_API_KEY')
     ),
-    baseUrl: firstValue(readStored('qiyuan.doubao.baseUrl'), readEnv('VITE_DOUBAO_API_URL'), DEFAULT_DOUBAO_BASE_URL),
+    baseUrl: firstValue(readStored(KEYS.doubaoBaseUrl, KEYS.legacyDoubaoBaseUrl), readEnv('VITE_DOUBAO_API_URL'), DEFAULT_DOUBAO_BASE_URL),
     model,
-    compactModel: firstValue(readStored('qiyuan.doubao.compactModel'), readEnv('VITE_DOUBAO_COMPACT_MODEL'), DEFAULT_DOUBAO_COMPACT_MODEL),
+    compactModel: firstValue(readStored(KEYS.doubaoCompactModel, KEYS.legacyDoubaoCompactModel), readEnv('VITE_DOUBAO_COMPACT_MODEL'), model),
     temperature,
     maxTokens,
   };
@@ -175,7 +221,7 @@ export function getModelConfigForProvider(provider: ModelProviderId): ActiveMode
 
 export function getActiveModelConfig(): ActiveModelConfig {
   const provider = normalizeProvider(firstValue(
-    readStored('qiyuan.model.provider'),
+    readStored(KEYS.provider, KEYS.legacyProvider),
     readEnv('VITE_MODEL_PROVIDER'),
     'doubao',
   ));
@@ -185,24 +231,39 @@ export function getActiveModelConfig(): ActiveModelConfig {
 export function saveActiveModelConfig(config: ActiveModelConfig): void {
   if (typeof window === 'undefined') return;
   // 通用键用于当前 Provider；Provider 专属键用于切换回来时恢复各自配置。
-  window.localStorage.setItem('qiyuan.model.provider', config.provider);
-  window.localStorage.setItem('qiyuan.model.apiKey', config.apiKey);
-  window.localStorage.setItem('qiyuan.model.baseUrl', config.baseUrl);
-  window.localStorage.setItem('qiyuan.model.modelName', config.model);
-  window.localStorage.setItem('qiyuan.model.temperature', String(config.temperature));
-  window.localStorage.setItem('qiyuan.model.maxTokens', String(config.maxTokens));
+  writeStored(KEYS.provider, config.provider, KEYS.legacyProvider);
+  writeStored(KEYS.modelApiKey, config.apiKey, KEYS.legacyModelApiKey);
+  writeStored(KEYS.modelBaseUrl, config.baseUrl, KEYS.legacyModelBaseUrl);
+  writeStored(KEYS.modelName, config.model, KEYS.legacyModelName);
+  writeStored(KEYS.modelTemperature, String(config.temperature), KEYS.legacyModelTemperature);
+  writeStored(KEYS.modelMaxTokens, String(config.maxTokens), KEYS.legacyModelMaxTokens);
 
   if (config.provider === 'doubao') {
-    window.localStorage.setItem('qiyuan.doubao.apiKey', config.apiKey);
-    window.localStorage.setItem('qiyuan.doubao.model', config.model);
-    window.localStorage.setItem('qiyuan.doubao.baseUrl', config.baseUrl);
+    writeStored(KEYS.doubaoApiKey, config.apiKey, KEYS.legacyDoubaoApiKey);
+    writeStored(KEYS.doubaoModel, config.model, KEYS.legacyDoubaoModel);
+    writeStored(KEYS.doubaoBaseUrl, config.baseUrl, KEYS.legacyDoubaoBaseUrl);
+    writeStored(KEYS.doubaoCompactModel, config.compactModel, KEYS.legacyDoubaoCompactModel);
   } else if (config.provider === 'mimo') {
-    window.localStorage.setItem('qiyuan.mimo.apiKey', config.apiKey);
-    window.localStorage.setItem('qiyuan.mimo.baseUrl', config.baseUrl);
-    window.localStorage.setItem('qiyuan.mimo.model', config.model);
+    writeStored(KEYS.mimoApiKey, config.apiKey, KEYS.legacyMimoApiKey);
+    writeStored(KEYS.mimoBaseUrl, config.baseUrl, KEYS.legacyMimoBaseUrl);
+    writeStored(KEYS.mimoModel, config.model, KEYS.legacyMimoModel);
+    writeStored(KEYS.mimoCompactModel, config.compactModel, KEYS.legacyMimoCompactModel);
   } else {
-    window.localStorage.setItem('qiyuan.openai.apiKey', config.apiKey);
-    window.localStorage.setItem('qiyuan.openai.baseUrl', config.baseUrl);
-    window.localStorage.setItem('qiyuan.openai.model', config.model);
+    writeStored(KEYS.openaiApiKey, config.apiKey, KEYS.legacyOpenaiApiKey);
+    writeStored(KEYS.openaiBaseUrl, config.baseUrl, KEYS.legacyOpenaiBaseUrl);
+    writeStored(KEYS.openaiModel, config.model, KEYS.legacyOpenaiModel);
+    writeStored(KEYS.openaiCompactModel, config.compactModel, KEYS.legacyOpenaiCompactModel);
   }
+}
+
+export function saveProviderConnectionConfig(config: Pick<ActiveModelConfig, 'provider' | 'apiKey' | 'baseUrl' | 'temperature' | 'maxTokens'>): ActiveModelConfig {
+  const current = getModelConfigForProvider(config.provider);
+  const nextConfig: ActiveModelConfig = {
+    ...current,
+    ...config,
+    model: current.model,
+    compactModel: current.compactModel || current.model,
+  };
+  saveActiveModelConfig(nextConfig);
+  return nextConfig;
 }

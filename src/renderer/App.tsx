@@ -24,41 +24,12 @@ import type { AgentProcessEvent, Message } from './types';
 import type { StreamCallbacks } from './core/orchestrator';
 import { createLogger } from '../shared/logger';
 import { createModelProvider, setModelProvider } from './core/model';
-import { getModelConfigForProvider, type ModelProviderId } from './config/modelConfig';
+import { syncProviderConfigForModel } from './core/model/modelRuntime';
+import { upsertById } from './utils/storage';
 
 const logger = createLogger('ui');
-
-function inferProviderFromModel(modelId: string): ModelProviderId | null {
-  // ✅ 改进的 Provider 推断逻辑：
-  // 1. 首先从 localStorage 读取当前配置的 Provider
-  // 2. 如果模型 ID 匹配当前 Provider，直接返回
-  // 3. 如果不匹配，尝试从模型名前缀推断
-  // 4. 如果无法推断，保持当前 Provider
-
-  const currentProvider = localStorage.getItem('qiyuan.model.provider') as ModelProviderId | null;
-
-  // 检查模型 ID 是否与当前 Provider 匹配
-  if (currentProvider === 'mimo' && modelId.startsWith('mimo-')) {
-    return 'mimo';
-  }
-  if (currentProvider === 'doubao' && modelId.startsWith('doubao-')) {
-    return 'doubao';
-  }
-  if (currentProvider === 'openai-compatible') {
-    // OpenAI 兼容模式不依赖前缀匹配，保持当前 Provider
-    return 'openai-compatible';
-  }
-
-  // 如果不匹配当前 Provider，尝试从模型名推断
-  if (modelId.startsWith('mimo-')) return 'mimo';
-  if (modelId.startsWith('doubao-')) return 'doubao';
-
-  // ❌ 无法推断时，返回 null（不切换 Provider）
-  // 这样可以避免在顶部栏切换模型时意外覆盖设置页的配置
-  logger.warn('无法从模型名推断 Provider，保持当前配置', { modelId, currentProvider });
-  return null;
-}
-
+const THEME_KEY = 'nova.theme';
+const LEGACY_THEME_KEY = 'qiyuan_theme';
 function AppContent() {
   const toast = useToast();
 
@@ -69,7 +40,7 @@ function AppContent() {
   const [isVoiceChatEnabled, setIsVoiceChatEnabled] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     try {
-      const saved = localStorage.getItem('qiyuan_theme');
+      const saved = localStorage.getItem(THEME_KEY) || localStorage.getItem(LEGACY_THEME_KEY);
       return (saved as 'dark' | 'light') || 'dark';
     } catch {
       return 'dark';
@@ -113,7 +84,7 @@ function AppContent() {
     // 设置普通消息回调（用于用户消息等）
     orchestrator.onMessage((message: Message) => {
       if (message.isStreaming) return;
-      setMessages((prev) => [...prev, message]);
+      setMessages((prev) => upsertById(prev, message));
     });
 
     // 设置流式回调
@@ -209,7 +180,8 @@ function AppContent() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     try {
-      localStorage.setItem('qiyuan_theme', theme);
+      localStorage.setItem(THEME_KEY, theme);
+      localStorage.removeItem(LEGACY_THEME_KEY);
     } catch (e) {
       logger.error('保存主题设置失败', e);
     }
@@ -235,25 +207,11 @@ function AppContent() {
   };
 
   const handleModelChange = (modelId: string) => {
-    const inferredProvider = inferProviderFromModel(modelId);
-    logger.info('用户切换模型', { modelId, inferredProvider });
+    const runtime = syncProviderConfigForModel(modelId);
+    logger.info('用户切换模型', { modelId: runtime.modelId, provider: runtime.provider });
+    setModelProvider(createModelProvider(runtime.config));
 
-    if (inferredProvider) {
-      // 顶部模型下拉只代表“当前对话临时使用哪个模型”，不要写回设置页默认配置。
-      // 设置页保存 API Key / Base URL / 默认模型；这里只复用该 Provider 的鉴权和地址。
-      const nextConfig = {
-        ...getModelConfigForProvider(inferredProvider),
-        provider: inferredProvider,
-        model: modelId,
-      };
-      setModelProvider(createModelProvider(nextConfig));
-      logger.info('已根据模型名称同步切换模型提供商', {
-        provider: inferredProvider,
-        model: modelId,
-      });
-    }
-
-    orchestratorRef.current.setModel(modelId);
+    orchestratorRef.current.setModel(runtime.modelId);
   };
 
   const handleClearMessages = useCallback(() => {

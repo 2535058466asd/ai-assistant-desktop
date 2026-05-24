@@ -299,6 +299,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
   /** 输入框内容的 ref（用于快捷建议填入）*/
   const inputRef = useRef<InputAreaHandle | null>(null);
+  /** 当前已从持久化层恢复到内存的对话 ID，防止启动阶段把欢迎消息覆盖真实历史 */
+  const hydratedChatIdRef = useRef<string | null>(null);
 
   /* ===== 派生状态：将 chatList 按时间分组（搜索时过滤） ===== */
   const displayChatList = searchKeyword.trim()
@@ -338,6 +340,26 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   }, [activeChatId]);
 
   /**
+   * 应用启动后如果 localStorage 恢复了 activeChatId，需要先把该对话历史加载回内存，
+   * 否则 App.tsx 里的欢迎消息会被当成当前对话内容再写回去，覆盖真实聊天记录。
+   */
+  useEffect(() => {
+    if (!activeChatId) {
+      hydratedChatIdRef.current = null;
+      return;
+    }
+    if (hydratedChatIdRef.current === activeChatId) return;
+
+    const chatMessages = getMessagesForChat(activeChatId);
+    logger.info('恢复当前对话历史消息', {
+      chatId: activeChatId,
+      messageCount: chatMessages.length,
+    });
+    onSetMessages?.(chatMessages);
+    hydratedChatIdRef.current = activeChatId;
+  }, [activeChatId, onSetMessages]);
+
+  /**
    * 记住用户上次打开的一级页面。
    * 这样桌面工作台更像一个真实应用，而不是每次都回到单一聊天页。
    */
@@ -348,10 +370,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
   /**
    * 监听消息变化，保存到当前对话的 localStorage
+   * 跳过流式输出中的消息，避免每个 token 都触发写入
    */
   useEffect(() => {
-    if (activeChatId && messages.length > 0) {
-      saveMessagesForChat(activeChatId, messages);
+    if (activeChatId && hydratedChatIdRef.current === activeChatId && messages.length > 0) {
+      const hasStreaming = messages.some((msg) => msg.isStreaming);
+      if (!hasStreaming) {
+        saveMessagesForChat(activeChatId, messages);
+      }
     }
   }, [activeChatId, messages]);
 
@@ -429,9 +455,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 用户发送第一条消息时会自动创建新对话
    */
   const handleNewChat = () => {
+    if (isLoading) {
+      showToast('请先等待当前回复完成，再新建或切换对话。', 'info');
+      return;
+    }
     logger.info('点击新建对话', { previousChatId: activeChatId });
     setActiveView('chat');
     setActiveChatId(null);
+    hydratedChatIdRef.current = null;
     onClearMessages(); /* 通知 App.tsx 清空消息，显示欢迎页 */
   };
 
@@ -441,12 +472,17 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * @param chatId - 要切换到的对话 ID
    */
   const handleSelectChat = (chatId: string) => {
+    if (isLoading) {
+      showToast('请先等待当前回复完成，再切换对话。', 'info');
+      return;
+    }
     logger.info('选择对话', { from: activeChatId, to: chatId });
     setActiveView('chat');
     setActiveChatId(chatId);
     /* 加载该对话的历史消息并通知App.tsx */
     const chatMessages = getMessagesForChat(chatId);
     onSetMessages?.(chatMessages);
+    hydratedChatIdRef.current = chatId;
   };
 
   /**

@@ -3,6 +3,10 @@ import { createLogger } from '../../../shared/logger';
 import styles from './SearchPanel.module.css';
 
 const logger = createLogger('ui');
+const SEARCH_ENGINE_KEY = 'nova.search.preferredEngine';
+const LEGACY_SEARCH_ENGINE_KEY = 'qiyuan.search.preferredEngine';
+const SEARXNG_URL_KEY = 'nova.search.searxngUrl';
+const LEGACY_SEARXNG_URL_KEY = 'qiyuan.search.searxngUrl';
 
 const ENGINE_OPTIONS = [
   { value: 'auto', label: '自动（按优先级尝试）' },
@@ -11,8 +15,8 @@ const ENGINE_OPTIONS = [
   { value: 'bing', label: '必应' },
 ];
 
-function readStored(key: string, fallback: string = ''): string {
-  return localStorage.getItem(key) || fallback;
+function readStored(key: string, fallback: string = '', legacyKey?: string): string {
+  return localStorage.getItem(key) || (legacyKey ? localStorage.getItem(legacyKey) : null) || fallback;
 }
 
 export default function SearchPanel() {
@@ -21,13 +25,15 @@ export default function SearchPanel() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    setPreferredEngine(readStored('qiyuan.search.preferredEngine', 'auto'));
-    setSearxngUrl(readStored('qiyuan.search.searxngUrl', 'http://localhost:8888'));
+    setPreferredEngine(readStored(SEARCH_ENGINE_KEY, 'auto', LEGACY_SEARCH_ENGINE_KEY));
+    setSearxngUrl(readStored(SEARXNG_URL_KEY, 'http://localhost:8888', LEGACY_SEARXNG_URL_KEY));
   }, []);
 
   const handleSave = () => {
-    localStorage.setItem('qiyuan.search.preferredEngine', preferredEngine);
-    localStorage.setItem('qiyuan.search.searxngUrl', searxngUrl);
+    localStorage.setItem(SEARCH_ENGINE_KEY, preferredEngine);
+    localStorage.removeItem(LEGACY_SEARCH_ENGINE_KEY);
+    localStorage.setItem(SEARXNG_URL_KEY, searxngUrl);
+    localStorage.removeItem(LEGACY_SEARXNG_URL_KEY);
 
     // 推送到主进程
     try {

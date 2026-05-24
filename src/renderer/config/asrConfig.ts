@@ -36,6 +36,10 @@ function readStoredValue(key: string): string {
   return window.localStorage.getItem(key) || '';
 }
 
+function readStoredWithLegacy(key: string, legacyKey: string): string {
+  return readStoredValue(key) || readStoredValue(legacyKey);
+}
+
 function readEnvValue(key: string): string {
   return (import.meta.env[key] as string | undefined) || '';
 }
@@ -47,8 +51,8 @@ export const DEFAULT_ASR_CONFIG: ASRConfig = {
   
   // 豆包 ASR 2.0 配置（WebSocket v3 双向流式优化版）
   volcengine: {
-    appId: readEnvValue('VITE_VOLCENGINE_APP_ID') || readStoredValue('qiyuan.volcengine.appId'),
-    accessToken: readEnvValue('VITE_VOLCENGINE_ACCESS_TOKEN') || readStoredValue('qiyuan.volcengine.accessToken'),
+    appId: readEnvValue('VITE_VOLCENGINE_APP_ID') || readStoredWithLegacy('nova.volcengine.appId', 'qiyuan.volcengine.appId'),
+    accessToken: readEnvValue('VITE_VOLCENGINE_ACCESS_TOKEN') || readStoredWithLegacy('nova.volcengine.accessToken', 'qiyuan.volcengine.accessToken'),
     apiUrl: 'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async',  // 双向流式优化版
     resourceId: 'volc.bigasr.sauc.duration',  // 资源 ID（与官方Python示例一致）
     format: 'pcm',  // 音频格式

@@ -239,6 +239,10 @@ export class Orchestrator {
         content: accumulatedContent
       });
 
+      // 流式阶段前端只实时更新 content；这里把最终完整消息再次发给 UI，
+      // 让 reasoningContent / toolCallSummary 能合并回同一条助手气泡。
+      this.eventBridge.emitMessage(assistantMessage);
+
       // 通知 UI：流式结束
       this.eventBridge.emitStreamEnd(messageId);
 
