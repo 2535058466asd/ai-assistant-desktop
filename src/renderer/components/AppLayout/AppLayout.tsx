@@ -601,7 +601,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     isStreaming: msg.isStreaming,
     processEvents: processEventsByMessageId[msg.id] || [],
     reasoningContent: msg.reasoningContent,
+    reasoningSegments: msg.reasoningSegments,
     toolCallSummary: msg.toolCallSummary,
+    usage: msg.usage,
+    model: msg.model,
   });
 
   /** 是否显示欢迎页（无消息时显示）*/

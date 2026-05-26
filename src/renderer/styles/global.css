@@ -10,75 +10,85 @@
    1. 颜色系统 - 暗色主题（默认）
    ========================================== */
 :root {
-  /* --- 背景色层级 --- */
-  --bg-primary: #0a0e1a;        /* 最底层背景 */
-  --bg-secondary: #111827;      /* 侧边栏/卡片背景 */
-  --bg-tertiary: #1a2236;       /* 输入框/搜索框背景 */
-  --bg-hover: #1e293b;          /* 悬停态背景 */
-  --bg-active: #253352;         /* 选中/激活态背景 */
+  /* --- 背景色层级（更深邃） --- */
+  --bg-primary: #06080f;           /* 最底层背景 - 纯深空黑 */
+  --bg-secondary: #0c1021;         /* 侧边栏/卡片背景 - 深海蓝 */
+  --bg-tertiary: #131829;          /* 输入框/搜索框背景 - 深靛蓝 */
+  --bg-hover: #1a2038;             /* 悬停态背景 */
+  --bg-active: #1e2a4a;            /* 选中/激活态背景 */
 
-  /* --- 文字颜色层级 --- */
-  --text-primary: #f1f5f9;      /* 主要文字 */
-  --text-secondary: #94a3b8;    /* 次要文字 */
-  --text-muted: #64748b;        /* 弱化文字（占位符、提示） */
+  /* --- 文字颜色层级（更清晰） --- */
+  --text-primary: #e8edf5;         /* 主要文字 - 冷白 */
+  --text-secondary: #8892a8;       /* 次要文字 - 银灰 */
+  --text-muted: #4a5568;           /* 弱化文字 - 暗灰 */
 
-  /* --- 品牌强调色 --- */
-  --accent-cyan: #06b6d4;       /* 青色（主强调） */
-  --accent-blue: #3b82f6;       /* 蓝色 */
-  --accent-purple: #8b5cf6;     /* 紫色 */
-  --accent-green: #22c55e;      /* 绿色（在线状态） */
+  /* --- 品牌强调色（更精致） --- */
+  --accent-cyan: #22d3ee;          /* 青色 - 主强调 */
+  --accent-blue: #6366f1;          /* 靛蓝 - 次强调 */
+  --accent-purple: #a78bfa;        /* 紫色 - 装饰 */
+  --accent-green: #34d399;         /* 绿色 - 成功状态 */
 
-  /* --- 渐变色 --- */
-  --gradient-main: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  --gradient-logo: linear-gradient(135deg, #06b6d4, #3b82f6);
-  --gradient-brand: linear-gradient(135deg, #06b6d4, #3b82f6, #8b5cf6);
+  /* --- 渐变色（更高级） --- */
+  --gradient-main: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+  --gradient-logo: linear-gradient(135deg, #22d3ee 0%, #6366f1 100%);
+  --gradient-brand: linear-gradient(135deg, #22d3ee, #6366f1, #a78bfa);
+  --gradient-subtle: linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.08) 100%);
 
-  /* --- 边框 --- */
-  --border-color: rgba(148, 163, 184, 0.08);   /* 默认边框 */
-  --border-focus: rgba(6, 182, 212, 0.4);      /* 聚焦边框 */
+  /* --- 边框（更精致） --- */
+  --border-color: rgba(255, 255, 255, 0.06);        /* 默认边框 - 极淡 */
+  --border-focus: rgba(34, 211, 238, 0.5);           /* 聚焦边框 - 青色 */
+  --border-gradient: linear-gradient(135deg, rgba(34,211,238,0.3), rgba(99,102,241,0.3));
 
-  /* --- 阴影 --- */
-  --shadow-glow: 0 0 20px rgba(6, 182, 212, 0.15);
-  --shadow-logo: 0 0 16px rgba(6, 182, 212, 0.3);
-  --shadow-avatar: 0 0 12px rgba(6, 182, 212, 0.2);
-  --shadow-btn: 0 2px 8px rgba(59, 130, 246, 0.3);
-  --shadow-btn-hover: 0 4px 12px rgba(59, 130, 246, 0.4);
-  --shadow-msg-user: 0 4px 16px rgba(59, 130, 246, 0.2);
-  --shadow-welcome: 0 0 40px rgba(6, 182, 212, 0.25);
+  /* --- 阴影（多层，更有深度） --- */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 24px rgba(34, 211, 238, 0.15);
+  --shadow-glow-strong: 0 0 40px rgba(34, 211, 238, 0.25);
+  --shadow-logo: 0 0 20px rgba(34, 211, 238, 0.35);
+  --shadow-avatar: 0 0 16px rgba(99, 102, 241, 0.3);
+  --shadow-btn: 0 2px 8px rgba(99, 102, 241, 0.35);
+  --shadow-btn-hover: 0 4px 16px rgba(99, 102, 241, 0.5);
+  --shadow-msg-user: 0 4px 20px rgba(99, 102, 241, 0.25);
+  --shadow-welcome: 0 0 50px rgba(34, 211, 238, 0.3);
 
   /* --- 尺寸 --- */
-  --sidebar-width: 260px;       /* 侧边栏宽度：260px（设计稿比例）*/
-  --header-height: 52px;        /* 顶栏高度：52px（更紧凑）*/
-  --chat-max-width: 700px;      /* 聊天区最大宽度：700px（更聚焦）*/
+  --sidebar-width: 260px;
+  --header-height: 52px;
+  --chat-max-width: 720px;
 
-  /* --- 圆角 --- */
-  --radius-sm: 8px;             /* 小圆角（按钮、输入框）*/
-  --radius-md: 10px;            /* 中等圆角（卡片）*/
-  --radius-lg: 14px;            /* 大圆角（输入容器）*/
-  --radius-xl: 18px;            /* 超大圆角（消息气泡）*/
+  /* --- 圆角（更精致） --- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
 
-  /* --- 字体 --- */
-  --font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+  /* --- 字体（更现代） --- */
+  --font-family: 'Plus Jakarta Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --font-display: 'Plus Jakarta Sans', 'Noto Sans SC', sans-serif;
 
-  /* --- 动画时长 --- */
-  --transition-fast: 0.15s;
+  /* --- 动画（更流畅） --- */
+  --transition-fast: 0.12s;
   --transition-normal: 0.2s;
-  --transition-slow: 0.3s;
+  --transition-slow: 0.35s;
 
-  /* --- 动画曲线 --- */
+  /* --- 动画曲线（更自然） --- */
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
 }
 
 /* ==========================================
-   亮色主题（Light Mode）
+   亮色主题（Light Mode）- 精致优雅
    ========================================== */
 [data-theme="light"] {
   /* --- 背景色层级 --- */
-  --bg-primary: #f8fafc;
+  --bg-primary: #fafbfc;
   --bg-secondary: #ffffff;
   --bg-tertiary: #f1f5f9;
-  --bg-hover: #e2e8f0;
+  --bg-hover: #e8ecf1;
   --bg-active: #dbeafe;
 
   /* --- 文字颜色层级 --- */
@@ -87,32 +97,33 @@
   --text-muted: #94a3b8;
 
   /* --- 强调色 --- */
-  --accent-blue: #2563eb;
+  --accent-blue: #4f46e5;
   --accent-purple: #7c3aed;
   --accent-cyan: #0891b2;
-  --accent-green: #16a34a;
+  --accent-green: #10b981;
 
   /* --- 渐变色 --- */
-  --gradient-main: linear-gradient(135deg, #2563eb, #7c3aed);
-  --gradient-logo: linear-gradient(135deg, #0891b2, #2563eb);
-  --gradient-brand: linear-gradient(135deg, #0891b2, #2563eb, #7c3aed);
+  --gradient-main: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a78bfa 100%);
+  --gradient-logo: linear-gradient(135deg, #0891b2 0%, #4f46e5 100%);
+  --gradient-brand: linear-gradient(135deg, #0891b2, #4f46e5, #a78bfa);
+  --gradient-subtle: linear-gradient(135deg, rgba(79,70,229,0.08) 0%, rgba(124,58,237,0.04) 100%);
 
   /* --- 边框 --- */
-  --border-color: #e2e8f0;
-  --border-focus: rgba(37, 99, 235, 0.4);
+  --border-color: rgba(0, 0, 0, 0.08);
+  --border-focus: rgba(79, 70, 229, 0.5);
 
   /* --- 阴影 --- */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
-  --shadow-blue: 0 4px 14px rgba(37, 99, 235, 0.2);
-  --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.1);
-  --shadow-logo: 0 2px 8px rgba(8, 145, 178, 0.25);
-  --shadow-avatar: 0 2px 8px rgba(8, 145, 178, 0.15);
-  --shadow-btn: 0 2px 8px rgba(37, 99, 235, 0.2);
-  --shadow-btn-hover: 0 4px 12px rgba(37, 99, 235, 0.3);
-  --shadow-msg-user: 0 4px 16px rgba(37, 99, 235, 0.15);
-  --shadow-welcome: 0 0 40px rgba(8, 145, 178, 0.15);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.08);
+  --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 24px rgba(79, 70, 229, 0.1);
+  --shadow-logo: 0 2px 12px rgba(8, 145, 178, 0.2);
+  --shadow-avatar: 0 2px 8px rgba(79, 70, 229, 0.15);
+  --shadow-btn: 0 2px 8px rgba(79, 70, 229, 0.2);
+  --shadow-btn-hover: 0 4px 12px rgba(79, 70, 229, 0.3);
+  --shadow-msg-user: 0 4px 16px rgba(79, 70, 229, 0.12);
+  --shadow-welcome: 0 0 40px rgba(8, 145, 178, 0.12);
 }
 
 /* ==========================================

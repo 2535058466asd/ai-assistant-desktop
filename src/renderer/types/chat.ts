@@ -83,6 +83,16 @@ export interface UIMessage {
   reasoningContent?: string;
   /** 工具调用摘要列表 */
   toolCallSummary?: ToolCallSummary[];
+  /** 分段的推理内容（按工具调用轮次） */
+  reasoningSegments?: Array<{ round: number; content: string; timestamp: number }>;
+  /** Token 用量 */
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+  /** 使用的模型 */
+  model?: string;
 }
 
 // ==========================================

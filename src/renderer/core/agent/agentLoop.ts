@@ -18,6 +18,7 @@ import { toolDefinitions } from '../tools/toolDefinitions';
 import { executeTool, type ToolExecutionResult } from '../tools/toolExecutor';
 import { getModelProvider, type ModelMessage, type StreamChunk } from '../model';
 import { getResolvedRuntimeModel } from '../model/modelRuntime';
+import { getErrorMessage } from '../model/modelErrorHandler';
 import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('agent');
@@ -46,6 +47,16 @@ export interface AgentLoopResult {
   reasoningContent: string;
   /** 工具调用摘要列表 */
   toolCallSummary: ToolCallSummary[];
+  /** 分段的推理内容 */
+  reasoningSegments?: Array<{ round: number; content: string; timestamp: number }>;
+  /** Token 用量 */
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+  /** 使用的模型 */
+  model?: string;
 }
 
 /**
@@ -78,7 +89,10 @@ export class AgentLoop {
     let finalResponse = '';
     let finalReasoningContent = '';
     const allToolCallSummaries: ToolCallSummary[] = [];
+    const reasoningSegments: Array<{ round: number; content: string; timestamp: number }> = [];
     let round = 0;
+    let accumulatedUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    let usedModel = '';
 
     while (round < MAX_TOOL_ROUNDS) {
       round++;
@@ -104,7 +118,7 @@ export class AgentLoop {
 
       // 流式调用模型，实时推送文字到 UI
       const previousContent = finalResponse;
-      const { content, reasoningContent, toolCalls, error } = await this.callModelWithToolsStream(
+      const { content, reasoningContent, toolCalls, error, usage, model } = await this.callModelWithToolsStream(
         userInput,
         (accumulated) => {
           // 跨轮次累积：前面轮次的文字 + 当前轮次的流式文字
@@ -112,19 +126,23 @@ export class AgentLoop {
         }
       );
 
+      // 累积 usage
+      if (usage) {
+        accumulatedUsage.prompt_tokens += usage.prompt_tokens || 0;
+        accumulatedUsage.completion_tokens += usage.completion_tokens || 0;
+        accumulatedUsage.total_tokens += usage.total_tokens || 0;
+      }
+      if (model) {
+        usedModel = model;
+      }
+
       // 检查 API 是否返回错误
       if (error) {
         const errorMsg = error.message || '未知错误';
         const errorCode = error.code || '';
         logger.error('模型 API 返回错误', { errorCode, errorMsg });
 
-        const userMessages: Record<string, string> = {
-          'AccountOverdueError': '哎呀，API账号余额不足了，需要充值才能继续使用哦～',
-          'RateLimitError': '请求太频繁了，稍等一下再试吧～',
-          'InvalidApiKey': 'API密钥配置有误，请检查一下设置～',
-          'AuthenticationError': 'API Key 格式不对或无效，请检查当前模型服务的密钥配置。',
-        };
-        finalResponse = userMessages[errorCode] || `出了点问题：${errorMsg}`;
+        finalResponse = getErrorMessage(error);
 
         this.deps.eventBridge.emitProcessEvent(messageId, {
           id: modelEventId,
@@ -172,6 +190,7 @@ export class AgentLoop {
 
       if (reasoningContent) {
         finalReasoningContent += reasoningContent;
+        reasoningSegments.push({ round, content: reasoningContent, timestamp: Date.now() });
         const reasoningEventCreatedAt = Date.now();
         this.deps.eventBridge.emitProcessEvent(messageId, {
           id: `${modelEventId}-reasoning`,
@@ -228,6 +247,9 @@ export class AgentLoop {
       content: finalResponse,
       reasoningContent: finalReasoningContent,
       toolCallSummary: allToolCallSummaries,
+      reasoningSegments: reasoningSegments.length > 0 ? reasoningSegments : undefined,
+      usage: accumulatedUsage.total_tokens > 0 ? accumulatedUsage : undefined,
+      model: usedModel || undefined,
     };
   }
 
@@ -351,7 +373,7 @@ export class AgentLoop {
   private async callModelWithToolsStream(
     userInput: string,
     onTextDelta: (accumulated: string) => void
-  ): Promise<{ content: string; reasoningContent: string; toolCalls: any[]; error?: any }> {
+  ): Promise<{ content: string; reasoningContent: string; toolCalls: any[]; error?: any; usage?: any; model?: string }> {
     const systemPrompt = await this.deps.buildSystemPrompt(userInput);
 
     const requestBody = {
@@ -379,7 +401,7 @@ export class AgentLoop {
       const reasoningContent = msg?.reasoning_content || '';
       const toolCalls = msg?.tool_calls || [];
       if (content) onTextDelta(content);
-      return { content, reasoningContent, toolCalls };
+      return { content, reasoningContent, toolCalls, usage: response.usage, model: response.model };
     }
 
     let accumulated = '';
@@ -397,6 +419,8 @@ export class AgentLoop {
       content: msg?.content || accumulated,
       reasoningContent: msg?.reasoning_content || '',
       toolCalls: msg?.tool_calls || [],
+      usage: response.usage,
+      model: response.model,
     };
   }
 

@@ -1,6 +1,8 @@
 import { createLogger } from '../../../shared/logger';
 import type { ChatWithToolsRequest, ModelProvider, ModelResponse, StreamChunk } from './types';
 import { modelFetch, modelFetchStream } from './modelTransport';
+import { normalizeError } from './modelErrorHandler';
+import { withRetry } from './modelRetry';
 
 const logger = createLogger('model');
 
@@ -60,53 +62,53 @@ export class OpenAICompatibleProvider implements ModelProvider {
   }
 
   async chatWithTools(request: ChatWithToolsRequest): Promise<ModelResponse> {
-    try {
-      const endpoint = `${this.baseUrl}/chat/completions`;
-      const body = {
-        model: request.model,
-        messages: this.normalizeMessages(request),
-        tools: request.tools,
-        stream: request.stream ?? false,
-        temperature: request.temperature ?? this.temperature,
-        max_tokens: request.maxTokens ?? this.maxTokens,
-      };
+    return withRetry(async () => {
+      try {
+        const endpoint = `${this.baseUrl}/chat/completions`;
+        const body = {
+          model: request.model,
+          messages: this.normalizeMessages(request),
+          tools: request.tools,
+          stream: request.stream ?? false,
+          temperature: request.temperature ?? this.temperature,
+          max_tokens: request.maxTokens ?? this.maxTokens,
+        };
 
-      if (isVerboseModelLog()) {
-        logger.info(`${this.displayName} 即将发送 HTTP 请求`, { endpoint, body });
+        if (isVerboseModelLog()) {
+          logger.info(`${this.displayName} 即将发送 HTTP 请求`, { endpoint, body });
+        }
+
+        const response = await modelFetch({
+          endpoint,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        logger.debug(`${this.displayName} HTTP 状态`, { status: response.status, ok: response.ok, statusText: response.statusText });
+
+        if (!response.ok) {
+          const errorText = response.body || '';
+          throw new Error(`API请求失败 (${response.status}): ${errorText || response.statusText}`);
+        }
+
+        const json = JSON.parse(response.body);
+        if (isVerboseModelLog()) {
+          logger.info(`${this.displayName} 返回完整 JSON`, json);
+        }
+        return json;
+      } catch (error: any) {
+        const normalized = normalizeError(error, this.displayName);
+        return {
+          choices: [],
+          error: normalized,
+        };
       }
-
-      const response = await modelFetch({
-        endpoint,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify(body),
-      });
-
-      logger.debug(`${this.displayName} HTTP 状态`, { status: response.status, ok: response.ok, statusText: response.statusText });
-
-      if (!response.ok) {
-        const errorText = response.body || '';
-        throw new Error(`API请求失败 (${response.status}): ${errorText || response.statusText}`);
-      }
-
-      const json = JSON.parse(response.body);
-      if (isVerboseModelLog()) {
-        logger.info(`${this.displayName} 返回完整 JSON`, json);
-      }
-      return json;
-    } catch (error: any) {
-      logger.error(`${this.displayName} 请求失败`, { message: error.message });
-      return {
-        choices: [],
-        error: {
-          code: 'OpenAICompatibleProviderError',
-          message: error.message || '模型请求失败',
-          retryable: /timeout|rate|429|5\d\d/i.test(error.message || ''),
-        },
-      };
-    }
+    }, {
+      retryableCheck: (error) => error?.retryable === true,
+    });
   }
 
   async chatWithToolsStream(
@@ -240,14 +242,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
       return result;
     } catch (error: any) {
-      logger.error(`${this.displayName} 流式请求失败`, { message: error.message });
+      const normalized = normalizeError(error, this.displayName);
       return {
         choices: [],
-        error: {
-          code: 'OpenAICompatibleProviderStreamError',
-          message: error.message || '模型流式请求失败',
-          retryable: /connection|closed|timeout|network|429|5\d\d/i.test(error.message || ''),
-        },
+        error: normalized,
       };
     }
   }

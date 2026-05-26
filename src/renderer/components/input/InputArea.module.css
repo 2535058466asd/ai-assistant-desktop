@@ -11,14 +11,12 @@
 /* ===== 输入区域容器 - 渐变遮罩背景 ===== */
 .inputArea {
   padding: 16px 24px 20px;
-  /* 从下往上的渐变遮罩，让输入区与聊天区自然过渡 */
   background: linear-gradient(to top, var(--bg-primary) 60%, transparent);
-  flex-shrink: 0; /* 防止被压缩 */
+  flex-shrink: 0;
 }
 
-/* 内容包裹器（限制最大宽度居中）*/
 .inputWrapper {
-  max-width: var(--chat-max-width); /* 700px，与聊天区对齐 */
+  max-width: var(--chat-max-width);
   margin: 0 auto;
 }
 
@@ -26,66 +24,68 @@
 .quickSuggestions {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap; /* 超出自动换行 */
+  flex-wrap: wrap;
   margin-bottom: 12px;
 }
 
-/* 单个建议芯片 - 圆角胶囊形状 */
 .suggestionChip {
   padding: 6px 14px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 20px; /* 完全圆角胶囊 */
+  border-radius: 20px;
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-normal) var(--ease-smooth);
   font-family: inherit;
 }
 
-/* 悬停效果：边框高亮 + 文字变色 */
 .suggestionChip:hover {
-  border-color: rgba(6, 182, 212, 0.4);
+  border-color: var(--accent-cyan);
   color: var(--accent-cyan);
-  background: rgba(6, 182, 212, 0.08);
-  box-shadow: 0 0 12px rgba(6, 182, 212, 0.15);
+  background: rgba(34, 211, 238, 0.08);
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.15);
+  transform: translateY(-1px);
 }
 
-/* ===== 主输入容器（带边框和聚焦发光效果）===== */
+/* ===== 主输入容器（高级毛玻璃） ===== */
 .inputContainer {
   display: flex;
-  align-items: flex-end; /* 底部对齐（适配多行文本）*/
+  align-items: flex-end;
   gap: 10px;
   padding: 10px 14px;
-  background: rgba(17, 24, 39, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(12, 16, 33, 0.7);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
-  transition: all var(--transition-normal);
+  transition: all var(--transition-normal) var(--ease-smooth);
 }
 
 /* 亮色主题 */
 [data-theme="light"] .inputContainer {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
 }
 
 [data-theme="light"] .inputContainerFocusWithin {
-  box-shadow: 0 0 20px rgba(8, 145, 178, 0.15), 0 0 40px rgba(8, 145, 178, 0.05);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15), var(--shadow-md);
+  border-color: var(--border-focus);
 }
 
 [data-theme="light"] .suggestionChip:hover {
-  border-color: rgba(8, 145, 178, 0.4);
-  color: var(--accent-cyan);
-  background: rgba(8, 145, 178, 0.08);
-  box-shadow: 0 0 12px rgba(8, 145, 178, 0.15);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  background: rgba(79, 70, 229, 0.08);
+  box-shadow: 0 0 16px rgba(79, 70, 229, 0.15);
 }
 
-/* 聚焦态 - 发光边框效果 */
+/* 聚焦态 - 精致发光效果 */
 .inputContainerFocusWithin {
   border-color: var(--border-focus);
-  box-shadow: 0 0 20px rgba(6,182,212,0.15), 0 0 40px rgba(6,182,212,0.05);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12), var(--shadow-glow);
 }
 
 /* ===== 左侧附件/功能按钮组 ===== */
@@ -93,10 +93,9 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  padding-bottom: 2px; /* 微调与输入框对齐 */
+  padding-bottom: 2px;
 }
 
-/* 单个附件按钮（上传文件、语音等）*/
 .extraBtn {
   width: 32px;
   height: 32px;
@@ -108,13 +107,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
-  flex-shrink: 0; /* 防止被压缩 */
+  transition: all var(--transition-normal) var(--ease-smooth);
+  flex-shrink: 0;
 }
 
 .extraBtn:hover {
   background: var(--bg-hover);
   color: var(--text-secondary);
+  transform: scale(1.05);
 }
 
 .extraBtnSvg {
@@ -124,54 +124,68 @@
 
 /* ===== 文本输入框 ===== */
 .chatInput {
-  flex: 1; /* 占据剩余空间 */
+  flex: 1;
   background: transparent;
   border: none;
-  outline: none; /* 移除默认轮廓，用容器边框代替 */
+  outline: none;
   color: var(--text-primary);
   font-size: 14px;
   line-height: 1.6;
-  resize: none; /* 禁止手动拖拽调整大小 */
-  max-height: 120px; /* 最大高度限制（约6行）*/
-  min-height: 24px; /* 最小高度 */
+  resize: none;
+  max-height: 120px;
+  min-height: 24px;
   font-family: inherit;
   padding: 0;
 }
 
-/* 占位符样式 */
 .chatInput::placeholder {
   color: var(--text-muted);
 }
 
-/* ===== 发送按钮 ===== */
+/* ===== 发送按钮 - 高级渐变 ===== */
 .sendBtn {
   width: 36px;
   height: 36px;
   border: none;
-  background: var(--gradient-main); /* 蓝-紫渐变 */
+  background: var(--gradient-main);
   border-radius: var(--radius-md);
   color: white;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-normal);
-  flex-shrink: 0; /* 防止被压缩 */
-  box-shadow: var(--shadow-btn); /* 默认阴影 */
+  transition: all var(--transition-normal) var(--ease-smooth);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-btn);
+  position: relative;
+  overflow: hidden;
 }
 
-/* 悬停效果：上浮 + 阴影增强 */
+/* 按钮光效 */
+.sendBtn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.sendBtn:hover:not(:disabled)::before {
+  left: 100%;
+}
+
 .sendBtn:hover:not(:disabled) {
-  transform: translateY(-1px); /* 轻微上浮 */
-  box-shadow: var(--shadow-btnHover); /* 阴影扩散 */
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: var(--shadow-btn-hover);
 }
 
-/* 点击效果：回弹 */
 .sendBtn:active:not(:disabled) {
-  transform: translateY(0); /* 回到原位 */
+  transform: translateY(0) scale(0.95);
 }
 
-/* 禁用态：半透明 + 不可点击 */
 .sendBtn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -189,7 +203,7 @@
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 8px;
-  opacity: 0.6;
+  opacity: 0.5;
   user-select: none;
 }
 

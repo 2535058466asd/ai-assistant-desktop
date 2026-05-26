@@ -2,6 +2,7 @@ import apiConfig from '../../config/apiConfig';
 import { createLogger } from '../../../shared/logger';
 import type { ChatWithToolsRequest, ModelError, ModelProvider, ModelResponse, StreamChunk } from './types';
 import { modelFetch, modelFetchStream } from './modelTransport';
+import { normalizeError } from './modelErrorHandler';
 
 const logger = createLogger('model');
 const DEFAULT_ARK_API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
@@ -10,39 +11,6 @@ type DoubaoProviderConfig = typeof apiConfig & { compactModel?: string };
 // 开发时打印完整请求和响应，方便你在 Electron 控制台看 API 到底返回了什么。
 function isVerboseModelLog(): boolean {
   return process.env.NODE_ENV !== 'production' && import.meta.env.VITE_VERBOSE_MODEL_LOGS !== 'false';
-}
-
-// 把不同来源的错误整理成统一格式，Orchestrator 才能用同一套逻辑展示给用户。
-function normalizeError(error: any): ModelError {
-  const rawMessage = error?.message || '';
-  const jsonMatch = typeof rawMessage === 'string' ? rawMessage.match(/\{.*\}$/s) : null;
-  let parsedError: any = null;
-  if (jsonMatch) {
-    try {
-      parsedError = JSON.parse(jsonMatch[0]);
-    } catch {
-      parsedError = null;
-    }
-  }
-
-  const code =
-    error?.code ||
-    error?.error?.code ||
-    error?.response?.data?.error?.code ||
-    parsedError?.error?.code ||
-    'ModelProviderError';
-  const message =
-    parsedError?.error?.message ||
-    error?.error?.message ||
-    error?.response?.data?.error?.message ||
-    error?.message ||
-    '模型请求失败';
-  const isAuthError = /auth|unauthorized|invalid.?api.?key|401|403/i.test(`${code} ${message}`);
-  return {
-    code,
-    message,
-    retryable: !isAuthError && /timeout|rate|429|5\d\d/i.test(`${code} ${message}`),
-  };
 }
 
 export class DoubaoProvider implements ModelProvider {
@@ -113,7 +81,7 @@ export class DoubaoProvider implements ModelProvider {
 
       return responseJson;
     } catch (error) {
-      const normalized = normalizeError(error);
+      const normalized = normalizeError(error, '豆包');
       logger.error('豆包请求失败', normalized);
       return {
         choices: [],
@@ -255,7 +223,7 @@ export class DoubaoProvider implements ModelProvider {
         choices: [{ message, finish_reason: finishReason }],
       };
     } catch (error) {
-      const normalized = normalizeError(error);
+      const normalized = normalizeError(error, '豆包');
       logger.error('豆包流式请求失败', normalized);
       return {
         choices: [],

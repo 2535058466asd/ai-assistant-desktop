@@ -1,65 +1,63 @@
 /**
- * Header 顶栏组件样式
- * 功能：显示品牌信息、模型选择器、操作按钮
- * 采用毛玻璃效果（backdrop-filter）
+ * Header 顶栏组件样式 - 高级质感
  */
 
 /* ===== 顶栏容器 ===== */
 .header {
   height: var(--header-height);
-  padding: 0 16px; /* 更紧凑的内边距 */
+  padding: 0 20px;
   display: flex;
   align-items: center;
-  justify-content: space-between; /* 左右两端对齐 */
-  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
-  /* 毛玻璃半透明背景 - 根据主题动态变化 */
-  background: rgba(17, 24, 39, 0.5);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px); /* 兼容 Safari */
-  flex-shrink: 0; /* 防止被压缩 */
-  z-index: 10; /* 确保在内容之上 */
-  transition: background 0.3s ease; /* 主题切换时的过渡动画 */
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(6, 8, 15, 0.7);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  flex-shrink: 0;
+  z-index: 10;
+  transition: all var(--transition-normal) var(--ease-smooth);
   position: relative;
 }
 
 /* 亮色主题 */
 [data-theme="light"] .header {
-  background: rgba(255, 255, 255, 0.8);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(250, 251, 252, 0.88);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .modelDropdown {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 0 20px rgba(8, 145, 178, 0.08);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-lg);
 }
 
-/* ===== 左侧区域：Logo + 品牌名 + 模型选择器 ===== */
+/* ===== 左侧区域 ===== */
 .headerLeft {
   display: flex;
   align-items: center;
-  gap: 10px; /* 更紧凑的间距 */
+  gap: 12px;
 }
 
-/* 侧边栏切换按钮 - 更紧凑 */
+/* 侧边栏切换按钮 */
 .sidebarToggleBtn {
   width: 32px;
   height: 32px;
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all var(--transition-normal) var(--ease-smooth);
   flex-shrink: 0;
 }
 
 .sidebarToggleBtn:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+  transform: scale(1.05);
 }
 
 .sidebarToggleBtnSvg {
@@ -67,17 +65,23 @@
   height: 16px;
 }
 
-/* Logo 图标 - 渐变圆角方块 + 发光阴影 */
+/* Logo 图标 */
 .logo {
   width: 28px;
   height: 28px;
-  border-radius: 8px; /* 更小的圆角 */
+  border-radius: 8px;
   background: var(--gradient-logo);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: var(--shadow-logo);
   flex-shrink: 0;
+  transition: all var(--transition-normal) var(--ease-smooth);
+}
+
+.logo:hover {
+  transform: scale(1.08);
+  box-shadow: var(--shadow-glow-strong);
 }
 
 .logoSvg {
@@ -86,16 +90,16 @@
   color: white;
 }
 
-/* 品牌名称 - 渐变文字效果 */
+/* 品牌名称 - 渐变文字 */
 .brandName {
   font-size: 16px;
   font-weight: 700;
-  /* 使用渐变作为文字填充色 */
-  background: linear-gradient(135deg, #06b6d4, #3b82f6);
+  background: var(--gradient-brand);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   user-select: none;
+  letter-spacing: -0.3px;
 }
 
 /* ===== 模型选择器 ===== */
@@ -103,67 +107,73 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 5px 12px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  border-radius: 20px;
   font-size: 12px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-normal) var(--ease-smooth);
   user-select: none;
 }
 
 .modelSelector:hover {
-  border-color: rgba(6, 182, 212, 0.4);
-  background: rgba(6, 182, 212, 0.08);
-  box-shadow: 0 0 12px rgba(6, 182, 212, 0.15);
+  border-color: var(--accent-cyan);
+  background: rgba(34, 211, 238, 0.06);
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.12);
+  transform: translateY(-1px);
 }
 
-/* 在线状态小绿点 */
 .modelDot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--accent-green);
   flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.5);
 }
 
 .modelSelectorArrow {
   width: 12px;
   height: 12px;
   flex-shrink: 0;
+  transition: transform var(--transition-normal) var(--ease-smooth);
+}
+
+.modelSelectorArrowOpen {
+  transform: rotate(180deg);
 }
 
 .modelPrefix {
-  color: var(--text-tertiary);
+  color: var(--text-muted);
 }
 
-/* ===== 右侧区域：操作按钮组 ===== */
+/* ===== 右侧区域 ===== */
 .headerRight {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-/* 通用头部按钮样式 */
 .headerBtn {
   width: 36px;
   height: 36px;
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all var(--transition-normal) var(--ease-smooth);
 }
 
 .headerBtn:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+  transform: scale(1.05);
 }
 
 .headerBtnSvg {
@@ -171,52 +181,45 @@
   height: 18px;
 }
 
-/* ===== 模型选择器下拉菜单 ===== */
+/* ===== 模型下拉菜单 ===== */
 .modelSelectorWrapper {
   position: relative;
 }
 
-/* 箭头旋转动画（展开时） */
-.modelSelectorArrowOpen {
-  transform: rotate(180deg);
-}
-
-/* 下拉面板 - 绝对定位在模型选择器下方 */
 .modelDropdown {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 8px);
   left: 0;
-  min-width: 180px;
-  background: rgba(17, 24, 39, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  min-width: 200px;
+  background: rgba(12, 16, 33, 0.92);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 20px rgba(6, 182, 212, 0.08);
-  padding: 4px;
+  box-shadow: var(--shadow-xl);
+  padding: 6px;
   z-index: 100;
-  animation: dropdownFadeIn 0.15s ease;
+  animation: dropdownFadeIn 0.2s var(--ease-out-expo);
 }
 
 @keyframes dropdownFadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* 下拉选项 */
 .modelDropdownItem {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: all var(--transition-fast) var(--ease-smooth);
   text-align: left;
   font-family: inherit;
 }
@@ -226,9 +229,8 @@
   color: var(--text-primary);
 }
 
-/* 当前选中项高亮 */
 .modelDropdownItemActive {
-  background: rgba(6, 182, 212, 0.08);
+  background: rgba(34, 211, 238, 0.08);
   color: var(--accent-cyan);
 }
 
@@ -236,12 +238,10 @@
   flex: 1;
 }
 
-/* 离线模型灰点 */
 .modelDotOffline {
   background: var(--text-muted);
 }
 
-/* 勾选图标 */
 .modelCheckIcon {
   width: 14px;
   height: 14px;
@@ -249,26 +249,20 @@
   flex-shrink: 0;
 }
 
-/* ==========================================
-   语音对话模式按钮样式
-   ========================================== */
-
-/* 语音对话模式按钮激活状态 */
+/* ===== 语音对话模式按钮 ===== */
 .voiceChatActive {
-  background: rgba(37, 99, 235, 0.15) !important;
-  color: var(--accent-blue) !important;
-  border-color: var(--accent-blue) !important;
-  box-shadow: 0 0 12px rgba(37, 99, 235, 0.3);
+  background: rgba(34, 211, 238, 0.12) !important;
+  color: var(--accent-cyan) !important;
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.25);
 }
 
 .voiceChatActive .headerBtnSvg {
-  color: var(--accent-blue) !important;
   animation: voiceChatPulse 2s infinite ease-in-out;
 }
 
 @keyframes voiceChatPulse {
   0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.1); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 0.8; }
 }
 
 /* ===== 主题切换按钮 ===== */
@@ -278,12 +272,12 @@
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all var(--transition-normal) var(--ease-smooth);
 }
 
 .themeToggleBtn:hover {
@@ -293,9 +287,9 @@
 
 .themeIcon {
   font-size: 20px;
-  transition: transform 0.3s ease;
+  transition: transform 0.5s var(--ease-spring);
 }
 
 .themeToggleBtn:hover .themeIcon {
-  transform: rotate(360deg);
+  transform: rotate(180deg);
 }

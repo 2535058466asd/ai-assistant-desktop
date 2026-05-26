@@ -40,6 +40,11 @@ export interface ModelResponse {
   model?: string;
   choices: ModelResponseChoice[];
   error?: ModelError;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
 
 export interface ChatWithToolsRequest {

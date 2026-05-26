@@ -197,7 +197,7 @@ export class Orchestrator {
       });
 
       // 4. 执行 Agent 循环（流式）
-      const { content: finalResponse, reasoningContent: finalReasoningContent, toolCallSummary } = await this.agentLoop.run(
+      const { content: finalResponse, reasoningContent: finalReasoningContent, toolCallSummary, reasoningSegments, usage, model } = await this.agentLoop.run(
         messageId,
         text,
         {
@@ -229,8 +229,24 @@ export class Orchestrator {
         assistantMessage.reasoning_content = finalReasoningContent;
         assistantMessage.reasoningContent = finalReasoningContent;
       }
+      if (reasoningSegments && reasoningSegments.length > 0) {
+        assistantMessage.reasoningSegments = reasoningSegments;
+      }
       if (toolCallSummary && toolCallSummary.length > 0) {
         assistantMessage.toolCallSummary = toolCallSummary;
+      }
+      if (usage) {
+        assistantMessage.usage = usage;
+        // 记录用量统计（异步，不阻塞主流程）
+        try {
+          const { recordUsage } = await import('./cost/costTracker');
+          recordUsage(assistantMessage.sessionId, model || 'unknown', usage);
+        } catch (e) {
+          logger.error('记录用量失败', e);
+        }
+      }
+      if (model) {
+        assistantMessage.model = model;
       }
       delete (assistantMessage as any).isStreaming; // 移除流式标记
 

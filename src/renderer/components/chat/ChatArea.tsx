@@ -143,6 +143,13 @@ const formatDuration = (durationMs?: number): string => {
   return `${(durationMs / 1000).toFixed(1)}s`;
 };
 
+const formatTokenCount = (tokens: number): string => {
+  if (tokens >= 1000) {
+    return `${(tokens / 1000).toFixed(1)}K`;
+  }
+  return tokens.toString();
+};
+
 /**
  * ChatArea 聊天区域组件
  * @param props - 组件属性
@@ -455,8 +462,22 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
 
         {isExpanded && (
           <div className={styles.agentProcessList}>
-            {/* 推理内容 */}
-            {hasReasoning && (
+            {/* 推理内容 - 分段展示 */}
+            {hasReasoning && message.reasoningSegments && message.reasoningSegments.length > 0 ? (
+              message.reasoningSegments.map((segment, index) => (
+                <div key={index} className={styles.agentProcessItem}>
+                  <span className={styles.agentProcessDot} />
+                  <div className={styles.agentProcessBody}>
+                    <div className={styles.agentProcessHeader}>
+                      <span className={styles.agentProcessName}>第{segment.round}轮思考</span>
+                    </div>
+                    <div className={styles.agentProcessResult}>
+                      {segment.content}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : hasReasoning ? (
               <div className={styles.agentProcessItem}>
                 <span className={styles.agentProcessDot} />
                 <div className={styles.agentProcessBody}>
@@ -468,7 +489,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* 工具调用列表 */}
             {hasToolCalls && message.toolCallSummary?.map((tool, index) => (
@@ -702,6 +723,13 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
                             </svg>
                             {collapsedIds.has(message.id) ? '展开' : '收起'}
                           </button>
+
+                          {/* 用量显示 */}
+                          {message.usage && (
+                            <span className={styles.usageInfo} title={`输入: ${message.usage.prompt_tokens} tokens\n输出: ${message.usage.completion_tokens} tokens`}>
+                              {formatTokenCount(message.usage.total_tokens)} tokens
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
