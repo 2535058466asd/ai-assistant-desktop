@@ -1,22 +1,20 @@
 // ==========================================
 // ASR 管理器
-// 支持：豆包语音 ASR 2.0 WebSocket v3、小米 MiMo 音频理解、浏览器 Web Speech
+// 支持：豆包语音 ASR 2.0 WebSocket v3、浏览器 Web Speech
 // ==========================================
 
 import type { ASRService, ASRRequest, ASRResult } from './asrInterface';
 import { WebSpeechASR } from './webSpeechASR';
 import { VolcengineASRV3, type VolcengineASRV3Config } from './volcengineASRV3';
-import { MiMoASR, type MiMoASRConfig } from './mimoASR';
 import type { ASRConfig as GlobalASRConfig } from '../../config/asrConfig';
 import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('asr');
 
-export type ASRType = 'volcengine' | 'mimo' | 'web-speech';
+export type ASRType = 'volcengine' | 'web-speech';
 
-interface ASRConfig extends Omit<GlobalASRConfig, 'volcengine' | 'mimo'> {
+interface ASRConfig extends Omit<GlobalASRConfig, 'volcengine'> {
   volcengine?: VolcengineASRV3Config;
-  mimo?: MiMoASRConfig;
 }
 
 export class ASRManager {
@@ -46,15 +44,6 @@ export class ASRManager {
           logger.warn('豆包语音 ASR 配置不完整，降级使用浏览器 Web Speech');
           return new WebSpeechASR();
         }
-      case 'mimo':
-        // 小米 MiMo 多模态音频理解
-        if (this.config.mimo?.baseUrl && this.config.mimo?.apiKey) {
-          logger.info('正在初始化小米 MiMo ASR');
-          return new MiMoASR(this.config.mimo);
-        } else {
-          logger.warn('小米 MiMo ASR 配置不完整，降级使用浏览器 Web Speech');
-          return new WebSpeechASR();
-        }
       case 'web-speech':
         logger.info('使用浏览器 Web Speech ASR');
         return new WebSpeechASR();
@@ -71,8 +60,7 @@ export class ASRManager {
     this.config = {
       type: globalConfig.type,
       language: globalConfig.language,
-      volcengine: globalConfig.volcengine,
-      mimo: globalConfig.mimo
+      volcengine: globalConfig.volcengine
     };
     
     this.currentService = this.createService(this.config.type);
@@ -162,7 +150,7 @@ export class ASRManager {
     this.config = { ...this.config, ...config };
     if (config.type && config.type !== oldType) {
       this.switchType(config.type);
-    } else if (config.volcengine || config.mimo || config.language) {
+    } else if (config.volcengine || config.language) {
       this.currentService = this.createService(this.config.type);
       this.serviceInitialized = false;
       this.initializingService = null;

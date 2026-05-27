@@ -34,7 +34,7 @@ interface InputAreaProps {
   onSendMessage: SendMessageHandler;
   onSuggestionClick?: (prompt: string) => void;
   /** 语音对话模式状态（用于状态提示）*/
-  voiceChatState?: 'idle' | 'listening' | 'thinking' | 'speaking';
+  voiceChatState?: 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
   /** 语音对话模式是否开启（用于状态提示）*/
   isVoiceChatEnabled?: boolean;
   /** 切换语音对话模式回调 */

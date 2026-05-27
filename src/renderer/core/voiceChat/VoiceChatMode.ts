@@ -14,7 +14,7 @@ const logger = createLogger('asr');
 /**
  * 语音对话模式状态
  */
-export type VoiceChatState = 'idle' | 'listening' | 'thinking' | 'speaking';
+export type VoiceChatState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
 
 /**
  * 语音对话模式回调
@@ -182,6 +182,7 @@ export class VoiceChatMode {
       
       if (!success) {
         logger.error('语音识别启动返回失败');
+        this.setState('error');
         if (this.callbacks?.onError) {
           this.callbacks.onError('无法启动语音识别');
         }
@@ -195,6 +196,7 @@ export class VoiceChatMode {
       this.setState('listening');
     } catch (error) {
       logger.error('语音对话监听启动失败', error);
+      this.setState('error');
       if (this.callbacks?.onError) {
         this.callbacks.onError('启动语音识别失败');
       }

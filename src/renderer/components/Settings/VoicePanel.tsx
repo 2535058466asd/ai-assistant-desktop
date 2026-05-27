@@ -41,8 +41,13 @@ function readStored(key: string, fallback: string = ''): string {
   return localStorage.getItem(key) || fallback;
 }
 
+function readASRType(): ASRType {
+  const stored = readStored('nova.asr.type');
+  return stored === 'web-speech' || stored === 'volcengine' ? stored : 'volcengine';
+}
+
 export default function VoicePanel() {
-  const [asrType, setAsrType] = useState('web-speech');
+  const [asrType, setAsrType] = useState<ASRType>('volcengine');
   const [ttsType, setTtsType] = useState('volcengine');
   const [voice, setVoice] = useState('zh_female_vv_uranus_bigtts');
   const [mimoVoice, setMimoVoice] = useState('mimo_default');
@@ -57,7 +62,7 @@ export default function VoicePanel() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    setAsrType(readStored('nova.asr.type', 'web-speech'));
+    setAsrType(readASRType());
     setTtsType(readStored('nova.tts.type', 'volcengine'));
     setVoice(readStored('nova.tts.voice', 'zh_female_vv_uranus_bigtts'));
     setMimoVoice(readStored('nova.mimo.voice', 'mimo_default'));
@@ -153,11 +158,11 @@ export default function VoicePanel() {
     <div className={styles.panel}>
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>语音识别 (ASR)</h3>
-        <p className={styles.sectionDesc}>负责听你说话并转成文字。它可以和聊天模型、TTS 分开选择，日常推荐浏览器内置方案。</p>
+        <p className={styles.sectionDesc}>负责听你说话并转成文字。它可以和聊天模型、TTS 分开选择；默认使用火山 ASR，配置不完整时会降级到浏览器内置方案。</p>
         <select
           className={styles.select}
           value={asrType}
-          onChange={(e) => setAsrType(e.target.value)}
+          onChange={(e) => setAsrType(e.target.value as ASRType)}
         >
           {ASR_ENGINES.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -277,7 +282,7 @@ export default function VoicePanel() {
       {needsMimo && (
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>小米 MiMo 凭证</h3>
-          <p className={styles.sectionDesc}>小米 MiMo 语音合成。ASR 暂不接入小米，先使用浏览器或火山引擎。</p>
+          <p className={styles.sectionDesc}>小米 MiMo 只用于语音合成（TTS），不用于语音识别（ASR）。</p>
           <label className={styles.label}>API Base URL</label>
           <input
             className={styles.input}
