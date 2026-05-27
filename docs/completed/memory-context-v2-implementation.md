@@ -8,7 +8,7 @@
 - 上下文自动压缩：当对话历史接近阈值时，保留最近消息并调用模型生成历史摘要。
 - 短期上下文：当前会话上下文由 renderer 内存中的 `ContextManager` 管理，不写入 localStorage 或 SQLite。
 - 对话历史：`historyManager` 负责保留会话消息，并为同一对话中的后续请求提供上下文。
-- 记忆存储：主进程 `memoryServiceBackend.ts` 使用 SQLite 持久化记忆，数据位于用户数据目录下的 `qiyuan-memory/memories.db`。
+- 记忆存储：主进程 `memoryServiceBackend.ts` 使用 SQLite 持久化记忆，数据位于用户数据目录下的 `nova-memory/memories.db`；如果检测到旧版 `qiyuan-memory` 且新目录不存在，会自动复制迁移。
 - 记忆上限：通过 `MAX_MEMORIES = 500` 控制长期记忆数量。
 - 记忆提取：`memoryExtractor.ts` 在对话结束后尝试从用户输入和助手回复中提取重要信息。
 - 记忆检索注入：`memoryServiceClient` / `memoryServiceBackend` 支持按用户输入生成记忆提示词并注入系统提示。

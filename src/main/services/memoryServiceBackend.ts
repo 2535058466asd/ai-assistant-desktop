@@ -52,9 +52,11 @@ export class MemoryService {
   private dbReady: Promise<void>;
   
   private static readonly MAX_MEMORIES = 500;
+  private static readonly DATA_DIR_NAME = 'nova-memory';
+  private static readonly LEGACY_DATA_DIR_NAME = 'qiyuan-memory';
 
   constructor() {
-    this.dataDir = path.join(app.getPath('userData'), 'qiyuan-memory');
+    this.dataDir = path.join(app.getPath('userData'), MemoryService.DATA_DIR_NAME);
     this.preferencesPath = path.join(this.dataDir, 'preferences.json');
     this.dbPath = path.join(this.dataDir, 'memories.db');
     
@@ -73,9 +75,30 @@ export class MemoryService {
   }
 
   private ensureDataDir(): void {
+    this.migrateLegacyDataDir();
+
     if (!fs.existsSync(this.dataDir)) {
       fs.mkdirSync(this.dataDir, { recursive: true });
       logger.info('Memory data directory created', { dataDir: this.dataDir });
+    }
+  }
+
+  private migrateLegacyDataDir(): void {
+    const legacyDataDir = path.join(app.getPath('userData'), MemoryService.LEGACY_DATA_DIR_NAME);
+    if (fs.existsSync(this.dataDir) || !fs.existsSync(legacyDataDir)) return;
+
+    try {
+      fs.cpSync(legacyDataDir, this.dataDir, { recursive: true });
+      logger.info('Legacy memory data migrated', {
+        from: legacyDataDir,
+        to: this.dataDir,
+      });
+    } catch (error) {
+      logger.error('Legacy memory data migration failed', {
+        from: legacyDataDir,
+        to: this.dataDir,
+        error,
+      });
     }
   }
 
