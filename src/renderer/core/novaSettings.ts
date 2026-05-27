@@ -3,12 +3,12 @@
 // 让 Nova 有温度、有个性！
 // ==========================================
 
-import type { QiyuanSettings } from '../types';
+import type { NovaSettings } from '../types';
 
 /**
  * Nova 的默认设定
  */
-export const DEFAULT_QIYUAN_SETTINGS: QiyuanSettings = {
+export const DEFAULT_NOVA_SETTINGS: NovaSettings = {
   name: 'Nova',
   personality: {
     type: '温暖治愈型',
@@ -34,7 +34,7 @@ export const DEFAULT_QIYUAN_SETTINGS: QiyuanSettings = {
 /**
  * Nova 的系统提示词（给 LLM 的设定）
  */
-export function getQiyuanSystemPrompt(): string {
+export function getNovaSystemPrompt(): string {
   return `你是一个名叫"Nova"的AI助手，是用户的专属AI朋友。
 
 【性格设定】

@@ -480,6 +480,12 @@ export function getToolMetadata(name: string) {
   };
 }
 
+export function getToolPromptSummary(): string {
+  return Object.values(toolRegistry)
+    .map((tool) => `- ${tool.name}：${tool.description}（分类：${tool.category}；风险：${tool.riskLevel}）`)
+    .join('\n');
+}
+
 function shouldConfirm(tool: RegisteredTool, args: ToolArgs): boolean {
   if (tool.requiresConfirmation) return tool.requiresConfirmation(args);
   return tool.riskLevel === 'system' || tool.riskLevel === 'destructive' || tool.riskLevel === 'external_send';

@@ -16,11 +16,12 @@ import { ConversationRuntime } from './conversation/conversationRuntime';
 import { ContextCompactor } from './context/contextCompactor';
 import { AgentEventBridge } from './events/agentEventBridge';
 import { AgentLoop } from './agent';
-import { getQiyuanSystemPrompt, DEFAULT_QIYUAN_SETTINGS } from './qiyuanSettings';
+import { getNovaSystemPrompt, DEFAULT_NOVA_SETTINGS } from './novaSettings';
 import { getMemoryService } from '../services/memoryServiceClient';
 import { tryExtractAndSaveMemory } from './utils/memoryExtractor';
 import { createLogger, createTraceId, type LogMeta } from '../../shared/logger';
 import { getResolvedRuntimeModel } from './model/modelRuntime';
+import { getToolPromptSummary } from './tools/toolRegistry';
 
 const logger = createLogger('agent');
 
@@ -318,19 +319,13 @@ export class Orchestrator {
   private async buildSystemPrompt(userInput: string = ''): Promise<string> {
     const memoryPrompt = await this.memoryService.getMemoryPrompt(userInput);
 
-    return `${getQiyuanSystemPrompt()}
+    return `${getNovaSystemPrompt()}
 
 ${memoryPrompt || ''}
 
 【工具使用指引】
-你可以使用以下工具来帮助用户：
-- exec_command：执行系统命令（打开/关闭应用、查看进程、系统信息等）
-- read_file / write_file：读写文件
-- web_search：搜索互联网
-- clipboard_read / clipboard_write：读写剪贴板
-- open_app：打开应用或网页
-- knowledge_search / knowledge_import_file：检索或导入本地知识库，回答需要引用本地文档时优先使用
-- workspace_create_task / workspace_update_project：维护项目任务、下一步和阻塞点
+你可以使用以下工具来帮助用户。工具的 JSON Schema 会随请求发送，请优先根据工具描述、参数和风险等级选择：
+${getToolPromptSummary()}
 
 根据用户需求选择合适的工具。不需要工具时直接回复。工具执行失败时友好地告诉用户。`;
   }
@@ -392,7 +387,7 @@ ${memoryPrompt || ''}
    * 获取欢迎消息
    */
   getWelcomeMessage(): string {
-    return DEFAULT_QIYUAN_SETTINGS.welcomeMessage;
+    return DEFAULT_NOVA_SETTINGS.welcomeMessage;
   }
 
   /**

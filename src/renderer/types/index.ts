@@ -65,7 +65,7 @@ export interface ImportantDay {
 }
 
 /** Nova设定 */
-export interface QiyuanSettings {
+export interface NovaSettings {
   name: string;
   personality: Personality;
   memories: {
