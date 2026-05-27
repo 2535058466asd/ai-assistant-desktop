@@ -2,8 +2,8 @@ import type { InteractionRequest, InteractionResponse, Message, SessionId } from
 import { getWakeWordDetector } from './wakeWordDetector';
 import { getASRManager } from '../asr';
 import { getTTSManager } from '../tts';
-import { DEFAULT_TTS_CONFIG } from '../../config/ttsConfig';
-import { DEFAULT_ASR_CONFIG } from '../../config/asrConfig';
+import { loadTTSConfig } from '../../config/ttsConfig';
+import { loadASRConfig } from '../../config/asrConfig';
 import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('voice');
@@ -22,16 +22,19 @@ export class VoiceGatewayManager {
   }
 
   private initializeServices(): void {
+    const ttsConfig = loadTTSConfig();
+    const asrConfig = loadASRConfig();
+
     try {
-      this.ttsManager.initialize(DEFAULT_TTS_CONFIG);
-      logger.debug('🎵 TTS服务初始化成功，使用:', DEFAULT_TTS_CONFIG.type);
+      this.ttsManager.initialize(ttsConfig);
+      logger.debug('🎵 TTS服务初始化成功，使用:', ttsConfig.type);
     } catch (error) {
       logger.error('❌ TTS服务初始化失败:', error);
     }
 
     try {
-      this.asrManager.initialize(DEFAULT_ASR_CONFIG);
-      logger.debug('🎤 ASR服务初始化成功，使用:', DEFAULT_ASR_CONFIG.type);
+      this.asrManager.initialize(asrConfig);
+      logger.debug('🎤 ASR服务初始化成功，使用:', asrConfig.type);
     } catch (error) {
       logger.error('❌ ASR服务初始化失败:', error);
     }

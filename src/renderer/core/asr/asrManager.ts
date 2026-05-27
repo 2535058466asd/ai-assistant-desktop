@@ -20,6 +20,7 @@ interface ASRConfig extends Omit<GlobalASRConfig, 'volcengine'> {
 export class ASRManager {
   private currentService: ASRService;
   private config: ASRConfig;
+  private configKey = '';
   private serviceInitialized = false;
   private initializingService: Promise<void> | null = null;
 
@@ -29,8 +30,13 @@ export class ASRManager {
       language: 'zh-CN',
       ...config
     };
+    this.configKey = this.serializeConfig(this.config);
     
     this.currentService = this.createService(this.config.type);
+  }
+
+  private serializeConfig(config: Partial<ASRConfig>): string {
+    return JSON.stringify(config);
   }
 
   private createService(type: ASRType): ASRService {
@@ -57,11 +63,20 @@ export class ASRManager {
    * 初始化 ASR 服务（使用全局配置）
    */
   initialize(globalConfig: GlobalASRConfig): void {
-    this.config = {
+    const nextConfig: ASRConfig = {
       type: globalConfig.type,
       language: globalConfig.language,
       volcengine: globalConfig.volcengine
     };
+
+    const nextConfigKey = this.serializeConfig(nextConfig);
+    if (this.configKey === nextConfigKey) {
+      logger.debug('ASR 管理器配置未变化，跳过重复初始化', { type: this.config.type });
+      return;
+    }
+
+    this.config = nextConfig;
+    this.configKey = nextConfigKey;
     
     this.currentService = this.createService(this.config.type);
     this.serviceInitialized = false;
@@ -148,6 +163,7 @@ export class ASRManager {
   setConfig(config: Partial<ASRConfig>): void {
     const oldType = this.config.type;
     this.config = { ...this.config, ...config };
+    this.configKey = this.serializeConfig(this.config);
     if (config.type && config.type !== oldType) {
       this.switchType(config.type);
     } else if (config.volcengine || config.language) {

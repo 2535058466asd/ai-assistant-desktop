@@ -48,17 +48,27 @@ function readEnvValue(key: string): string {
   return (import.meta.env[key] as string | undefined) || '';
 }
 
+function readTTSType(): TTSConfig['type'] {
+  const stored = readStoredValue('nova.tts.type');
+  return stored === 'volcengine' || stored === 'mimo' || stored === 'web-speech' ? stored : 'volcengine';
+}
+
+function readStoredNumber(key: string, fallback: number): number {
+  const value = Number(readStoredValue(key));
+  return Number.isFinite(value) ? value : fallback;
+}
+
 // 默认 TTS 配置（支持豆包、小米、浏览器）。
 // TTS 负责“AI 说话的声音”，可以和聊天模型、ASR 引擎独立选择。
 export const DEFAULT_TTS_CONFIG: TTSConfig = {
-  type: (readStoredValue('nova.tts.type') as TTSConfig['type']) || 'volcengine',
+  type: readTTSType(),
   
   // 豆包 TTS 2.0 配置（WebSocket v3 双向流式）
   volcengine: {
     appId: readEnvValue('VITE_VOLCENGINE_APP_ID') || readStoredValue('nova.volcengine.appId'),
     accessToken: readEnvValue('VITE_VOLCENGINE_ACCESS_TOKEN') || readStoredValue('nova.volcengine.accessToken'),
     apiUrl: 'wss://openspeech.bytedance.com/api/v3/tts/bidirection',
-    voice: 'zh_female_vv_uranus_bigtts',
+    voice: readStoredValue('nova.tts.voice') || 'zh_female_vv_uranus_bigtts',
     model: 'seed-tts-2.0-expressive',
     resourceId: 'seed-tts-2.0',
     format: 'pcm',
@@ -72,13 +82,42 @@ export const DEFAULT_TTS_CONFIG: TTSConfig = {
   mimo: {
     baseUrl: readEnvValue('VITE_MIMO_BASE_URL') || readStoredValue('nova.mimo.baseUrl') || 'https://token-plan-cn.xiaomimimo.com/v1',
     apiKey: readEnvValue('VITE_MIMO_API_KEY') || readStoredValue('nova.mimo.apiKey') || '',
-    model: 'mimo-v2.5-tts',
-    voice: 'mimo_default',
+    model: readStoredValue('nova.mimo.model') || 'mimo-v2.5-tts',
+    voice: readStoredValue('nova.mimo.voice') || 'mimo_default',
     format: 'mp3'
   },
   
   // 通用配置
-  speed: 1.0,
-  pitch: 1.0,
-  volume: 1.0
+  speed: readStoredNumber('nova.tts.speed', 1.0),
+  pitch: readStoredNumber('nova.tts.pitch', 1.0),
+  volume: readStoredNumber('nova.tts.volume', 1.0)
 };
+
+export function loadTTSConfig(): TTSConfig {
+  return {
+    type: readTTSType(),
+    volcengine: {
+      appId: readEnvValue('VITE_VOLCENGINE_APP_ID') || readStoredValue('nova.volcengine.appId'),
+      accessToken: readEnvValue('VITE_VOLCENGINE_ACCESS_TOKEN') || readStoredValue('nova.volcengine.accessToken'),
+      apiUrl: 'wss://openspeech.bytedance.com/api/v3/tts/bidirection',
+      voice: readStoredValue('nova.tts.voice') || 'zh_female_vv_uranus_bigtts',
+      model: 'seed-tts-2.0-expressive',
+      resourceId: 'seed-tts-2.0',
+      format: 'pcm',
+      sampleRate: 24000,
+      speed: 0,
+      volume: 0,
+      pitch: 0
+    },
+    mimo: {
+      baseUrl: readEnvValue('VITE_MIMO_BASE_URL') || readStoredValue('nova.mimo.baseUrl') || 'https://token-plan-cn.xiaomimimo.com/v1',
+      apiKey: readEnvValue('VITE_MIMO_API_KEY') || readStoredValue('nova.mimo.apiKey') || '',
+      model: readStoredValue('nova.mimo.model') || 'mimo-v2.5-tts',
+      voice: readStoredValue('nova.mimo.voice') || 'mimo_default',
+      format: 'mp3'
+    },
+    speed: readStoredNumber('nova.tts.speed', 1.0),
+    pitch: readStoredNumber('nova.tts.pitch', 1.0),
+    volume: readStoredNumber('nova.tts.volume', 1.0)
+  };
+}

@@ -60,3 +60,19 @@ export const DEFAULT_ASR_CONFIG: ASRConfig = {
   // 通用配置
   language: 'zh-CN'
 };
+
+export function loadASRConfig(): ASRConfig {
+  return {
+    type: readASRType(),
+    volcengine: {
+      appId: readEnvValue('VITE_VOLCENGINE_APP_ID') || readStoredWithLegacy('nova.volcengine.appId', 'qiyuan.volcengine.appId'),
+      accessToken: readEnvValue('VITE_VOLCENGINE_ACCESS_TOKEN') || readStoredWithLegacy('nova.volcengine.accessToken', 'qiyuan.volcengine.accessToken'),
+      apiUrl: 'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async',
+      resourceId: 'volc.bigasr.sauc.duration',
+      format: 'pcm',
+      sampleRate: 16000,
+      language: 'zh-CN'
+    },
+    language: 'zh-CN'
+  };
+}

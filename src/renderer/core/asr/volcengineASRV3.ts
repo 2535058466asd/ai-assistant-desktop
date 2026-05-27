@@ -20,6 +20,8 @@ export interface VolcengineASRV3Config {
 }
 
 export class VolcengineASRV3 implements ASRService {
+  private static activeInstance: VolcengineASRV3 | null = null
+  private static listenersRegistered = false
   private config: VolcengineASRV3Config
   private isConnected: boolean = false
   private mediaRecorder: MediaRecorder | null = null
@@ -54,21 +56,31 @@ export class VolcengineASRV3 implements ASRService {
   }
 
   private setupEventListeners(): void {
+    VolcengineASRV3.activeInstance = this
+
     if (!window.electronAPI) {
       logger.warn('⚠️ electronAPI 不可用，ASR 功能可能无法正常工作')
       return
     }
 
+    if (VolcengineASRV3.listenersRegistered) {
+      return
+    }
+
+    VolcengineASRV3.listenersRegistered = true
+
     window.electronAPI.on('asr-result', (data: { text: string; isFinal: boolean }) => {
+      const instance = VolcengineASRV3.activeInstance
+      if (!instance) return
       if (!data) {
         logger.warn('⚠️ ASR 收到空数据')
         return
       }
       logger.debug('📨 ASR 识别结果:', data.text, 'isFinal:', data.isFinal)
-      this.recognitionResult = data.text
+      instance.recognitionResult = data.text
 
-      if (this.onResultCallback) {
-        this.onResultCallback({
+      if (instance.onResultCallback) {
+        instance.onResultCallback({
           success: true,
           text: data.text,
           confidence: 0.95
@@ -77,20 +89,24 @@ export class VolcengineASRV3 implements ASRService {
     })
 
     window.electronAPI.on('asr-complete', (data: { text: string }) => {
+      const instance = VolcengineASRV3.activeInstance
+      if (!instance) return
       logger.debug('✅ ASR 识别完成:', data.text)
-      this.recognitionResult = data.text
-      this.isRecording = false
+      instance.recognitionResult = data.text
+      instance.isRecording = false
 
-      if (this.onEndCallback) {
-        this.onEndCallback()
+      if (instance.onEndCallback) {
+        instance.onEndCallback()
       }
     })
 
     window.electronAPI.on('asr-error', (data: { error: string }) => {
+      const instance = VolcengineASRV3.activeInstance
+      if (!instance) return
       logger.error('❌ ASR 错误:', data.error)
 
-      if (this.onErrorCallback) {
-        this.onErrorCallback(data.error)
+      if (instance.onErrorCallback) {
+        instance.onErrorCallback(data.error)
       }
     })
   }

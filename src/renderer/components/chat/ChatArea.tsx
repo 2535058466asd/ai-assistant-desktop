@@ -15,7 +15,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import styles from './ChatArea.module.css';
 import type { UIMessage } from '../../types/chat';
 import { getTTSManager } from '../../core/tts/ttsManager';
-import { DEFAULT_TTS_CONFIG } from '../../config/ttsConfig';
+import { loadTTSConfig } from '../../config/ttsConfig';
 import DOMPurify from 'dompurify';
 import { createLogger } from '../../../shared/logger';
 
@@ -167,12 +167,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
   
   /** TTS 相关状态 */
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null); // 正在播放的消息 ID
-  const ttsManagerRef = useRef(getTTSManager(DEFAULT_TTS_CONFIG)); // TTS 管理器实例
+  const ttsManagerRef = useRef(getTTSManager()); // TTS 管理器实例
   const audioRef = useRef<HTMLAudioElement | null>(null); // 音频元素引用
 
   // 初始化 TTS
   useEffect(() => {
-    ttsManagerRef.current.initialize(DEFAULT_TTS_CONFIG);
+    ttsManagerRef.current.initialize(loadTTSConfig());
   }, []);
 
   /**

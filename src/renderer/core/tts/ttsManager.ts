@@ -22,6 +22,7 @@ interface TTSConfig extends Omit<GlobalTTSConfig, 'volcengine' | 'mimo'> {
 export class TTSManager {
   private currentService: TTSService;
   private config: TTSConfig;
+  private configKey = '';
   private audioCache: Map<string, ArrayBuffer> = new Map();
 
   constructor(config?: Partial<TTSConfig>) {
@@ -32,8 +33,13 @@ export class TTSManager {
       volume: 1.0,
       ...config
     };
+    this.configKey = this.serializeConfig(this.config);
     
     this.currentService = this.createService(this.config.type);
+  }
+
+  private serializeConfig(config: Partial<TTSConfig>): string {
+    return JSON.stringify(config);
   }
 
   /**
@@ -54,7 +60,7 @@ export class TTSManager {
    * 初始化 TTS 服务（使用全局配置）
    */
   initialize(globalConfig: GlobalTTSConfig): void {
-    this.config = {
+    const nextConfig: TTSConfig = {
       type: globalConfig.type,
       speed: globalConfig.speed,
       pitch: globalConfig.pitch,
@@ -62,6 +68,15 @@ export class TTSManager {
       volcengine: globalConfig.volcengine,
       mimo: globalConfig.mimo
     };
+
+    const nextConfigKey = this.serializeConfig(nextConfig);
+    if (this.configKey === nextConfigKey) {
+      logger.debug('TTS 管理器配置未变化，跳过重复初始化', { type: this.config.type });
+      return;
+    }
+
+    this.config = nextConfig;
+    this.configKey = nextConfigKey;
     
     this.currentService = this.createService(this.config.type);
     logger.info('TTS 管理器已初始化', { type: this.config.type });
@@ -240,6 +255,7 @@ export class TTSManager {
   setConfig(config: Partial<TTSConfig>): void {
     const oldType = this.config.type;
     this.config = { ...this.config, ...config };
+    this.configKey = this.serializeConfig(this.config);
     if (config.type && config.type !== oldType) {
       this.switchType(config.type);
     }

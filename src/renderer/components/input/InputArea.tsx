@@ -20,7 +20,7 @@ import styles from './InputArea.module.css';
 import type { SendMessageHandler } from '../../types/chat';
 import { getASRManager } from '../../core/asr/asrManager';
 import type { ASRResult } from '../../core/asr/asrInterface';
-import { DEFAULT_ASR_CONFIG } from '../../config/asrConfig';
+import { loadASRConfig } from '../../config/asrConfig';
 import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('ui');
@@ -74,11 +74,11 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
   const [recognitionText, setRecognitionText] = useState('');
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const asrManagerRef = useRef(getASRManager(DEFAULT_ASR_CONFIG));
+  const asrManagerRef = useRef(getASRManager());
 
   // 初始化 ASR
   useEffect(() => {
-    asrManagerRef.current.initialize(DEFAULT_ASR_CONFIG);
+    asrManagerRef.current.initialize(loadASRConfig());
   }, []);
 
   useImperativeHandle(ref, () => ({
