@@ -1,6 +1,6 @@
 # Nova 文档索引
 
-这个目录只放和 `ai-assistant-desktop` 项目直接相关的文档。
+这个目录只放和 Nova 项目直接相关的文档。
 
 ## 入口文档
 
@@ -15,11 +15,10 @@
 ## Dev
 
 - [`dev/model-provider-and-context.md`](dev/model-provider-and-context.md)：模型 Provider、同一对话切模型、短期上下文、长期记忆和 `reasoning_content` 说明。
+- [`dev/tool-system.md`](dev/tool-system.md)：Function Calling 工具系统、风险等级、IPC 白名单、执行链路和新增工具规范。
 - [`dev/mimo-platform-research.md`](dev/mimo-platform-research.md)：小米 MiMo 开放平台、Token Plan、模型和语音能力调研。
 - [`dev/volcengine-voice-research.md`](dev/volcengine-voice-research.md)：火山引擎语音链路调研；当前阶段语音链路先冻结，优先稳定文本对话。
 - [`dev/tool-execution-research.md`](dev/tool-execution-research.md)：工具执行和安全边界调研。
-
-根目录的 [`../model-config-analysis.md`](../model-config-analysis.md) 是模型配置问题分析记录，后续可在稳定后合并进 dev 文档。
 
 ## Completed
 

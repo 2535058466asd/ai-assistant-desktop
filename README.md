@@ -137,7 +137,7 @@ VITE_MIMO_MODEL=
 ## 项目结构
 
 ```
-ai-assistant-desktop/
+nova/
 ├── src/
 │   ├── main/                          # Electron 主进程
 │   │   ├── index.ts                   # 主进程入口（窗口创建、生命周期）
@@ -175,8 +175,8 @@ ai-assistant-desktop/
 │       │   ├── history/               # 短期上下文与对话历史
 │       │   ├── model/                 # Provider 抽象与模型传输
 │       │   ├── tools/                 # 工具定义与执行
-│       │   │   ├── toolDefinitions.ts # 工具 JSON Schema
-│       │   │   └── toolExecutor.ts    # 工具分发与结果处理
+│       │   │   ├── toolRegistry.ts    # 工具 schema、风险元数据和执行映射
+│       │   │   └── toolExecutor.ts    # 工具分发、日志和结果处理
 │       │   ├── tts/                   # TTS 管理器
 │       │   ├── asr/                   # ASR 管理器
 │       │   └── voiceChat/             # 语音对话模式
@@ -193,7 +193,11 @@ ai-assistant-desktop/
 |------|------|------|
 | `exec_command` | 系统 | 执行终端命令 |
 | `read_file` | 文件 | 读取文件内容 |
-| `write_file` | 文件 | 写入文件（自动创建目录、路径映射） |
+| `write_file` | 文件 | 写入文件 |
+| `create_dir` | 文件 | 创建目录 |
+| `copy_file` | 文件 | 复制文件或目录 |
+| `move_file` | 文件 | 移动或重命名文件/目录 |
+| `delete_file` | 文件 | 删除文件或目录（强确认） |
 | `list_dir` | 文件 | 列出目录内容 |
 | `search_files` | 文件 | 按文件名搜索（支持通配符） |
 | `grep_content` | 文件 | 按内容搜索文件 |
@@ -202,12 +206,17 @@ ai-assistant-desktop/
 | `clipboard_read` | 剪贴板 | 读取剪贴板 |
 | `clipboard_write` | 剪贴板 | 写入剪贴板 |
 | `open_app` | 应用 | 智能打开应用或网页（含命令注入防护） |
+| `notify` | 系统 | 发送系统通知 |
+| `get_current_time` | 系统 | 获取当前时间 |
+| `get_system_info` | 系统 | 获取系统信息 |
 | `knowledge_search` | RAG | 检索本地知识库 |
 | `knowledge_add` | RAG | 添加知识片段 |
 | `knowledge_import_file` | RAG | 导入 PDF/Word/Excel/TXT/MD |
 | `knowledge_import_image` | RAG | 识别图片并导入知识库 |
 | `workspace_create_task` | 项目管理 | 创建项目任务 |
 | `workspace_update_project` | 项目管理 | 更新项目状态、下一步、阻塞点 |
+
+工具系统的分层设计、风险等级和新增工具规范见 [docs/dev/tool-system.md](docs/dev/tool-system.md)。
 
 ---
 
