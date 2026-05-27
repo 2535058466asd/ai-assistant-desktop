@@ -35,6 +35,15 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
+# Local agent/skill runtime state
+.agents/
+skills-lock.json
+
+# Local test media and scratch files
+sample.mp4
+*.tmp
+tmp/
+
 # Electron
 release/
 
