@@ -18,6 +18,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeFile: async (path: string, content: string) => {
     return ipcRenderer.invoke('write-file', path, content);
   },
+  // 创建目录
+  createDir: async (dirPath: string) => {
+    return ipcRenderer.invoke('create-dir', dirPath);
+  },
+  // 复制文件或目录
+  copyFile: async (sourcePath: string, targetPath: string) => {
+    return ipcRenderer.invoke('copy-file', sourcePath, targetPath);
+  },
+  // 移动或重命名文件/目录
+  moveFile: async (sourcePath: string, targetPath: string) => {
+    return ipcRenderer.invoke('move-file', sourcePath, targetPath);
+  },
+  // 删除文件或目录
+  deleteFile: async (filePath: string) => {
+    return ipcRenderer.invoke('delete-file', filePath);
+  },
 
   // 网页搜索
   webSearch: async (query: string) => {
@@ -66,10 +82,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 发送系统通知
   notify: async (title: string, body: string) => {
     return ipcRenderer.invoke('notify', title, body);
-  },
-  // 删除文件
-  deleteFile: async (filePath: string) => {
-    return ipcRenderer.invoke('deleteFile', filePath);
   },
   // ========== 知识库 RAG ==========
   // 搜索知识库
@@ -212,6 +224,10 @@ declare global {
       execCommand: (command: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       readFile: (path: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       writeFile: (path: string, content: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      createDir: (dirPath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      copyFile: (sourcePath: string, targetPath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      moveFile: (sourcePath: string, targetPath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      deleteFile: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       webSearch: (query: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       webFetch: (url: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       searchSetConfig: (config: { preferredEngine?: string; searxngUrl?: string }) => Promise<{ success: boolean; data?: unknown; error?: string }>;
@@ -225,7 +241,6 @@ declare global {
       getCurrentTime: () => Promise<{ success: boolean; data?: string; error?: string }>;
       getSystemInfo: () => Promise<{ success: boolean; data?: string; error?: string }>;
       notify: (title: string, body: string) => Promise<{ success: boolean; data?: string; error?: string }>;
-      deleteFile: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       // 知识库 RAG
       knowledgeSearch: (query: string, nResults?: number) => Promise<{ success: boolean; data?: string; error?: string }>;
       knowledgeAdd: (documents: string[], metadatas?: Record<string, string>[]) => Promise<{ success: boolean; count?: number; error?: string }>;

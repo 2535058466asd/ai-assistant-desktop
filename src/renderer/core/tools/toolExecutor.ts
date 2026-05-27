@@ -6,7 +6,7 @@
 
 import { addToolLog, previewValue } from '../../services/workspaceStore';
 import { createLogger, type LogMeta } from '../../../shared/logger';
-import { executeRegisteredTool } from './toolRegistry';
+import { executeRegisteredTool, getToolMetadata } from './toolRegistry';
 
 const logger = createLogger('tool');
 
@@ -17,7 +17,8 @@ export interface ToolExecutionResult {
 }
 
 export async function executeTool(name: string, args: Record<string, any>, meta: LogMeta = {}): Promise<ToolExecutionResult> {
-  logger.info('工具调用开始', { ...meta, phase: 'tool', name, args });
+  const toolMeta = getToolMetadata(name);
+  logger.info('工具调用开始', { ...meta, phase: 'tool', name, args, ...toolMeta });
   const api = (window as any).electronAPI;
   const startedAt = performance.now();
 
@@ -28,6 +29,7 @@ export async function executeTool(name: string, args: Record<string, any>, meta:
       ...meta,
       phase: 'tool',
       name,
+      ...toolMeta,
       success: result.success,
       durationMs: Math.round(performance.now() - startedAt),
       result: result.data || result.error,
@@ -35,6 +37,8 @@ export async function executeTool(name: string, args: Record<string, any>, meta:
     addToolLog({
       name,
       argsPreview: previewValue(args),
+      category: toolMeta?.category,
+      riskLevel: toolMeta?.riskLevel,
       status: result.success ? 'success' : 'error',
       durationMs: Math.round(performance.now() - startedAt),
       resultPreview: previewValue(result.data || result.error || ''),
@@ -45,12 +49,15 @@ export async function executeTool(name: string, args: Record<string, any>, meta:
       ...meta,
       phase: 'tool',
       name,
+      ...toolMeta,
       durationMs: Math.round(performance.now() - startedAt),
       error: error.message,
     });
     addToolLog({
       name,
       argsPreview: previewValue(args),
+      category: toolMeta?.category,
+      riskLevel: toolMeta?.riskLevel,
       status: 'error',
       durationMs: Math.round(performance.now() - startedAt),
       resultPreview: error.message,

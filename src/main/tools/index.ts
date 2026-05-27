@@ -5,7 +5,7 @@
  */
 
 import { registerExecCommand } from './execCommand'
-import { registerReadFile, registerWriteFile, registerListDir, registerSearchFiles, registerGrepContent } from './fileOps'
+import { registerReadFile, registerWriteFile, registerCreateDir, registerCopyFile, registerMoveFile, registerDeleteFile, registerListDir, registerSearchFiles, registerGrepContent } from './fileOps'
 import { registerWebSearch, registerWebFetch, registerSearchSetConfig } from './webTools'
 import { registerClipboardRead, registerClipboardWrite } from './clipboard'
 import { registerOpenApp } from './openApp'
@@ -22,6 +22,10 @@ export function registerAllTools() {
   // 文件操作
   registerReadFile()
   registerWriteFile()
+  registerCreateDir()
+  registerCopyFile()
+  registerMoveFile()
+  registerDeleteFile()
   registerListDir()
   registerSearchFiles()
   registerGrepContent()
@@ -47,8 +51,8 @@ export function registerAllTools() {
   registerKnowledgeImportFile()
   registerKnowledgeImportImage()
 
-  // 系统工具（时间/系统信息/通知/删除）
+  // 系统工具（时间/系统信息/通知）
   registerSystemTools()
 
-  logger.info('Tools registered', { count: 22 });
+  logger.info('Tools registered', { count: 25 });
 }

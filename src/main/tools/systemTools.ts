@@ -62,29 +62,4 @@ export function registerSystemTools() {
       return { success: false, error: error.message };
     }
   });
-
-  ipcMain.handle('deleteFile', async (_event, filePath: string) => {
-    try {
-      const fs = require('fs');
-      const path = require('path');
-      const resolvedPath = filePath.startsWith('~')
-        ? path.join(require('os').homedir(), filePath.slice(2))
-        : filePath;
-
-      if (!fs.existsSync(resolvedPath)) {
-        return { success: false, error: `文件不存在: ${resolvedPath}` };
-      }
-
-      const stat = fs.statSync(resolvedPath);
-      if (stat.isDirectory()) {
-        fs.rmSync(resolvedPath, { recursive: true, force: true });
-      } else {
-        fs.unlinkSync(resolvedPath);
-      }
-      return { success: true, data: `已删除: ${resolvedPath}` };
-    } catch (error: any) {
-      logger.error('删除文件失败', error);
-      return { success: false, error: error.message };
-    }
-  });
 }

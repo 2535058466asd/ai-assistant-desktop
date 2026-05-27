@@ -14,7 +14,7 @@ import path from 'path'
  * 桌面/xxx、文档/xxx、下载/xxx → 中文目录名
  * C:/xxx、D:/xxx → 绝对路径，原样返回
  */
-function resolvePath(filePath: string): string {
+export function resolvePath(filePath: string): string {
   const home = app.getPath('home');
   const desktop = app.getPath('desktop');
   const documents = app.getPath('documents');
@@ -94,6 +94,81 @@ export function registerWriteFile() {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(filePath, content, 'utf-8');
       return { success: true, data: `文件已保存: ${filePath}` };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+}
+
+// create_dir — 创建目录
+export function registerCreateDir() {
+  ipcMain.handle('create-dir', async (_event, dirPath: string) => {
+    try {
+      dirPath = resolvePath(dirPath);
+      fs.mkdirSync(dirPath, { recursive: true });
+      return { success: true, data: `目录已创建: ${dirPath}` };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+}
+
+// copy_file — 复制文件或目录
+export function registerCopyFile() {
+  ipcMain.handle('copy-file', async (_event, sourcePath: string, targetPath: string) => {
+    try {
+      sourcePath = resolvePath(sourcePath);
+      targetPath = resolvePath(targetPath);
+      if (!fs.existsSync(sourcePath)) {
+        return { success: false, error: `源路径不存在: ${sourcePath}` };
+      }
+      const targetDir = path.dirname(targetPath);
+      if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+      fs.cpSync(sourcePath, targetPath, { recursive: true, force: false, errorOnExist: true });
+      return { success: true, data: `已复制: ${sourcePath} -> ${targetPath}` };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+}
+
+// move_file — 移动或重命名文件/目录
+export function registerMoveFile() {
+  ipcMain.handle('move-file', async (_event, sourcePath: string, targetPath: string) => {
+    try {
+      sourcePath = resolvePath(sourcePath);
+      targetPath = resolvePath(targetPath);
+      if (!fs.existsSync(sourcePath)) {
+        return { success: false, error: `源路径不存在: ${sourcePath}` };
+      }
+      const targetDir = path.dirname(targetPath);
+      if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+      if (fs.existsSync(targetPath)) {
+        return { success: false, error: `目标路径已存在: ${targetPath}` };
+      }
+      fs.renameSync(sourcePath, targetPath);
+      return { success: true, data: `已移动: ${sourcePath} -> ${targetPath}` };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+}
+
+// delete_file — 删除文件或目录
+export function registerDeleteFile() {
+  ipcMain.handle('delete-file', async (_event, filePath: string) => {
+    try {
+      filePath = resolvePath(filePath);
+      if (!fs.existsSync(filePath)) {
+        return { success: false, error: `路径不存在: ${filePath}` };
+      }
+      const stat = fs.statSync(filePath);
+      if (stat.isDirectory()) {
+        fs.rmSync(filePath, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(filePath);
+      }
+      return { success: true, data: `已删除: ${filePath}` };
     } catch (error: any) {
       return { success: false, error: error.message };
     }

@@ -27,6 +27,8 @@ export interface ToolCallLog {
   id: string;
   name: string;
   argsPreview: string;
+  category?: string;
+  riskLevel?: string;
   status: ToolLogStatus;
   durationMs: number;
   resultPreview: string;
