@@ -15,12 +15,11 @@
  * - 输入框聚焦时容器边框发光
  */
 
-import React, { useState, useRef, useCallback, useEffect, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import styles from './InputArea.module.css';
 import type { SendMessageHandler } from '../../types/chat';
 import { getASRManager } from '../../core/asr/asrManager';
 import type { ASRResult } from '../../core/asr/asrInterface';
-import { loadASRConfig } from '../../config/asrConfig';
 import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('ui');
@@ -75,11 +74,6 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const asrManagerRef = useRef(getASRManager());
-
-  // 初始化 ASR
-  useEffect(() => {
-    asrManagerRef.current.initialize(loadASRConfig());
-  }, []);
 
   useImperativeHandle(ref, () => ({
     setText(text: string) {

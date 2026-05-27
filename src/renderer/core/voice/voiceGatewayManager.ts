@@ -10,8 +10,8 @@ const logger = createLogger('voice');
 
 export class VoiceGatewayManager {
   private wakeWordDetector = getWakeWordDetector();
-  private asrManager = getASRManager();
-  private ttsManager = getTTSManager();
+  private asrManager = getASRManager(loadASRConfig());
+  private ttsManager = getTTSManager(loadTTSConfig());
   private currentSessionId: SessionId | null = null;
   private isAwake: boolean = false;
   private onMessageCallback: ((message: string) => void) | null = null;
