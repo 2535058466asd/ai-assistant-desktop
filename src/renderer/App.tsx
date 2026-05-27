@@ -101,7 +101,7 @@ function AppContent() {
           phase: 'output',
         });
         setIsLoading(false);
-        setMessages((prev) => [...prev, message]);
+        setMessages((prev) => upsertById(prev, message));
       },
       onStreamChunk: (messageId: string, content: string) => {
         // 缓存流式内容，供 onStreamEnd 读取

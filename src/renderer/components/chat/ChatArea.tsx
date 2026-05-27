@@ -8,11 +8,10 @@
  * - 时间分割线：按时间段分组显示
  * - 打字指示器：AI 思考中的动画效果
  * 
- * 性能优化：
- * - 虚拟滚动：只渲染可视区域内的消息，提高长列表性能
+ * 当前直接渲染完整消息列表，优先保证流式输出、思考面板和滚动行为稳定。
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styles from './ChatArea.module.css';
 import type { UIMessage } from '../../types/chat';
 import { getTTSManager } from '../../core/tts/ttsManager';
@@ -156,7 +155,7 @@ const formatTokenCount = (tokens: number): string => {
  * @returns JSX 聊天区域元素
  */
 const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) => {
-  /* 消息列表容器 ref，用于虚拟滚动 */
+  /* 消息列表容器 ref，用于滚动到底部 */
   const chatContainerRef = useRef<HTMLDivElement>(null);
   /* 消息列表底部的 ref，用于自动滚动 */
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -171,15 +170,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
   const ttsManagerRef = useRef(getTTSManager(DEFAULT_TTS_CONFIG)); // TTS 管理器实例
   const audioRef = useRef<HTMLAudioElement | null>(null); // 音频元素引用
 
-  /** 虚拟滚动相关状态 */
-  const [visibleStartIndex, setVisibleStartIndex] = useState(0);
-  const [visibleEndIndex, setVisibleEndIndex] = useState(10); // 初始显示 10 条消息
-  const [messageHeights, setMessageHeights] = useState<Map<string, number>>(new Map());
-  
-  /** 用于 ResizeObserver 的引用 */
-  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const observedHeights = useRef<Map<string, number>>(new Map());
-
   // 初始化 TTS
   useEffect(() => {
     ttsManagerRef.current.initialize(DEFAULT_TTS_CONFIG);
@@ -189,95 +179,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
    * 自动滚动到最新消息底部
    */
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages.length, isLoading]);
-
-  /**
-   * 计算消息高度并更新
-   */
-  const updateMessageHeight = useCallback((messageId: string, height: number) => {
-    setMessageHeights(prev => new Map(prev).set(messageId, height));
-  }, []);
-
-  /**
-   * 处理滚动事件，更新可视区域消息索引
-   */
-  const handleScroll = useCallback(() => {
-    if (!chatContainerRef.current) return;
-
-    const container = chatContainerRef.current;
-    const scrollTop = container.scrollTop;
-    const containerHeight = container.clientHeight;
-
-    // 计算可视区域开始和结束的消息索引
-    let start = 0;
-    let end = messages.length - 1;
-    let currentHeight = 0;
-
-    // 找到开始索引
-    for (let i = 0; i < messages.length; i++) {
-      const messageHeight = messageHeights.get(messages[i].id) || 100; // 默认高度 100px
-      if (currentHeight + messageHeight > scrollTop) {
-        start = Math.max(0, i - 2); // 多渲染 2 条消息作为缓冲
-        break;
-      }
-      currentHeight += messageHeight;
-    }
-
-    // 找到结束索引
-    currentHeight = 0;
-    for (let i = 0; i < messages.length; i++) {
-      const messageHeight = messageHeights.get(messages[i].id) || 100;
-      currentHeight += messageHeight;
-      if (currentHeight > scrollTop + containerHeight) {
-        end = Math.min(messages.length - 1, i + 2); // 多渲染 2 条消息作为缓冲
-        break;
-      }
-    }
-
-    setVisibleStartIndex(start);
-    setVisibleEndIndex(end);
-  }, [messages, messageHeights]);
-
-  // 监听滚动事件
-  useEffect(() => {
-    const container = chatContainerRef.current;
-    if (container) {
-      container.addEventListener('scroll', handleScroll);
-      return () => container.removeEventListener('scroll', handleScroll);
-    }
-  }, [handleScroll]);
-
-  // 当消息变化时，重新计算可视区域
-  useEffect(() => {
-    setTimeout(handleScroll, 100); // 延迟执行，确保 DOM 已更新
-  }, [messages, handleScroll]);
-
-  // 使用 ResizeObserver 监听消息元素高度变化
-  useEffect(() => {
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const messageId = entry.target.getAttribute('data-message-id');
-        if (messageId) {
-          const newHeight = entry.contentRect.height;
-          const oldHeight = observedHeights.current.get(messageId);
-          if (oldHeight !== newHeight) {
-            observedHeights.current.set(messageId, newHeight);
-            setMessageHeights(prev => new Map(prev).set(messageId, newHeight));
-          }
-        }
-      }
+    const frameId = requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     });
 
-    // 观察所有已注册的消息元素
-    messageRefs.current.forEach((el) => {
-      observer.observe(el);
-    });
-
-    return () => observer.disconnect();
-  }, [messages.length]); // 只在消息数量变化时重新创建 observer
+    return () => cancelAnimationFrame(frameId);
+  }, [messages, isLoading]);
 
   /**
    * 复制 AI 回复内容到剪贴板
@@ -528,41 +435,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
     return null;
   }
 
-  /**
-   * 计算消息列表的总高度
-   */
-  const totalHeight = messages.reduce((height, message) => {
-    return height + (messageHeights.get(message.id) || 100);
-  }, 0);
-
-  /**
-   * 计算可视区域之前的消息总高度
-   */
-  const offsetTop = messages.slice(0, visibleStartIndex).reduce((height, message) => {
-    return height + (messageHeights.get(message.id) || 100);
-  }, 0);
-
   return (
     <div className={styles.chatArea} ref={chatContainerRef}>
-      <div 
-        className={styles.messageGroup}
-        style={{
-          height: totalHeight,
-          position: 'relative'
-        }}
-      >
-        {/* 可视区域内的消息 */}
-        <div 
-          style={{
-            position: 'absolute',
-            top: offsetTop,
-            left: 0,
-            right: 0
-          }}
-        >
-          {/* ===== 遍历可视区域内的消息进行渲染 ===== */}
-          {messages.slice(visibleStartIndex, visibleEndIndex + 1).map((message, index) => {
-            const actualIndex = visibleStartIndex + index;
+      <div className={styles.messageGroup}>
+          {/* ===== 遍历消息进行渲染 ===== */}
+          {messages.map((message, index) => {
+            const actualIndex = index;
             /* 获取前一条消息的时间戳，用于判断是否需要时间分割线 */
             const prevTimestamp = actualIndex > 0 ? messages[actualIndex - 1].timestamp : null;
 
@@ -570,13 +448,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
               <div 
                 key={message.id}
                 data-message-id={message.id}
-                ref={(el) => {
-                  if (el) {
-                    messageRefs.current.set(message.id, el);
-                  } else {
-                    messageRefs.current.delete(message.id);
-                  }
-                }}
               >
                 <React.Fragment>
                   {/* ===== 时间分割线（间隔 >5min 时显示）===== */}
@@ -767,7 +638,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
 
           {/* 滚动锚点元素 - 用于自动滚动到底部 */}
           <div ref={messagesEndRef} />
-        </div>
       </div>
     </div>
   );

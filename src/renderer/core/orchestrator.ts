@@ -300,7 +300,7 @@ export class Orchestrator {
 
       // 尝试从对话中提取重要信息并存入记忆
       try {
-        await tryExtractAndSaveMemory(text, accumulatedContent);
+        await tryExtractAndSaveMemory(text, accumulatedContent, { ...traceMeta, phase: 'persist' });
       } catch (memoryError) {
         logger.error('记忆提取失败', { ...traceMeta, phase: 'persist', error: memoryError });
         // 提取记忆失败不影响聊天，所以不抛出错误
