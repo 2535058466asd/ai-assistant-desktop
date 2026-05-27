@@ -54,6 +54,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openApp: async (target: string) => {
     return ipcRenderer.invoke('open-app', target);
   },
+  // ========== 系统工具 ==========
+  // 获取当前时间
+  getCurrentTime: async () => {
+    return ipcRenderer.invoke('getCurrentTime');
+  },
+  // 获取系统信息
+  getSystemInfo: async () => {
+    return ipcRenderer.invoke('getSystemInfo');
+  },
+  // 发送系统通知
+  notify: async (title: string, body: string) => {
+    return ipcRenderer.invoke('notify', title, body);
+  },
+  // 删除文件
+  deleteFile: async (filePath: string) => {
+    return ipcRenderer.invoke('deleteFile', filePath);
+  },
   // ========== 知识库 RAG ==========
   // 搜索知识库
   knowledgeSearch: async (query: string, nResults?: number) => {
@@ -204,6 +221,11 @@ declare global {
       clipboardRead: () => Promise<{ success: boolean; data?: string; error?: string }>;
       clipboardWrite: (text: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       openApp: (target: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      // 系统工具
+      getCurrentTime: () => Promise<{ success: boolean; data?: string; error?: string }>;
+      getSystemInfo: () => Promise<{ success: boolean; data?: string; error?: string }>;
+      notify: (title: string, body: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      deleteFile: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       // 知识库 RAG
       knowledgeSearch: (query: string, nResults?: number) => Promise<{ success: boolean; data?: string; error?: string }>;
       knowledgeAdd: (documents: string[], metadatas?: Record<string, string>[]) => Promise<{ success: boolean; count?: number; error?: string }>;

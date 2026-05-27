@@ -397,6 +397,68 @@ export const TOOLS: Record<string, ToolSpec> = {
         : { success: false, error: `未找到项目：${args.project_id}` };
     },
   },
+  get_current_time: {
+    schema: {
+      type: 'function',
+      function: {
+        name: 'get_current_time',
+        description: '获取当前日期和时间。当用户问"今天几号"、"现在几点"、"今天星期几"时使用。',
+        parameters: { type: 'object', properties: {}, required: [] },
+      },
+    },
+    riskLevel: 'read',
+    execute: (api) => api.getCurrentTime(),
+  },
+  get_system_info: {
+    schema: {
+      type: 'function',
+      function: {
+        name: 'get_system_info',
+        description: '获取系统信息（CPU、内存、磁盘、系统版本）。当用户问"电脑配置"、"内存多大"、"磁盘空间"时使用。',
+        parameters: { type: 'object', properties: {}, required: [] },
+      },
+    },
+    riskLevel: 'read',
+    execute: (api) => api.getSystemInfo(),
+  },
+  notify: {
+    schema: {
+      type: 'function',
+      function: {
+        name: 'notify',
+        description: '发送系统通知提醒用户。当用户设置了提醒、需要告知重要信息时使用。',
+        parameters: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: '通知标题' },
+            body: { type: 'string', description: '通知内容' },
+          },
+          required: ['title', 'body'],
+        },
+      },
+    },
+    riskLevel: 'low_write',
+    execute: (api, args) => api.notify(args.title, args.body),
+  },
+  delete_file: {
+    schema: {
+      type: 'function',
+      function: {
+        name: 'delete_file',
+        description: '删除文件或目录。这是不可逆操作，请确认用户意图后再调用。',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: '文件或目录路径' },
+          },
+          required: ['path'],
+        },
+      },
+    },
+    riskLevel: 'destructive',
+    requiresConfirmation: () => true,
+    execute: (api, args) => api.deleteFile(args.path),
+  },
 };
 
 // 传给模型的工具列表，只包含 schema，不暴露执行函数。

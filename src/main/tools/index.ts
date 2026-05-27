@@ -10,6 +10,7 @@ import { registerWebSearch, registerWebFetch, registerSearchSetConfig } from './
 import { registerClipboardRead, registerClipboardWrite } from './clipboard'
 import { registerOpenApp } from './openApp'
 import { registerKnowledgeSearch, registerKnowledgeAdd, registerKnowledgeStats, registerKnowledgeImportFile, registerKnowledgeImportImage, registerKnowledgeSources, registerKnowledgeDeleteBySource } from './ragTools'
+import { registerSystemTools } from './systemTools'
 import { createLogger } from '../../shared/logger'
 
 const logger = createLogger('tool')
@@ -46,5 +47,8 @@ export function registerAllTools() {
   registerKnowledgeImportFile()
   registerKnowledgeImportImage()
 
-  logger.info('Tools registered', { count: 18 });
+  // 系统工具（时间/系统信息/通知/删除）
+  registerSystemTools()
+
+  logger.info('Tools registered', { count: 22 });
 }

@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-Nova 是一个基于 Electron + React + TypeScript 的桌面 AI 工作台，定位为办公 AI Agent（不是代码助手）。核心能力：RAG 知识库、长期记忆、17 个工具的 Function Calling、多模型支持、语音交互。
+Nova 是一个基于 Electron + React + TypeScript 的桌面 AI 工作台，定位为办公 AI Agent（不是代码助手）。核心能力：RAG 知识库、长期记忆、21 个工具的 Function Calling、多模型支持、语音交互。
 
 ## 技术栈
 
@@ -70,11 +70,11 @@ src/
 
 ## 工具系统
 
-17 个工具，按风险等级管理：
-- `read`（8个）：自动执行
+21 个工具，按风险等级管理：
+- `read`（12个）：自动执行
 - `low_write`（7个）：执行并记录日志
 - `system`（1个）：exec_command，需确认
-- `destructive`：默认禁止
+- `destructive`（1个）：delete_file，默认禁止
 
 工具定义在 `renderer/core/tools/toolRegistry.ts`。
 
