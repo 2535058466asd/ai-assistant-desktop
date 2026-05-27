@@ -240,7 +240,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
         text: message.content
       });
 
-      if (result.success && result.audioData) {
+      if (result.success && !result.audioData) {
+        logger.info('聊天消息语音播放成功', { messageId: message.id, mode: 'direct-playback' });
+        setPlayingMessageId(null);
+      } else if (result.success && result.audioData) {
         logger.info('聊天消息语音合成成功', { messageId: message.id, audioSizeBytes: result.audioData.byteLength });
 
         // PCM 转 WAV 格式（浏览器需要 WAV 头部才能播放 PCM）

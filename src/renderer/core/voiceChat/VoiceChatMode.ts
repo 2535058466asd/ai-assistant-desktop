@@ -54,6 +54,7 @@ export class VoiceChatMode {
   // ASR 错误重试计数（防止无限递归）
   private asrRetryCount: number = 0;
   private readonly MAX_ASR_RETRIES = 5;
+  private lastAsrError: string | null = null;
   
   // AudioContext 单例，避免内存泄漏
   private audioContext: AudioContext | null = null;
@@ -135,6 +136,7 @@ export class VoiceChatMode {
     
     logger.info('语音对话开始监听用户说话');
     this.lastText = '';
+    this.lastAsrError = null;
     
     try {
       const success = await this.asrManager.startListening(
@@ -153,8 +155,15 @@ export class VoiceChatMode {
         // onError: 识别出错
         (error: string) => {
           logger.error('语音对话识别出错', { error });
+          this.lastAsrError = error;
           if (this.callbacks?.onError) {
             this.callbacks.onError(error);
+          }
+          if (this.isNonRetryableAsrError(error)) {
+            logger.error('语音识别遇到不可自动恢复错误，已停止语音对话重试', { error });
+            this.isEnabled = false;
+            this.setState('error');
+            return;
           }
           // 出错后重新开始监听（最多重试 MAX_ASR_RETRIES 次）
           if (this.isEnabled && this.asrRetryCount < this.MAX_ASR_RETRIES) {
@@ -169,6 +178,11 @@ export class VoiceChatMode {
         // onEnd: 识别结束
         () => {
           logger.info('语音识别已结束', { textPreview: this.lastText.slice(0, 120) });
+          if (this.lastAsrError) {
+            logger.warn('语音识别因错误结束，不自动重新监听', { error: this.lastAsrError });
+            this.lastAsrError = null;
+            return;
+          }
           this.asrRetryCount = 0; // 成功结束，重置重试计数
           // 如果有识别结果，发送给 AI
           if (this.lastText.trim()) {
@@ -205,6 +219,10 @@ export class VoiceChatMode {
         setTimeout(() => this.startListening(), 1000);
       }
     }
+  }
+
+  private isNonRetryableAsrError(error: string): boolean {
+    return /network|not-allowed|service-not-allowed|permission|audio-capture/i.test(error);
   }
 
   /**
@@ -294,7 +312,9 @@ export class VoiceChatMode {
         text
       });
       
-      if (result && result.success && result.audioData) {
+      if (result && result.success && !result.audioData) {
+        logger.info('语音对话 TTS 已由当前引擎直接播放完成');
+      } else if (result && result.success && result.audioData) {
         // 播放音频
         await this.playAudio(result.audioData);
       } else {

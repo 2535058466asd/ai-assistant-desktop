@@ -79,16 +79,20 @@ export class MiMoTTS implements TTSService {
 
       const responseData = await response.json();
 
-      // 小米 TTS 返回的是音频数据
+      // 小米 TTS 返回的是 OpenAI-compatible choices[0].message.audio.data。
+      // 兼容早期顶层 audio 字段，避免服务端格式微调时直接失败。
       let audioBuffer: ArrayBuffer;
+      const messageAudio = responseData.choices?.[0]?.message?.audio;
+      const topLevelAudio = responseData.audio;
+      const audio = messageAudio || topLevelAudio;
 
-      if (responseData.audio?.url) {
+      if (audio?.url) {
         // 如果返回的是音频 URL
-        const audioResponse = await fetch(responseData.audio.url);
+        const audioResponse = await fetch(audio.url);
         audioBuffer = await audioResponse.arrayBuffer();
-      } else if (responseData.audio?.data) {
+      } else if (audio?.data) {
         // 如果返回的是 base64 音频数据
-        const base64Audio = responseData.audio.data;
+        const base64Audio = audio.data;
         const binaryString = atob(base64Audio);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
@@ -96,6 +100,10 @@ export class MiMoTTS implements TTSService {
         }
         audioBuffer = bytes.buffer;
       } else {
+        logger.error('小米 MiMo TTS 返回格式不支持', {
+          keys: Object.keys(responseData || {}),
+          choiceKeys: Object.keys(responseData.choices?.[0]?.message || {}),
+        });
         throw new Error('TTS 返回格式不支持');
       }
 
@@ -107,7 +115,9 @@ export class MiMoTTS implements TTSService {
       };
 
     } catch (error) {
-      logger.error('小米 MiMo TTS 异常', error);
+      logger.error('小米 MiMo TTS 异常', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : '未知错误'
