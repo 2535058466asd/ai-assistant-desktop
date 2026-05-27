@@ -134,7 +134,6 @@ export class VoiceChatMode {
     if (!this.isEnabled) return;
     
     logger.info('语音对话开始监听用户说话');
-    this.setState('listening');
     this.lastText = '';
     
     try {
@@ -190,7 +189,10 @@ export class VoiceChatMode {
         if (this.isEnabled) {
           setTimeout(() => this.startListening(), 1000);
         }
+        return;
       }
+
+      this.setState('listening');
     } catch (error) {
       logger.error('语音对话监听启动失败', error);
       if (this.callbacks?.onError) {

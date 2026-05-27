@@ -22,6 +22,8 @@ interface ASRConfig extends Omit<GlobalASRConfig, 'volcengine' | 'mimo'> {
 export class ASRManager {
   private currentService: ASRService;
   private config: ASRConfig;
+  private serviceInitialized = false;
+  private initializingService: Promise<void> | null = null;
 
   constructor(config?: Partial<ASRConfig>) {
     this.config = {
@@ -74,7 +76,31 @@ export class ASRManager {
     };
     
     this.currentService = this.createService(this.config.type);
+    this.serviceInitialized = false;
+    this.initializingService = null;
     logger.info('ASR 管理器已初始化', { type: this.config.type });
+  }
+
+  private async ensureServiceInitialized(): Promise<void> {
+    if (this.serviceInitialized) return;
+
+    if (!this.initializingService) {
+      this.initializingService = this.currentService.initialize()
+        .then(() => {
+          this.serviceInitialized = true;
+          logger.info('ASR 服务初始化完成', { type: this.config.type });
+        })
+        .catch((error) => {
+          this.serviceInitialized = false;
+          logger.error('ASR 服务初始化失败', { type: this.config.type, error });
+          throw error;
+        })
+        .finally(() => {
+          this.initializingService = null;
+        });
+    }
+
+    await this.initializingService;
   }
 
   /**
@@ -85,6 +111,7 @@ export class ASRManager {
     onError?: (error: string) => void,
     onEnd?: () => void
   ): Promise<boolean> {
+    await this.ensureServiceInitialized();
     return await this.currentService.startListening(
       onResult,
       onError,
@@ -103,6 +130,7 @@ export class ASRManager {
    * 识别音频文件/数据
    */
   async recognize(request: ASRRequest): Promise<ASRResult> {
+    await this.ensureServiceInitialized();
     return await this.currentService.recognize(request);
   }
 
@@ -122,6 +150,8 @@ export class ASRManager {
     logger.info('ASR 类型已切换', { from: this.config.type, to: type });
     this.config.type = type;
     this.currentService = this.createService(type);
+    this.serviceInitialized = false;
+    this.initializingService = null;
   }
 
   /**
@@ -132,6 +162,10 @@ export class ASRManager {
     this.config = { ...this.config, ...config };
     if (config.type && config.type !== oldType) {
       this.switchType(config.type);
+    } else if (config.volcengine || config.mimo || config.language) {
+      this.currentService = this.createService(this.config.type);
+      this.serviceInitialized = false;
+      this.initializingService = null;
     }
   }
 

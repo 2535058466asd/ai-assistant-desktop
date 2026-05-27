@@ -58,7 +58,11 @@ export class WebSpeechASR implements ASRService {
     onEnd?: () => void
   ): Promise<boolean> {
     if (!this.recognition) {
-      logger.error('❌ 语音识别未初始化');
+      await this.initialize();
+    }
+
+    if (!this.recognition) {
+      logger.error('❌ 语音识别未初始化或当前环境不支持 Web Speech API');
       return false;
     }
 
