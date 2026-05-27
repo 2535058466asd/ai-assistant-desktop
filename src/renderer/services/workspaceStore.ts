@@ -77,10 +77,10 @@ export function getProjects(): WorkspaceProject[] {
   const seeded: WorkspaceProject[] = [
     {
       id: 'project-ai-workspace',
-      name: 'Agentic Personal Workspace',
+      name: 'Nova 桌面 AI Agent 作品',
       status: 'active',
-      goal: '把个人 AI 助手升级为具备 RAG、记忆、工具调用、评估和日志的 AI 工作台。',
-      nextStep: '完善知识库检索调试、工具日志和评估面板。',
+      goal: '打磨成结构清晰、功能稳定、可演示、能写进简历并经得起面试追问的桌面 AI Agent 作品。',
+      nextStep: '继续收敛核心链路：Agent Loop、工具系统、记忆、RAG、可观测日志和演示脚本。',
       updatedAt: now(),
     },
     {
@@ -88,16 +88,15 @@ export function getProjects(): WorkspaceProject[] {
       name: 'RAG 知识库',
       status: 'planning',
       goal: '支持文档解析、chunk、元数据、引用来源和检索调试。',
-      nextStep: '上传 3 份真实文档并补充 20 个检索评估问题。',
+      nextStep: '准备 2-3 份可公开演示的文档，验证导入、检索、引用来源和无答案降级。',
       updatedAt: now() - 3600_000,
     },
     {
       id: 'project-eval',
       name: 'AI 应用评估体系',
-      status: 'blocked',
-      goal: '用固定 eval set 评估回答准确率、引用命中率和工具调用成功率。',
-      nextStep: '跑第一轮人工标注，记录失败原因。',
-      blocker: '还缺少真实问题集和标准答案。',
+      status: 'planning',
+      goal: '用固定 Eval Set 评估 RAG、记忆、工具调用、规划和安全边界。',
+      nextStep: '用现有 20 条评估问题跑一轮人工标注，记录失败原因和修复优先级。',
       updatedAt: now() - 7200_000,
     },
   ];
@@ -111,27 +110,27 @@ export function getTasks(): WorkspaceTask[] {
 
   const seeded: WorkspaceTask[] = [
     {
-      id: 'task-dashboard',
+      id: 'task-tool-docs',
       projectId: 'project-ai-workspace',
-      title: '把首页改成项目驾驶舱',
+      title: '保持工具系统文档和 toolRegistry 同步',
       status: 'doing',
       priority: 'high',
       createdAt: now(),
       updatedAt: now(),
     },
     {
-      id: 'task-eval-set',
+      id: 'task-eval-run',
       projectId: 'project-eval',
-      title: '准备 20 个 RAG/记忆/工具调用测试问题',
+      title: '跑一轮 20 条 Eval 用例并记录失败原因',
       status: 'todo',
       priority: 'high',
       createdAt: now(),
       updatedAt: now(),
     },
     {
-      id: 'task-readme',
+      id: 'task-demo-script',
       projectId: 'project-ai-workspace',
-      title: '补充技术 README 和架构图',
+      title: '整理一条 5 分钟面试演示脚本',
       status: 'todo',
       priority: 'medium',
       createdAt: now(),

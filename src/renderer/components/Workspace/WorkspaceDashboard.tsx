@@ -94,7 +94,7 @@ const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages, onSug
   const suggestions = [
     '基于当前项目状态，给我今天最该做的 3 件事',
     '检查我的知识库是否足够支撑 RAG 面试展示',
-    '为这个项目生成 20 个 eval 测试问题',
+    '带我跑一轮现有 Eval，并记录失败原因',
     '总结最近记忆，并指出哪些应该删除或合并',
   ];
 
