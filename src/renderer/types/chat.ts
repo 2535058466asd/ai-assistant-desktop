@@ -4,6 +4,7 @@
  */
 
 import type { AgentProcessEvent, ToolProcessEvent, ToolCallSummary } from './index';
+import type { LogMeta } from '../../shared/logger';
 
 // ==========================================
 // 1. 对话/会话相关类型
@@ -93,6 +94,8 @@ export interface UIMessage {
   };
   /** 使用的模型 */
   model?: string;
+  /** 调试链路 ID */
+  traceId?: string;
 }
 
 // ==========================================
@@ -114,7 +117,7 @@ export interface UserInfo {
 // ==========================================
 
 /** 发送消息回调 */
-export type SendMessageHandler = (content: string) => Promise<void>;
+export type SendMessageHandler = (content: string, meta?: LogMeta) => Promise<void>;
 
 /** 新建对话回调 */
 export type NewChatHandler = () => void;

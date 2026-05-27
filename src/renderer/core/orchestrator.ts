@@ -19,7 +19,7 @@ import { AgentLoop } from './agent';
 import { getQiyuanSystemPrompt, DEFAULT_QIYUAN_SETTINGS } from './qiyuanSettings';
 import { getMemoryService } from '../services/memoryServiceClient';
 import { tryExtractAndSaveMemory } from './utils/memoryExtractor';
-import { createLogger } from '../../shared/logger';
+import { createLogger, createTraceId, type LogMeta } from '../../shared/logger';
 import { getResolvedRuntimeModel } from './model/modelRuntime';
 
 const logger = createLogger('agent');
@@ -89,9 +89,15 @@ export class Orchestrator {
    * 切换对话时调用，确保不同对话的上下文完全隔离
    * @param history - 新对话的历史消息（用于恢复上下文）
    */
-  resetConversation(history: Message[] = []) {
+  resetConversation(history: Message[] = [], meta: LogMeta = {}) {
     const sessionId = this.conversationRuntime.reset(history);
     this.contextCompactor = new ContextCompactor(this.historyManager, sessionId);
+    logger.info('智能体对话上下文已重置', {
+      ...meta,
+      sessionId,
+      messageCount: history.length,
+      phase: 'history',
+    });
   }
 
   /**
@@ -106,7 +112,7 @@ export class Orchestrator {
     // 设置语音消息回调
     this.voiceGateway.onMessage((text) => {
       this.isVoiceMode = true;
-      this.processTextInput(text);
+      this.processTextInput(text, false);
     });
 
     logger.info('智能体协调器已就绪');
@@ -143,14 +149,24 @@ export class Orchestrator {
    * @param text 用户输入的文本
    * @param isTextInput 是否是文字输入（默认为true）
    */
-  async processTextInput(text: string, isTextInput: boolean = true): Promise<void> {
+  async processTextInput(text: string, isTextInput: boolean = true, meta: LogMeta = {}): Promise<void> {
     if (!text.trim()) return;
+    const traceId = meta.traceId || createTraceId();
+    const traceMeta: LogMeta = {
+      ...meta,
+      traceId,
+      phase: 'input',
+    };
 
     if (isTextInput) {
       this.isVoiceMode = false;
     }
 
-    logger.info('智能体收到用户输入', { textPreview: text.slice(0, 120) });
+    logger.info('智能体收到用户输入', {
+      ...traceMeta,
+      sessionId: this.conversationRuntime.getSessionId(),
+      textPreview: text.slice(0, 120),
+    });
 
     // 1. 创建用户消息并通知 UI
     const userMessage: Message = {
@@ -158,10 +174,18 @@ export class Orchestrator {
       role: 'user',
       content: text,
       timestamp: Date.now(),
-      sessionId: this.conversationRuntime.getSessionId()
+      sessionId: this.conversationRuntime.getSessionId(),
+      traceId,
     };
 
     this.conversationRuntime.addMessage(userMessage);
+    logger.info('用户消息已写入对话历史', {
+      ...traceMeta,
+      sessionId: userMessage.sessionId,
+      messageId: userMessage.id,
+      messageCount: this.conversationRuntime.getHistory().length,
+      phase: 'history',
+    });
 
     this.eventBridge.emitMessage(userMessage);
 
@@ -179,7 +203,8 @@ export class Orchestrator {
         timestamp: Date.now(),
         sessionId: this.conversationRuntime.getSessionId(),
         isTTS: true,
-        isStreaming: true // 标记为流式消息
+        isStreaming: true, // 标记为流式消息
+        traceId,
       };
 
       // 通知 UI：流式开始
@@ -194,6 +219,7 @@ export class Orchestrator {
         detail: this.previewValue(text, 120),
         createdAt: inputEventCreatedAt,
         updatedAt: inputEventCreatedAt,
+        traceId,
       });
 
       // 4. 执行 Agent 循环（流式）
@@ -204,7 +230,8 @@ export class Orchestrator {
           onStreamChunk: (msgId, content) => {
             this.eventBridge.emitStreamChunk(msgId, content);
           }
-        }
+        },
+        traceMeta
       );
 
       // 流式输出最终回复
@@ -218,6 +245,7 @@ export class Orchestrator {
         detail: this.previewValue(accumulatedContent, 140),
         createdAt: responseEventCreatedAt,
         updatedAt: responseEventCreatedAt,
+        traceId,
       });
 
       // 通知 UI：收到新的 token
@@ -242,7 +270,7 @@ export class Orchestrator {
           const { recordUsage } = await import('./cost/costTracker');
           recordUsage(assistantMessage.sessionId, model || 'unknown', usage);
         } catch (e) {
-          logger.error('记录用量失败', e);
+          logger.error('记录用量失败', { ...traceMeta, phase: 'persist', error: e });
         }
       }
       if (model) {
@@ -253,6 +281,13 @@ export class Orchestrator {
       this.conversationRuntime.addMessage({
         ...assistantMessage,
         content: accumulatedContent
+      });
+      logger.info('助手消息已写入对话历史', {
+        ...traceMeta,
+        phase: 'history',
+        sessionId: assistantMessage.sessionId,
+        messageId,
+        messageCount: this.conversationRuntime.getHistory().length,
       });
 
       // 流式阶段前端只实时更新 content；这里把最终完整消息再次发给 UI，
@@ -266,12 +301,12 @@ export class Orchestrator {
       try {
         await tryExtractAndSaveMemory(text, accumulatedContent);
       } catch (memoryError) {
-        logger.error('记忆提取失败', memoryError);
+        logger.error('记忆提取失败', { ...traceMeta, phase: 'persist', error: memoryError });
         // 提取记忆失败不影响聊天，所以不抛出错误
       }
 
     } catch (error) {
-      logger.error('处理用户输入失败', error);
+      logger.error('处理用户输入失败', { ...traceMeta, phase: 'output', error });
       await this.sendAssistantMessage('处理您的请求时出现错误，请稍后重试。');
     }
   }

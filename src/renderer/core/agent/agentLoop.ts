@@ -19,7 +19,7 @@ import { executeTool, type ToolExecutionResult } from '../tools/toolExecutor';
 import { getModelProvider, type ModelMessage, type StreamChunk } from '../model';
 import { getResolvedRuntimeModel } from '../model/modelRuntime';
 import { getErrorMessage } from '../model/modelErrorHandler';
-import { createLogger } from '../../../shared/logger';
+import { createLogger, type LogMeta } from '../../../shared/logger';
 
 const logger = createLogger('agent');
 
@@ -84,7 +84,8 @@ export class AgentLoop {
   async run(
     messageId: string,
     userInput: string,
-    streamCallbacks: AgentLoopStreamCallbacks
+    streamCallbacks: AgentLoopStreamCallbacks,
+    meta: LogMeta = {}
   ): Promise<AgentLoopResult> {
     let finalResponse = '';
     let finalReasoningContent = '';
@@ -97,6 +98,9 @@ export class AgentLoop {
     while (round < MAX_TOOL_ROUNDS) {
       round++;
       logger.info('智能体循环轮次开始', {
+        ...meta,
+        phase: 'model',
+        messageId,
         round,
         maxRounds: MAX_TOOL_ROUNDS,
         historyLength: this.deps.conversationRuntime.getHistory().length,
@@ -123,7 +127,8 @@ export class AgentLoop {
         (accumulated) => {
           // 跨轮次累积：前面轮次的文字 + 当前轮次的流式文字
           streamCallbacks.onStreamChunk(messageId, previousContent + accumulated);
-        }
+        },
+        meta
       );
 
       // 累积 usage
@@ -140,7 +145,7 @@ export class AgentLoop {
       if (error) {
         const errorMsg = error.message || '未知错误';
         const errorCode = error.code || '';
-        logger.error('模型 API 返回错误', { errorCode, errorMsg });
+        logger.error('模型 API 返回错误', { ...meta, phase: 'model', messageId, round, errorCode, errorMsg });
 
         finalResponse = getErrorMessage(error);
 
@@ -169,6 +174,17 @@ export class AgentLoop {
         durationMs: Math.round(performance.now() - modelStartedAt),
         createdAt: modelEventCreatedAt,
         updatedAt: Date.now(),
+      });
+
+      logger.info('智能体循环轮次结束', {
+        ...meta,
+        phase: 'model',
+        messageId,
+        round,
+        hasToolCalls: toolCalls.length > 0,
+        toolNames: toolCalls.map((tc: any) => tc.function?.name).filter(Boolean),
+        durationMs: Math.round(performance.now() - modelStartedAt),
+        model,
       });
 
       // 处理 content 和 reasoningContent
@@ -225,11 +241,20 @@ export class AgentLoop {
 
       // 没有工具调用 → 最终文本回复
       if (toolCalls.length === 0) {
-        logger.info('智能体循环结束：无需继续调用工具', { round, content: finalResponse });
+        logger.info('智能体循环结束：无需继续调用工具', {
+          ...meta,
+          phase: 'output',
+          messageId,
+          round,
+          responseLength: finalResponse.length,
+        });
         break;
       }
 
       logger.info('模型请求调用工具', {
+        ...meta,
+        phase: 'tool',
+        messageId,
         round,
         toolCalls: toolCalls.map((tc: any) => ({
           id: tc.id,
@@ -239,7 +264,7 @@ export class AgentLoop {
       });
 
       // 执行所有工具调用，收集摘要
-      const roundSummaries = await this.executeToolCalls(messageId, round, toolCalls);
+      const roundSummaries = await this.executeToolCalls(messageId, round, toolCalls, meta);
       allToolCallSummaries.push(...roundSummaries);
     }
 
@@ -259,7 +284,8 @@ export class AgentLoop {
   private async executeToolCalls(
     messageId: string,
     round: number,
-    toolCalls: any[]
+    toolCalls: any[],
+    meta: LogMeta = {}
   ): Promise<ToolCallSummary[]> {
     const summaries: ToolCallSummary[] = [];
 
@@ -281,6 +307,10 @@ export class AgentLoop {
           error: `工具参数解析失败：${parseError?.message || '参数不是合法 JSON'}`,
         };
         logger.error('工具参数解析失败', {
+          ...meta,
+          phase: 'tool',
+          messageId,
+          round,
           toolName,
           rawArguments: toolCall.function.arguments,
           error: parseError,
@@ -301,7 +331,7 @@ export class AgentLoop {
       }
 
       if (!result) {
-        logger.info('开始执行工具', { toolName, toolArgs });
+        logger.info('开始执行工具', { ...meta, phase: 'tool', messageId, round, toolName, toolArgs });
         this.deps.eventBridge.emitToolEvent(messageId, {
           id: toolEventId,
           kind: 'tool',
@@ -314,10 +344,19 @@ export class AgentLoop {
           updatedAt: Date.now(),
         });
 
-        result = await executeTool(toolName, toolArgs);
+        result = await executeTool(toolName, toolArgs, meta);
       }
 
-      logger.info('工具执行结果', { toolName, success: result.success, result: result.data || result.error });
+      logger.info('工具执行结果', {
+        ...meta,
+        phase: 'tool',
+        messageId,
+        round,
+        toolName,
+        success: result.success,
+        durationMs: Math.round(performance.now() - toolStartedAt),
+        result: result.data || result.error,
+      });
       this.deps.eventBridge.emitToolEvent(messageId, {
         id: toolEventId,
         kind: 'tool',
@@ -349,6 +388,10 @@ export class AgentLoop {
       });
 
       logger.info('工具结果已回填到模型上下文', {
+        ...meta,
+        phase: 'tool',
+        messageId,
+        round,
         toolName,
         toolCallId: toolCall.id,
         truncated: Boolean(result.data && truncatedResult.data !== result.data),
@@ -372,7 +415,8 @@ export class AgentLoop {
    */
   private async callModelWithToolsStream(
     userInput: string,
-    onTextDelta: (accumulated: string) => void
+    onTextDelta: (accumulated: string) => void,
+    meta: LogMeta = {}
   ): Promise<{ content: string; reasoningContent: string; toolCalls: any[]; error?: any; usage?: any; model?: string }> {
     const systemPrompt = await this.deps.buildSystemPrompt(userInput);
 
@@ -384,16 +428,31 @@ export class AgentLoop {
       ],
       tools: toolDefinitions,
       stream: true,
+      traceId: meta.traceId,
     };
 
+    logger.info('发送给模型的流式请求摘要', {
+      ...meta,
+      phase: 'model',
+      model: requestBody.model,
+      stream: requestBody.stream,
+      roles: requestBody.messages.map((message) => message.role),
+      messageCount: requestBody.messages.length,
+      toolCount: requestBody.tools.length,
+    });
+
     if (isVerboseAgentLog()) {
-      logger.info('发送给模型的流式请求', requestBody);
+      logger.info('发送给模型的流式请求', {
+        ...meta,
+        phase: 'model',
+        requestBody,
+      });
     }
 
     const provider = getModelProvider();
     if (!provider.chatWithToolsStream) {
       // 降级：provider 不支持流式
-      logger.info('当前模型提供商不支持流式，降级为非流式调用');
+      logger.info('当前模型提供商不支持流式，降级为非流式调用', { ...meta, phase: 'model' });
       const response = await provider.chatWithTools(requestBody as any);
       if (response.error) return { content: '', reasoningContent: '', toolCalls: [], error: response.error };
       const msg = response.choices[0]?.message;

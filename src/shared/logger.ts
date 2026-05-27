@@ -12,6 +12,16 @@ export type LogModule =
   | 'voice'
   | 'history';
 
+export interface LogMeta {
+  traceId?: string;
+  chatId?: string | null;
+  sessionId?: string;
+  messageId?: string;
+  phase?: 'input' | 'context' | 'model' | 'tool' | 'output' | 'persist' | 'ui' | 'voice' | 'history';
+  durationMs?: number;
+  [key: string]: unknown;
+}
+
 const levelWeight: Record<LogLevel, number> = {
   debug: 10,
   info: 20,
@@ -32,6 +42,24 @@ const moduleLabel: Record<LogModule, string> = {
   voice: '语音',
   history: '历史',
 };
+
+const moduleColor: Record<LogModule, string> = {
+  agent: '#8b5cf6',
+  model: '#10b981',
+  tool: '#f59e0b',
+  rag: '#06b6d4',
+  memory: '#ec4899',
+  asr: '#eab308',
+  tts: '#f97316',
+  ipc: '#64748b',
+  ui: '#3b82f6',
+  voice: '#a855f7',
+  history: '#38bdf8',
+};
+
+export function createTraceId(): string {
+  return `trc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 function getMinLevel(): LogLevel {
   const envLevel =
@@ -63,16 +91,34 @@ function redact(value: unknown): unknown {
 
 export function createLogger(moduleName: LogModule) {
   const shouldLog = (level: LogLevel) => levelWeight[level] >= levelWeight[getMinLevel()];
+  const supportsConsoleStyle = () => typeof window !== 'undefined';
+  const writeConsole = (level: LogLevel, args: unknown[]) => {
+    try {
+      if (level === 'error') console.error(...args);
+      else if (level === 'warn') console.warn(...args);
+      else if (level === 'debug') console.debug(...args);
+      else console.info(...args);
+    } catch (error: any) {
+      // Electron 开发环境关闭/重启子进程时 stdout/stderr 可能断开。
+      // 日志不能因为 EPIPE 把主进程打崩。
+      if (error?.code !== 'EPIPE') {
+        throw error;
+      }
+    }
+  };
   const emit = (level: LogLevel, message: string, meta?: unknown, ...extra: unknown[]) => {
     if (!shouldLog(level)) return;
     const prefix = `[${moduleLabel[moduleName] || moduleName}] ${message}`;
     const rawPayload = extra.length > 0 ? [meta, ...extra] : meta;
     const payload = rawPayload === undefined ? undefined : redact(rawPayload);
-    const args = payload === undefined ? [prefix] : [prefix, payload];
-    if (level === 'error') console.error(...args);
-    else if (level === 'warn') console.warn(...args);
-    else if (level === 'debug') console.debug(...args);
-    else console.info(...args);
+    const args = supportsConsoleStyle()
+      ? payload === undefined
+        ? [`%c${prefix}`, `color:${moduleColor[moduleName]};font-weight:600`]
+        : [`%c${prefix}`, `color:${moduleColor[moduleName]};font-weight:600`, payload]
+      : payload === undefined
+        ? [prefix]
+        : [prefix, payload];
+    writeConsole(level, args);
   };
 
   return {

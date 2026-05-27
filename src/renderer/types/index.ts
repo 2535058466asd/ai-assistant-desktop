@@ -127,6 +127,8 @@ export interface Message {
   };
   // 使用的模型
   model?: string;
+  // 调试链路 ID，仅用于日志排查，不进入模型上下文
+  traceId?: string;
 }
 
 /** Agent 处理过程分类 */
@@ -146,6 +148,7 @@ export interface AgentProcessEvent {
   argsPreview?: string;
   resultPreview?: string;
   durationMs?: number;
+  traceId?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

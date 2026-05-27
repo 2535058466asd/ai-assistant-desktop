@@ -11,6 +11,18 @@ function isVerboseModelLog(): boolean {
   return process.env.NODE_ENV !== 'production' && import.meta.env.VITE_VERBOSE_AGENT_LOGS !== 'false';
 }
 
+function summarizeRequest(request: ChatWithToolsRequest) {
+  return {
+    traceId: request.traceId,
+    phase: 'model',
+    model: request.model,
+    stream: request.stream ?? false,
+    roles: request.messages.map((message) => message.role),
+    messageCount: request.messages.length,
+    toolCount: request.tools?.length || 0,
+  };
+}
+
 export interface OpenAICompatibleProviderConfig {
   id: string;
   displayName: string;
@@ -74,8 +86,12 @@ export class OpenAICompatibleProvider implements ModelProvider {
           max_tokens: request.maxTokens ?? this.maxTokens,
         };
 
+        logger.info(`${this.displayName} 即将发送 HTTP 请求摘要`, {
+          ...summarizeRequest(request),
+          endpoint,
+        });
         if (isVerboseModelLog()) {
-          logger.info(`${this.displayName} 即将发送 HTTP 请求`, { endpoint, body });
+          logger.info(`${this.displayName} 即将发送 HTTP 请求`, { traceId: request.traceId, phase: 'model', endpoint, body });
         }
 
         const response = await modelFetch({
@@ -87,7 +103,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
           body: JSON.stringify(body),
         });
 
-        logger.debug(`${this.displayName} HTTP 状态`, { status: response.status, ok: response.ok, statusText: response.statusText });
+        logger.debug(`${this.displayName} HTTP 状态`, { traceId: request.traceId, phase: 'model', status: response.status, ok: response.ok, statusText: response.statusText });
 
         if (!response.ok) {
           const errorText = response.body || '';
@@ -96,11 +112,11 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
         const json = JSON.parse(response.body);
         if (isVerboseModelLog()) {
-          logger.info(`${this.displayName} 返回完整 JSON`, json);
+          logger.info(`${this.displayName} 返回完整 JSON`, { traceId: request.traceId, phase: 'model', response: json });
         }
         return json;
       } catch (error: any) {
-        const normalized = normalizeError(error, this.displayName);
+        const normalized = normalizeError(error, this.displayName, { traceId: request.traceId, phase: 'model' });
         return {
           choices: [],
           error: normalized,
@@ -126,8 +142,12 @@ export class OpenAICompatibleProvider implements ModelProvider {
         max_tokens: request.maxTokens ?? this.maxTokens,
       };
 
+      logger.info(`${this.displayName} 即将发送流式 HTTP 请求摘要`, {
+        ...summarizeRequest({ ...request, stream: true }),
+        endpoint,
+      });
       if (isVerboseModelLog()) {
-        logger.info(`${this.displayName} 即将发送流式 HTTP 请求`, { endpoint, body });
+        logger.info(`${this.displayName} 即将发送流式 HTTP 请求`, { traceId: request.traceId, phase: 'model', endpoint, body });
       }
 
       // 流式接口不是一次返回完整 JSON，而是一行行 SSE：data: {...}
@@ -208,7 +228,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
         }
       });
 
-      logger.debug(`${this.displayName} 流式 HTTP 状态`, { status: response.status, ok: response.ok, statusText: response.statusText });
+      logger.debug(`${this.displayName} 流式 HTTP 状态`, { traceId: request.traceId, phase: 'model', status: response.status, ok: response.ok, statusText: response.statusText });
 
       if (!response.ok) {
         const errorText = response.body || '';
@@ -237,12 +257,12 @@ export class OpenAICompatibleProvider implements ModelProvider {
       };
 
       if (isVerboseModelLog()) {
-        logger.info(`${this.displayName} 流式响应汇总`, result);
+        logger.info(`${this.displayName} 流式响应汇总`, { traceId: request.traceId, phase: 'model', response: result });
       }
 
       return result;
     } catch (error: any) {
-      const normalized = normalizeError(error, this.displayName);
+      const normalized = normalizeError(error, this.displayName, { traceId: request.traceId, phase: 'model' });
       return {
         choices: [],
         error: normalized,

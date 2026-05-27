@@ -1,5 +1,5 @@
 import type { ModelError } from './types';
-import { createLogger } from '../../../shared/logger';
+import { createLogger, type LogMeta } from '../../../shared/logger';
 
 const logger = createLogger('model');
 
@@ -16,7 +16,7 @@ export function getErrorMessage(error: ModelError): string {
   return ERROR_USER_MESSAGES[error.code] || `出了点问题：${error.message}`;
 }
 
-export function normalizeError(error: any, providerName: string = 'Model'): ModelError {
+export function normalizeError(error: any, providerName: string = 'Model', meta: LogMeta = {}): ModelError {
   const rawMessage = error?.message || '';
   const jsonMatch = typeof rawMessage === 'string' ? rawMessage.match(/\{.*\}\s*$/) : null;
   let parsedError: any = null;
@@ -48,6 +48,6 @@ export function normalizeError(error: any, providerName: string = 'Model'): Mode
     retryable: !isAuthError && /timeout|rate|429|5\d\d/i.test(`${code} ${message}`),
   };
 
-  logger.error(`${providerName} 错误`, result);
+  logger.error(`${providerName} 错误`, { ...meta, ...result });
   return result;
 }

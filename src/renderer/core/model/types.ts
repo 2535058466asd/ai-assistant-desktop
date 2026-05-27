@@ -54,6 +54,7 @@ export interface ChatWithToolsRequest {
   stream?: boolean;
   temperature?: number;
   maxTokens?: number;
+  traceId?: string;
 }
 
 export interface StreamChunk {

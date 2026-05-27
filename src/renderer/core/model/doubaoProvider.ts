@@ -13,6 +13,18 @@ function isVerboseModelLog(): boolean {
   return process.env.NODE_ENV !== 'production' && import.meta.env.VITE_VERBOSE_MODEL_LOGS !== 'false';
 }
 
+function summarizeRequest(request: ChatWithToolsRequest) {
+  return {
+    traceId: request.traceId,
+    phase: 'model',
+    model: request.model,
+    stream: request.stream ?? false,
+    roles: request.messages.map((message) => message.role),
+    messageCount: request.messages.length,
+    toolCount: request.tools?.length || 0,
+  };
+}
+
 export class DoubaoProvider implements ModelProvider {
   id = 'doubao';
   displayName = '豆包';
@@ -47,8 +59,14 @@ export class DoubaoProvider implements ModelProvider {
         max_tokens: request.maxTokens ?? this.maxTokens,
       };
 
+      logger.info('即将向豆包发送 HTTP 请求摘要', {
+        ...summarizeRequest(request),
+        endpoint,
+      });
       if (isVerboseModelLog()) {
         logger.info('即将向豆包发送 HTTP 请求', {
+          traceId: request.traceId,
+          phase: 'model',
           endpoint,
           body: requestBody,
         });
@@ -64,6 +82,8 @@ export class DoubaoProvider implements ModelProvider {
       });
 
       logger.debug('豆包 HTTP 响应状态', {
+        traceId: request.traceId,
+        phase: 'model',
         status: response.status,
         ok: response.ok,
         statusText: response.statusText,
@@ -76,13 +96,13 @@ export class DoubaoProvider implements ModelProvider {
 
       const responseJson = JSON.parse(response.body);
       if (isVerboseModelLog()) {
-        logger.info('豆包返回完整 JSON', responseJson);
+        logger.info('豆包返回完整 JSON', { traceId: request.traceId, phase: 'model', response: responseJson });
       }
 
       return responseJson;
     } catch (error) {
-      const normalized = normalizeError(error, '豆包');
-      logger.error('豆包请求失败', normalized);
+      const normalized = normalizeError(error, '豆包', { traceId: request.traceId, phase: 'model' });
+      logger.error('豆包请求失败', { traceId: request.traceId, phase: 'model', ...normalized });
       return {
         choices: [],
         error: normalized,
@@ -107,8 +127,12 @@ export class DoubaoProvider implements ModelProvider {
         max_tokens: request.maxTokens ?? this.maxTokens,
       };
 
+      logger.info('即将向豆包发送流式请求摘要', {
+        ...summarizeRequest({ ...request, stream: true }),
+        endpoint,
+      });
       if (isVerboseModelLog()) {
-        logger.info('即将向豆包发送流式请求', { endpoint, body: requestBody });
+        logger.info('即将向豆包发送流式请求', { traceId: request.traceId, phase: 'model', endpoint, body: requestBody });
       }
 
       // 豆包流式返回也是 SSE，需要把分片 content 和 tool_calls 重新组装。
@@ -192,6 +216,8 @@ export class DoubaoProvider implements ModelProvider {
       });
 
       logger.debug('豆包流式 HTTP 响应状态', {
+        traceId: request.traceId,
+        phase: 'model',
         status: response.status,
         ok: response.ok,
         statusText: response.statusText,
@@ -223,8 +249,8 @@ export class DoubaoProvider implements ModelProvider {
         choices: [{ message, finish_reason: finishReason }],
       };
     } catch (error) {
-      const normalized = normalizeError(error, '豆包');
-      logger.error('豆包流式请求失败', normalized);
+      const normalized = normalizeError(error, '豆包', { traceId: request.traceId, phase: 'model' });
+      logger.error('豆包流式请求失败', { traceId: request.traceId, phase: 'model', ...normalized });
       return {
         choices: [],
         error: normalized,

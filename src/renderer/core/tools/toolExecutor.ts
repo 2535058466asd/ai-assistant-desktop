@@ -5,7 +5,7 @@
  */
 
 import { addToolLog, previewValue } from '../../services/workspaceStore';
-import { createLogger } from '../../../shared/logger';
+import { createLogger, type LogMeta } from '../../../shared/logger';
 import { executeRegisteredTool } from './toolRegistry';
 
 const logger = createLogger('tool');
@@ -16,15 +16,22 @@ export interface ToolExecutionResult {
   error?: string;
 }
 
-export async function executeTool(name: string, args: Record<string, any>): Promise<ToolExecutionResult> {
-  logger.info('工具调用开始', { name, args });
+export async function executeTool(name: string, args: Record<string, any>, meta: LogMeta = {}): Promise<ToolExecutionResult> {
+  logger.info('工具调用开始', { ...meta, phase: 'tool', name, args });
   const api = (window as any).electronAPI;
   const startedAt = performance.now();
 
   try {
     const result = await executeRegisteredTool(api, name, args);
 
-    logger.info('工具调用结束', { name, success: result.success, result: result.data || result.error });
+    logger.info('工具调用结束', {
+      ...meta,
+      phase: 'tool',
+      name,
+      success: result.success,
+      durationMs: Math.round(performance.now() - startedAt),
+      result: result.data || result.error,
+    });
     addToolLog({
       name,
       argsPreview: previewValue(args),
@@ -34,7 +41,13 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
     });
     return result;
   } catch (error: any) {
-    logger.error('工具调用异常崩溃', { name, error: error.message });
+    logger.error('工具调用异常崩溃', {
+      ...meta,
+      phase: 'tool',
+      name,
+      durationMs: Math.round(performance.now() - startedAt),
+      error: error.message,
+    });
     addToolLog({
       name,
       argsPreview: previewValue(args),

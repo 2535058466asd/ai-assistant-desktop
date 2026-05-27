@@ -40,7 +40,7 @@ import ModelApiPanel from '../Settings/ModelApiPanel';
 import VoicePanel from '../Settings/VoicePanel';
 import SearchPanel from '../Settings/SearchPanel';
 import ShortcutsPanel from '../Settings/ShortcutsPanel';
-import { createLogger } from '../../../shared/logger';
+import { createLogger, createTraceId, type LogMeta } from '../../../shared/logger';
 import { getActiveModelConfig } from '../../config/modelConfig';
 import { normalizeModelSelection } from '../../core/model/modelRuntime';
 import { getModelsForProvider } from '../../config/modelCatalog';
@@ -75,9 +75,9 @@ interface AppLayoutProps {
   /** 发送消息回调（调用 Orchestrator）*/
   onSendMessage: SendMessageHandler;
   /** 清空消息列表回调（新建对话时调用）*/
-  onClearMessages: () => void;
+  onClearMessages: (meta?: LogMeta) => void;
   /** 设置消息列表回调（切换对话时调用）*/
-  onSetMessages?: (messages: Message[]) => void;
+  onSetMessages?: (messages: Message[], meta?: LogMeta) => void;
   /** 显示 Toast 提示回调 */
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   /** 当前主题 */
@@ -354,8 +354,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     logger.info('恢复当前对话历史消息', {
       chatId: activeChatId,
       messageCount: chatMessages.length,
+      phase: 'history',
+      reason: 'hydrate_active_chat',
     });
-    onSetMessages?.(chatMessages);
+    onSetMessages?.(chatMessages, { chatId: activeChatId, phase: 'history', reason: 'hydrate_active_chat' });
     hydratedChatIdRef.current = activeChatId;
   }, [activeChatId, onSetMessages]);
 
@@ -393,7 +395,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     if (!content.trim()) return;
 
     let currentChatId = activeChatId;
+    const traceId = createTraceId();
     logger.info('布局层接收到输入消息', {
+      traceId,
+      phase: 'input',
       activeChatId,
       textPreview: content.slice(0, 120),
       length: content.length,
@@ -416,16 +421,25 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         updatedAt: Date.now(),
       };
       setChatList((prev) => [newChat, ...prev]);
+      // 新对话是由当前首条消息即时创建的，持久化层里暂时还没有历史。
+      // 先标记为已激活，避免 activeChatId 变化后的恢复逻辑读取空历史并重置正在发送的消息。
+      hydratedChatIdRef.current = newChat.id;
       setActiveChatId(newChat.id);
       currentChatId = newChat.id;
       logger.info('首条消息自动创建新对话', {
+        traceId,
+        phase: 'ui',
         chatId: newChat.id,
         title: newChat.title,
       });
 
     }
 
-    await onSendMessage(content);
+    await onSendMessage(content, {
+      traceId,
+      chatId: currentChatId,
+      phase: 'input',
+    });
   };
 
   /**
@@ -459,11 +473,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       showToast('请先等待当前回复完成，再新建或切换对话。', 'info');
       return;
     }
-    logger.info('点击新建对话', { previousChatId: activeChatId });
+    logger.info('点击新建对话', { chatId: activeChatId, reason: 'new_chat_button', phase: 'ui' });
     setActiveView('chat');
     setActiveChatId(null);
     hydratedChatIdRef.current = null;
-    onClearMessages(); /* 通知 App.tsx 清空消息，显示欢迎页 */
+    onClearMessages({ chatId: activeChatId, phase: 'history', reason: 'new_chat_button' }); /* 通知 App.tsx 清空消息，显示欢迎页 */
   };
 
   /**
@@ -476,12 +490,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       showToast('请先等待当前回复完成，再切换对话。', 'info');
       return;
     }
-    logger.info('选择对话', { from: activeChatId, to: chatId });
+    logger.info('选择对话', { from: activeChatId, chatId, reason: 'select_chat', phase: 'ui' });
     setActiveView('chat');
     setActiveChatId(chatId);
     /* 加载该对话的历史消息并通知App.tsx */
     const chatMessages = getMessagesForChat(chatId);
-    onSetMessages?.(chatMessages);
+    onSetMessages?.(chatMessages, { chatId, phase: 'history', reason: 'select_chat' });
     hydratedChatIdRef.current = chatId;
   };
 
@@ -519,7 +533,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 删除对话
    */
   const handleDeleteChat = useCallback((chatId: string) => {
-    logger.warn('请求删除对话', { chatId, isActive: activeChatId === chatId });
+    logger.warn('请求删除对话', { chatId, isActive: activeChatId === chatId, reason: 'delete_chat', phase: 'ui' });
     setChatList((prev) => {
       const updated = prev.filter((chat) => chat.id !== chatId);
       try {
@@ -533,7 +547,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       }
       // 如果删除的是当前激活的对话，清空消息
       if (activeChatId === chatId) {
-        onClearMessages?.();
+        setActiveChatId(null);
+        hydratedChatIdRef.current = null;
+        onClearMessages?.({ chatId, phase: 'history', reason: 'delete_active_chat' });
       }
       return updated;
     });
@@ -605,6 +621,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     toolCallSummary: msg.toolCallSummary,
     usage: msg.usage,
     model: msg.model,
+    traceId: msg.traceId,
   });
 
   /** 是否显示欢迎页（无消息时显示）*/

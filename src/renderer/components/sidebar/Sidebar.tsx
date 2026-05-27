@@ -361,7 +361,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {/* ===== 删除确认弹窗 ===== */}
-      {deleteConfirm.isOpen && (
+      {deleteConfirm.isOpen && createPortal(
         <div className={styles.deleteConfirmOverlay}>
           <div className={styles.deleteConfirmDialog}>
             <h3>确认删除</h3>
@@ -371,7 +371,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               <button className={styles.deleteConfirmDelete} onClick={confirmDelete}>删除</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </aside>
   );

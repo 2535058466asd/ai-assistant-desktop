@@ -22,7 +22,7 @@ import { getVoiceChatMode } from './core/voiceChat/VoiceChatMode';
 import type { VoiceChatState } from './core/voiceChat/VoiceChatMode';
 import type { AgentProcessEvent, Message } from './types';
 import type { StreamCallbacks } from './core/orchestrator';
-import { createLogger } from '../shared/logger';
+import { createLogger, type LogMeta } from '../shared/logger';
 import { createModelProvider, setModelProvider } from './core/model';
 import { syncProviderConfigForModel } from './core/model/modelRuntime';
 import { upsertById } from './utils/storage';
@@ -53,6 +53,7 @@ function AppContent() {
 
   // 流式内容缓存：onStreamChunk 存，onStreamEnd 读，避免在 setMessages updater 里触发副作用
   const streamContentMap = useRef<Map<string, string>>(new Map());
+  const streamTraceMap = useRef<Map<string, string>>(new Map());
   // 防重复触发 TTS：记录已经播放过的 messageId
   const spokenMessageIds = useRef<Set<string>>(new Set());
 
@@ -90,7 +91,15 @@ function AppContent() {
     // 设置流式回调
     const streamCallbacks: StreamCallbacks = {
       onStreamStart: (message: Message) => {
-        logger.info('助手回复开始输出', { messageId: message.id });
+        if (message.traceId) {
+          streamTraceMap.current.set(message.id, message.traceId);
+        }
+        logger.info('助手回复开始输出', {
+          traceId: message.traceId,
+          sessionId: message.sessionId,
+          messageId: message.id,
+          phase: 'output',
+        });
         setIsLoading(false);
         setMessages((prev) => [...prev, message]);
       },
@@ -104,7 +113,9 @@ function AppContent() {
         );
       },
       onStreamEnd: (messageId: string) => {
-        logger.info('助手回复输出结束', { messageId });
+        const traceId = streamTraceMap.current.get(messageId);
+        streamTraceMap.current.delete(messageId);
+        logger.info('助手回复输出结束', { traceId, messageId, phase: 'output' });
 
         // 只做状态更新（纯函数），不在这里触发 TTS 等副作用
         setMessages((prev) =>
@@ -120,7 +131,7 @@ function AppContent() {
         // 副作用：触发 TTS 播放（放在 updater 外面，且用 Set 防重复）
         if (isVoiceChatEnabledRef.current && content && !spokenMessageIds.current.has(messageId)) {
           spokenMessageIds.current.add(messageId);
-          logger.info('触发语音播放', { messageId, textPreview: content.substring(0, 80) });
+          logger.info('触发语音播放', { traceId, messageId, phase: 'voice', textPreview: content.substring(0, 80) });
           voiceChatMode.speakResponse(content);
         }
       },
@@ -192,14 +203,19 @@ function AppContent() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, meta: LogMeta = {}) => {
     if (!content.trim()) return;
-    logger.info('用户提交消息', { textPreview: content.slice(0, 120), length: content.length });
+    logger.info('用户提交消息', {
+      ...meta,
+      phase: 'input',
+      textPreview: content.slice(0, 120),
+      length: content.length,
+    });
     setIsLoading(true); // 显示加载动画
     try {
-      await orchestratorRef.current.processTextInput(content);
+      await orchestratorRef.current.processTextInput(content, true, meta);
     } catch (error) {
-      logger.error('发送消息失败', error);
+      logger.error('发送消息失败', { ...meta, phase: 'output', error });
       showToast?.('发送消息失败，请重试', 'error');
     } finally {
       setIsLoading(false);
@@ -214,26 +230,28 @@ function AppContent() {
     orchestratorRef.current.setModel(runtime.modelId);
   };
 
-  const handleClearMessages = useCallback(() => {
-    logger.info('用户清空当前对话');
+  const handleClearMessages = useCallback((meta: LogMeta = {}) => {
+    const logMeta: LogMeta = { phase: 'history', reason: 'clear_messages', ...meta };
+    logger.info('用户清空当前对话', logMeta);
     setMessages([]);
     setProcessEventsByMessageId({});
     // 清理 spokenMessageIds，避免内存泄漏
     spokenMessageIds.current.clear();
     // 新建对话时重置 Orchestrator 上下文
-    orchestratorRef.current.resetConversation([]);
-    logger.info('应用已重置对话状态');
+    orchestratorRef.current.resetConversation([], logMeta);
+    logger.info('应用已重置对话状态', logMeta);
   }, []);
 
-  const handleSetMessages = useCallback((newMessages: Message[]) => {
-    logger.info('用户切换对话消息', { messageCount: newMessages.length });
+  const handleSetMessages = useCallback((newMessages: Message[], meta: LogMeta = {}) => {
+    const logMeta: LogMeta = { phase: 'history', reason: 'set_messages', ...meta };
+    logger.info('用户切换对话消息', { ...logMeta, messageCount: newMessages.length });
     setMessages(newMessages);
     setProcessEventsByMessageId({});
     // 清理 spokenMessageIds，避免内存泄漏
     spokenMessageIds.current.clear();
     // 重置 Orchestrator 的对话上下文，确保不同对话的 session 隔离
-    orchestratorRef.current.resetConversation(newMessages);
-    logger.info('应用已恢复对话上下文', { messageCount: newMessages.length });
+    orchestratorRef.current.resetConversation(newMessages, logMeta);
+    logger.info('应用已恢复对话上下文', { ...logMeta, messageCount: newMessages.length });
   }, []);
 
   return (
