@@ -50,3 +50,6 @@ release/
 # Python (old)
 __pycache__/
 *.pyc
+
+# Test outputs
+output/
