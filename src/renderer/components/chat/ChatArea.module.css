@@ -86,8 +86,80 @@
 }
 
 .userBubble:hover {
-  transform: translateY(-2px);
   box-shadow: var(--shadow-btn-hover);
+}
+
+.messageImageGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.messageImageGridSingle {
+  grid-template-columns: minmax(0, 220px);
+}
+
+.messageImageButton {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.25);
+  cursor: pointer;
+}
+
+.messageImage {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+}
+
+.messageImageFallback {
+  min-width: 120px;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  text-align: center;
+}
+
+.imagePreviewOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(2, 6, 23, 0.82);
+}
+
+.imagePreviewOverlay img {
+  max-width: min(92vw, 1200px);
+  max-height: 88vh;
+  object-fit: contain;
+}
+
+.imagePreviewClose {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: white;
+  cursor: pointer;
+  font-size: 24px;
 }
 
 .userBubbleTime {
@@ -141,7 +213,7 @@
 /* AI 消息气泡 - 高级毛玻璃 + 精致边框 */
 .aiBubble {
   padding: 14px 18px;
-  background: rgba(12, 16, 33, 0.6);
+  background: var(--card-bg);
   backdrop-filter: blur(20px) saturate(150%);
   -webkit-backdrop-filter: blur(20px) saturate(150%);
   border-radius: 6px var(--radius-xl) var(--radius-xl) var(--radius-xl);
@@ -374,7 +446,7 @@
   align-items: center;
   gap: 8px;
   padding: 7px 10px;
-  background: rgba(15, 23, 42, 0.32);
+  background: var(--card-nested-bg);
   border: 1px solid rgba(148, 163, 184, 0.12);
   border-radius: 8px;
   color: var(--text-secondary);
@@ -457,7 +529,7 @@
   align-items: start;
   padding: 9px 10px;
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.32);
+  background: var(--card-nested-bg);
   border: 1px solid rgba(148, 163, 184, 0.12);
   color: var(--text-secondary);
   font-size: 12px;

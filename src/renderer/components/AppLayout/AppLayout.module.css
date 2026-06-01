@@ -179,8 +179,11 @@
 }
 
 .primaryNavIcon {
-  font-size: 18px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   transition: transform var(--transition-normal) var(--ease-spring);
 }
 
@@ -242,7 +245,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 24px 32px;
+  padding: 18px 22px 24px;
 }
 
 .chatContent {

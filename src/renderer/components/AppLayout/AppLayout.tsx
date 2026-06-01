@@ -44,6 +44,15 @@ import { createLogger, createTraceId, type LogMeta } from '../../../shared/logge
 import { getActiveModelConfig } from '../../config/modelConfig';
 import { normalizeModelSelection } from '../../core/model/modelRuntime';
 import { getModelsForProvider } from '../../config/modelCatalog';
+import {
+  deleteArchivedConversation,
+  getArchivedMessages,
+  listArchivedConversations,
+  migrateLegacyConversationArchive,
+  renameArchivedConversation,
+  saveArchivedConversation,
+  setArchivedConversationPinned,
+} from '../../services/conversationArchiveClient';
 
 /* 导入类型定义 */
 import type {
@@ -53,11 +62,10 @@ import type {
   UIMessage,
   UserInfo,
   ModelOption,
-  SendMessageHandler,
 } from '../../types/chat';
 
 /* 导入基础 Message 类型 */
-import type { AgentProcessEvent, Message } from '../../types';
+import type { AgentProcessEvent, ImageAttachment, Message, PendingImageAttachment } from '../../types';
 
 /* 导入语音对话模式类型 */
 import type { VoiceChatState } from '../../core/voiceChat/VoiceChatMode';
@@ -73,11 +81,13 @@ interface AppLayoutProps {
   /** 是否正在加载（显示打字动画）*/
   isLoading: boolean;
   /** 发送消息回调（调用 Orchestrator）*/
-  onSendMessage: SendMessageHandler;
+  onSendMessage: (content: string, meta?: LogMeta, attachments?: ImageAttachment[]) => Promise<void>;
   /** 清空消息列表回调（新建对话时调用）*/
   onClearMessages: (meta?: LogMeta) => void;
   /** 设置消息列表回调（切换对话时调用）*/
   onSetMessages?: (messages: Message[], meta?: LogMeta) => void;
+  /** 获取当前 Agent 完整上下文，用于持久化工具调用和压缩摘要 */
+  onGetArchiveMessages?: () => Message[];
   /** 显示 Toast 提示回调 */
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   /** 当前主题 */
@@ -98,25 +108,61 @@ interface AppLayoutProps {
    localStorage 键名常量
    用于持久化保存对话列表和消息
    ========================================== */
-const STORAGE_KEY_CHAT_LIST = 'nova.chat.list';
-const LEGACY_STORAGE_KEY_CHAT_LIST = 'qiyuan_chat_list';
 const STORAGE_KEY_ACTIVE_CHAT = 'nova.chat.activeId';
 const LEGACY_STORAGE_KEY_ACTIVE_CHAT = 'qiyuan_active_chat_id';
-const STORAGE_KEY_MESSAGES = 'nova.messages.'; // 前缀 + chatId
-const LEGACY_STORAGE_KEY_MESSAGES = 'qiyuan_messages_';
 const STORAGE_KEY_ACTIVE_VIEW = 'nova.activeView';
 const LEGACY_STORAGE_KEY_ACTIVE_VIEW = 'qiyuan_active_view';
 
 type AppView = 'chat' | 'workspace' | 'knowledge' | 'memory' | 'eval' | 'settings';
 type SettingsPageTab = 'model-api' | 'voice' | 'search' | 'shortcuts';
 
-const appViews: { id: AppView; label: string; icon: string; description: string }[] = [
-  { id: 'chat', label: '聊天', icon: '💬', description: '和 Nova 对话、调用工具、处理日常任务' },
-  { id: 'workspace', label: '工作台', icon: '⌂', description: '查看项目、任务、知识库和记忆概览' },
-  { id: 'knowledge', label: '知识库', icon: '▣', description: '导入、检索和管理本地知识片段' },
-  { id: 'memory', label: '记忆库', icon: '◉', description: '查看和管理 Nova 记住的长期信息' },
-  { id: 'eval', label: '评估', icon: '✓', description: '维护固定评估问题，检查 Agent 表现' },
-  { id: 'settings', label: '设置', icon: '⚙', description: '配置模型、语音、搜索和快捷键' },
+const navIcons: Record<string, JSX.Element> = {
+  chat: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  ),
+  workspace: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  ),
+  knowledge: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+  ),
+  memory: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="4" />
+    </svg>
+  ),
+  eval: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <polyline points="9 11 12 14 22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  ),
+  settings: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  ),
+};
+
+const appViews: { id: AppView; label: string; description: string }[] = [
+  { id: 'chat', label: '聊天', description: '和 Nova 对话、调用工具、处理日常任务' },
+  { id: 'workspace', label: '工作台', description: '查看项目、任务、知识库和记忆概览' },
+  { id: 'knowledge', label: '知识库', description: '导入、检索和管理本地知识片段' },
+  { id: 'memory', label: '记忆库', description: '查看和管理 Nova 记住的长期信息' },
+  { id: 'eval', label: '评估', description: '维护固定评估问题，检查 Agent 表现' },
+  { id: 'settings', label: '设置', description: '配置模型、语音、搜索和快捷键' },
 ];
 
 const settingsTabs: { id: SettingsPageTab; label: string; description: string }[] = [
@@ -129,31 +175,6 @@ const settingsTabs: { id: SettingsPageTab; label: string; description: string }[
 const getInitialAppView = (): AppView => {
   const saved = (localStorage.getItem(STORAGE_KEY_ACTIVE_VIEW) || localStorage.getItem(LEGACY_STORAGE_KEY_ACTIVE_VIEW)) as AppView | null;
   return appViews.some((view) => view.id === saved) ? saved : 'chat';
-};
-
-/**
- * 获取某个对话的消息列表
- */
-const getMessagesForChat = (chatId: string): Message[] => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_MESSAGES + chatId) || localStorage.getItem(LEGACY_STORAGE_KEY_MESSAGES + chatId);
-    return saved ? JSON.parse(saved) : [];
-  } catch (error) {
-    logger.error('加载对话消息失败', { chatId, error });
-    return [];
-  }
-};
-
-/**
- * 保存某个对话的消息列表
- */
-const saveMessagesForChat = (chatId: string, messages: Message[]) => {
-  try {
-    localStorage.setItem(STORAGE_KEY_MESSAGES + chatId, JSON.stringify(messages));
-    localStorage.removeItem(LEGACY_STORAGE_KEY_MESSAGES + chatId);
-  } catch (error) {
-    logger.error('保存对话消息失败', { chatId, error });
-  }
 };
 
 /* ==========================================
@@ -239,6 +260,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   onSendMessage,
   onClearMessages,
   onSetMessages,
+  onGetArchiveMessages,
   showToast,
   theme,
   onToggleTheme,
@@ -268,18 +290,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   // const [isLoading, setIsLoading] = useState(false);
 
   /** 对话列表（扁平数组，用于搜索和过滤）*/
-  const [chatList, setChatList] = useState<ChatItem[]>(() => {
-    /* 从 localStorage 加载保存的对话列表 */
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_CHAT_LIST) || localStorage.getItem(LEGACY_STORAGE_KEY_CHAT_LIST);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (error) {
-      logger.error('加载对话列表失败', error);
-    }
-    return [];
-  });
+  const [chatList, setChatList] = useState<ChatItem[]>([]);
+  /** SQLite 存档初始化完成后才允许恢复和写入，避免启动阶段空状态覆盖历史 */
+  const [archiveReady, setArchiveReady] = useState(false);
 
   /** 搜索关键词（搜索只影响展示，不修改原始 chatList）*/
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -301,6 +314,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   const inputRef = useRef<InputAreaHandle | null>(null);
   /** 当前已从持久化层恢复到内存的对话 ID，防止启动阶段把欢迎消息覆盖真实历史 */
   const hydratedChatIdRef = useRef<string | null>(null);
+  /** 恢复、切换或创建对话后，跳过一次仍携带旧 UI 消息的持久化写入 */
+  const skipNextMessagePersistRef = useRef<string | null>(null);
+  /** 避免流式输出期间重复写入内容完全相同的稳定消息 */
+  const lastPersistedMessagesRef = useRef<Record<string, string>>({});
+  /** 保存尚未结束时也要拦截相同快照，避免重复事务并发排队 */
+  const lastScheduledMessagesRef = useRef<Record<string, string>>({});
+  /** 标识最近一次历史恢复请求，避免较早的异步读取晚返回后覆盖当前对话。 */
+  const hydrateRequestIdRef = useRef(0);
 
   /* ===== 派生状态：将 chatList 按时间分组（搜索时过滤） ===== */
   const displayChatList = searchKeyword.trim()
@@ -311,20 +332,30 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     : chatList;
   const chatGroups: ChatGroup[] = groupChatsByTime(displayChatList);
 
-  /* ===== localStorage 持久化副作用 ===== */
+  /* ===== SQLite 聊天存档副作用 ===== */
 
-  /**
-   * 当对话列表变化时自动保存到 localStorage
-   * 确保刷新页面后不丢失数据
-   */
+  /** 首次启动先导入旧 localStorage，再从 SQLite 恢复侧栏列表。 */
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(chatList));
-      localStorage.removeItem(LEGACY_STORAGE_KEY_CHAT_LIST);
-    } catch (error) {
-      logger.error('保存对话列表失败', error);
-    }
-  }, [chatList]);
+    let cancelled = false;
+    const initializeArchive = async () => {
+      try {
+        await migrateLegacyConversationArchive();
+        const conversations = await listArchivedConversations();
+        if (cancelled) return;
+        setChatList(conversations);
+        setActiveChatId((current) => current && conversations.some((chat) => chat.id === current) ? current : null);
+        setArchiveReady(true);
+        logger.info('SQLite 聊天存档已恢复', { phase: 'history', chatCount: conversations.length });
+      } catch (error) {
+        logger.error('SQLite 聊天存档初始化失败', { phase: 'history', error });
+        showToast('聊天记录存档初始化失败，请检查日志。', 'error');
+      }
+    };
+    void initializeArchive();
+    return () => {
+      cancelled = true;
+    };
+  }, [showToast]);
 
   /**
    * 当选中对话变化时保存到 localStorage
@@ -344,22 +375,41 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 否则 App.tsx 里的欢迎消息会被当成当前对话内容再写回去，覆盖真实聊天记录。
    */
   useEffect(() => {
-    if (!activeChatId) {
+    if (!archiveReady || !activeChatId) {
       hydratedChatIdRef.current = null;
       return;
     }
     if (hydratedChatIdRef.current === activeChatId) return;
 
-    const chatMessages = getMessagesForChat(activeChatId);
-    logger.info('恢复当前对话历史消息', {
-      chatId: activeChatId,
-      messageCount: chatMessages.length,
-      phase: 'history',
-      reason: 'hydrate_active_chat',
-    });
-    onSetMessages?.(chatMessages, { chatId: activeChatId, phase: 'history', reason: 'hydrate_active_chat' });
-    hydratedChatIdRef.current = activeChatId;
-  }, [activeChatId, onSetMessages]);
+    const hydrateRequestId = ++hydrateRequestIdRef.current;
+    const requestedChatId = activeChatId;
+    const hydrate = async () => {
+      try {
+        const chatMessages = await getArchivedMessages(requestedChatId);
+        if (hydrateRequestIdRef.current !== hydrateRequestId) {
+          logger.debug('忽略过期的对话恢复结果', {
+            chatId: requestedChatId,
+            phase: 'history',
+            reason: 'stale_hydration_result',
+          });
+          return;
+        }
+        logger.info('恢复当前对话历史消息', {
+          chatId: requestedChatId,
+          messageCount: chatMessages.length,
+          phase: 'history',
+          reason: 'hydrate_active_chat',
+        });
+        skipNextMessagePersistRef.current = requestedChatId;
+        onSetMessages?.(chatMessages, { chatId: requestedChatId, phase: 'history', reason: 'hydrate_active_chat' });
+        hydratedChatIdRef.current = requestedChatId;
+      } catch (error) {
+        logger.error('恢复 SQLite 对话消息失败', { chatId: requestedChatId, phase: 'history', error });
+        showToast('读取聊天记录失败，请检查日志。', 'error');
+      }
+    };
+    void hydrate();
+  }, [activeChatId, archiveReady, onSetMessages, showToast]);
 
   /**
    * 记住用户上次打开的一级页面。
@@ -372,16 +422,53 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
   /**
    * 监听消息变化，保存到当前对话的 localStorage
-   * 跳过流式输出中的消息，避免每个 token 都触发写入
+   * 流式输出期间只保存稳定消息，避免每个 token 都触发写入。
+   * 这样用户输入会立即落盘，应用被直接关闭时也不会随流式回复一起丢失。
    */
   useEffect(() => {
-    if (activeChatId && hydratedChatIdRef.current === activeChatId && messages.length > 0) {
-      const hasStreaming = messages.some((msg) => msg.isStreaming);
-      if (!hasStreaming) {
-        saveMessagesForChat(activeChatId, messages);
+    if (archiveReady && activeChatId && hydratedChatIdRef.current === activeChatId && messages.length > 0) {
+      if (skipNextMessagePersistRef.current === activeChatId) {
+        logger.debug('跳过对话恢复后的旧 UI 消息写入', {
+          chatId: activeChatId,
+          messageCount: messages.length,
+          phase: 'history',
+          reason: 'skip_stale_messages_after_hydration',
+        });
+        skipNextMessagePersistRef.current = null;
+        return;
+      }
+
+      const stableMessages = (onGetArchiveMessages?.() || messages).filter((msg) => !msg.isStreaming);
+      if (stableMessages.length === 0) return;
+
+      const serialized = JSON.stringify(stableMessages);
+      if (
+        lastPersistedMessagesRef.current[activeChatId] !== serialized
+        && lastScheduledMessagesRef.current[activeChatId] !== serialized
+      ) {
+        const chat = chatList.find((item) => item.id === activeChatId);
+        if (!chat) return;
+        const visibleMessages = messages.filter((msg) => msg.role === 'user' || msg.role === 'assistant');
+        const lastVisibleMessage = visibleMessages[visibleMessages.length - 1];
+        const updatedChat = {
+          ...chat,
+          preview: lastVisibleMessage?.content.slice(0, 50) || chat.preview,
+          updatedAt: Date.now(),
+        };
+        lastScheduledMessagesRef.current[activeChatId] = serialized;
+        void saveArchivedConversation(updatedChat, stableMessages).then(() => {
+          lastPersistedMessagesRef.current[activeChatId] = serialized;
+          setChatList((prev) => prev.map((item) => item.id === activeChatId ? updatedChat : item));
+        }).catch((error) => {
+          if (lastScheduledMessagesRef.current[activeChatId] === serialized) {
+            delete lastScheduledMessagesRef.current[activeChatId];
+          }
+          logger.error('保存 SQLite 对话消息失败', { chatId: activeChatId, phase: 'persist', error });
+          showToast('聊天记录保存失败，请检查日志。', 'error');
+        });
       }
     }
-  }, [activeChatId, messages]);
+  }, [activeChatId, archiveReady, chatList, messages, onGetArchiveMessages, showToast]);
 
   /* ===== 事件处理函数 ===== */
 
@@ -390,9 +477,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 包装父组件回调，添加加载状态控制和自动创建/更新对话
    * @param content - 用户输入的消息文本
    */
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, _meta?: LogMeta, pendingImages: PendingImageAttachment[] = []) => {
     /* 防止发送空消息 */
-    if (!content.trim()) return;
+    if (!content.trim() && pendingImages.length === 0) return;
 
     let currentChatId = activeChatId;
     const traceId = createTraceId();
@@ -410,7 +497,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       const trimmedContent = content.trim();
       const chatTitle = trimmedContent.length >= 4
         ? trimmedContent.slice(0, 30)
-        : `新对话 ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
+        : pendingImages.length > 0
+          ? `图片分析 ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+          : `新对话 ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
 
       const newChat: ChatItem = {
         id: `chat-${Date.now()}`,
@@ -421,6 +510,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         updatedAt: Date.now(),
       };
       setChatList((prev) => [newChat, ...prev]);
+      await saveArchivedConversation(newChat, []);
       // 新对话是由当前首条消息即时创建的，持久化层里暂时还没有历史。
       // 先标记为已激活，避免 activeChatId 变化后的恢复逻辑读取空历史并重置正在发送的消息。
       hydratedChatIdRef.current = newChat.id;
@@ -435,11 +525,27 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
     }
 
-    await onSendMessage(content, {
+    const savedAttachments: ImageAttachment[] = [];
+    for (const image of pendingImages) {
+      const result = await window.electronAPI?.attachmentSaveImage?.({
+        chatId: currentChatId,
+        name: image.name,
+        mimeType: image.mimeType,
+        dataUrl: image.dataUrl,
+      });
+      if (!result?.success || !result.data) {
+        logger.error('保存聊天图片附件失败', { traceId, chatId: currentChatId, name: image.name, error: result?.error });
+        showToast(result?.error || '图片保存失败，请重试。', 'error');
+        throw new Error(result?.error || '图片保存失败');
+      }
+      savedAttachments.push(result.data);
+    }
+
+    await onSendMessage(content || '请分析这些图片。', {
       traceId,
       chatId: currentChatId,
       phase: 'input',
-    });
+    }, savedAttachments);
   };
 
   /**
@@ -492,11 +598,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     }
     logger.info('选择对话', { from: activeChatId, chatId, reason: 'select_chat', phase: 'ui' });
     setActiveView('chat');
+    skipNextMessagePersistRef.current = chatId;
     setActiveChatId(chatId);
-    /* 加载该对话的历史消息并通知App.tsx */
-    const chatMessages = getMessagesForChat(chatId);
-    onSetMessages?.(chatMessages, { chatId, phase: 'history', reason: 'select_chat' });
-    hydratedChatIdRef.current = chatId;
+    hydratedChatIdRef.current = null;
   };
 
   /**
@@ -515,54 +619,48 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    */
   const handleRenameChat = useCallback((chatId: string, newTitle: string) => {
     logger.info('请求重命名对话', { chatId, newTitle });
-    setChatList((prev) => {
-      const updated = prev.map((chat) =>
-        chat.id === chatId ? { ...chat, title: newTitle } : chat
-      );
-      try {
-        localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
-        localStorage.removeItem(LEGACY_STORAGE_KEY_CHAT_LIST);
-      } catch (e) {
-        logger.error('重命名后保存对话列表失败', e);
-      }
-      return updated;
+    void renameArchivedConversation(chatId, newTitle).then(() => {
+      setChatList((prev) => prev.map((chat) => chat.id === chatId ? { ...chat, title: newTitle } : chat));
+    }).catch((error) => {
+      logger.error('重命名 SQLite 对话失败', { chatId, error });
+      showToast('重命名对话失败，请重试。', 'error');
     });
-  }, []);
+  }, [showToast]);
 
   /**
    * 删除对话
    */
   const handleDeleteChat = useCallback((chatId: string) => {
     logger.warn('请求删除对话', { chatId, isActive: activeChatId === chatId, reason: 'delete_chat', phase: 'ui' });
-    setChatList((prev) => {
-      const updated = prev.filter((chat) => chat.id !== chatId);
-      try {
-        localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
-        localStorage.removeItem(LEGACY_STORAGE_KEY_CHAT_LIST);
-        // 清理该对话的消息存储
-        localStorage.removeItem(STORAGE_KEY_MESSAGES + chatId);
-        localStorage.removeItem(LEGACY_STORAGE_KEY_MESSAGES + chatId);
-      } catch (e) {
-        logger.error('删除对话持久化数据失败', e);
-      }
+    void deleteArchivedConversation(chatId).then(() => {
+      setChatList((prev) => prev.filter((chat) => chat.id !== chatId));
+      delete lastPersistedMessagesRef.current[chatId];
+      delete lastScheduledMessagesRef.current[chatId];
+      void window.electronAPI?.attachmentDeleteByChat?.(chatId);
       // 如果删除的是当前激活的对话，清空消息
       if (activeChatId === chatId) {
         setActiveChatId(null);
         hydratedChatIdRef.current = null;
         onClearMessages?.({ chatId, phase: 'history', reason: 'delete_active_chat' });
       }
-      return updated;
+    }).catch((error) => {
+      logger.error('删除 SQLite 对话失败', { chatId, error });
+      showToast('删除对话失败，请重试。', 'error');
     });
-  }, [activeChatId, onClearMessages]);
+  }, [activeChatId, onClearMessages, showToast]);
 
   /**
    * 置顶/取消置顶对话
    */
   const handlePinChat = useCallback((chatId: string) => {
     logger.info('切换对话置顶状态', { chatId });
-    setChatList((prev) => {
+    const target = chatList.find((chat) => chat.id === chatId);
+    if (!target) return;
+    const isPinned = !target.isPinned;
+    void setArchivedConversationPinned(chatId, isPinned).then(() => {
+      setChatList((prev) => {
       const updated = prev.map((chat) =>
-        chat.id === chatId ? { ...chat, isPinned: !chat.isPinned } : chat
+          chat.id === chatId ? { ...chat, isPinned } : chat
       );
       // 置顶的排前面，然后按更新时间排序
       updated.sort((a, b) => {
@@ -570,15 +668,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         if (!a.isPinned && b.isPinned) return 1;
         return b.updatedAt - a.updatedAt;
       });
-      try {
-        localStorage.setItem(STORAGE_KEY_CHAT_LIST, JSON.stringify(updated));
-        localStorage.removeItem(LEGACY_STORAGE_KEY_CHAT_LIST);
-      } catch (e) {
-        logger.error('切换置顶后保存对话列表失败', e);
-      }
       return updated;
+      });
+    }).catch((error) => {
+      logger.error('更新 SQLite 对话置顶状态失败', { chatId, error });
+      showToast('更新对话置顶状态失败，请重试。', 'error');
     });
-  }, []);
+  }, [chatList, showToast]);
 
   /** 模型切换 */
   const handleModelChange = (modelId: string) => {
@@ -622,12 +718,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     usage: msg.usage,
     model: msg.model,
     traceId: msg.traceId,
+    attachments: msg.attachments,
   });
 
   /** 是否显示欢迎页（无消息时显示）*/
   const showWelcome = messages.length === 0 && !isLoading;
-  const activeViewMeta = appViews.find((view) => view.id === activeView) || appViews[0];
-
   const handleSelectView = (view: AppView) => {
     logger.info('切换一级页面', { from: activeView, to: view });
     setActiveView(view);
@@ -725,7 +820,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
               onClick={() => handleSelectView(view.id)}
               title={view.description}
             >
-              <span className={styles.primaryNavIcon}>{view.icon}</span>
+              <span className={styles.primaryNavIcon}>{navIcons[view.id]}</span>
               <span className={styles.primaryNavLabel}>{view.label}</span>
             </button>
           ))}
@@ -760,18 +855,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         theme={theme}
         onToggleTheme={onToggleTheme}
         onOpenSettings={handleOpenSettings}
+        showChatControls={activeView === 'chat'}
       />
 
-        {/* 2. 非聊天页使用统一页面标题，聊天页保持更轻的沉浸式体验 */}
-        {activeView !== 'chat' && (
-          <section className={styles.pageHeader}>
-            <span className={styles.pageEyebrow}>{activeViewMeta.label}</span>
-            <h1>{activeViewMeta.label}</h1>
-            <p>{activeViewMeta.description}</p>
-          </section>
-        )}
-
-        {/* 3. 当前一级页面内容 */}
+        {/* 2. 当前一级页面内容。各业务页自己承担标题，避免重复的大页头挤占空间。 */}
         <section className={`${styles.pageContent} ${activeView === 'chat' ? styles.chatContent : ''}`}>
           {renderPrimaryPage()}
         </section>
@@ -787,6 +874,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             voiceChatState={voiceChatState}
             isVoiceChatEnabled={isVoiceChatEnabled}
             onToggleVoiceChat={onToggleVoiceChat}
+            showToast={showToast}
           />
         )}
       </main>

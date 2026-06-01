@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import styles from './SettingsDrawer.module.css';
 import KnowledgePanel from '../Knowledge/KnowledgePanel';
 import MemoryPanel from '../Memory/MemoryPanel';
@@ -16,30 +16,33 @@ interface SettingsDrawerProps {
 
 type SettingsTab = 'model-api' | 'memory' | 'knowledge' | 'observability' | 'eval' | 'voice' | 'search' | 'shortcuts';
 
-type SettingsView = 'menu' | 'subpanel';
-
 const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
-  const [currentView, setCurrentView] = useState<SettingsView>('menu');
   const [activeTab, setActiveTab] = useState<SettingsTab>('model-api');
 
-  // 每次打开设置时重置状态到主菜单
   useEffect(() => {
     if (isOpen) {
-      setCurrentView('menu');
       setActiveTab('model-api');
     }
   }, [isOpen]);
 
-  const tabs: { id: SettingsTab; label: string; icon: string }[] = [
-    { id: 'model-api', label: '模型与 API', icon: '🤖' },
-    { id: 'memory', label: '记忆管理', icon: '🧠' },
-    { id: 'knowledge', label: '知识库', icon: '📚' },
-    { id: 'observability', label: 'Agent 日志', icon: '📈' },
-    { id: 'eval', label: '评估面板', icon: '✅' },
-    { id: 'voice', label: '语音设置', icon: '🎤' },
-    { id: 'search', label: '搜索设置', icon: '🔍' },
-    { id: 'shortcuts', label: '快捷键', icon: '⌨️' },
+  const tabs: { id: SettingsTab; label: string; icon: string; description: string; section: string }[] = [
+    { id: 'model-api', label: '模型与 API', icon: '◎', description: '管理 provider、主模型与 compact 模型', section: '核心能力' },
+    { id: 'voice', label: '语音设置', icon: '◉', description: '火山 ASR、TTS 与 MiMo 合成配置', section: '核心能力' },
+    { id: 'search', label: '搜索设置', icon: '◇', description: '搜索策略、入口与网络偏好', section: '核心能力' },
+    { id: 'memory', label: '记忆管理', icon: '↘', description: '查看、搜索和整理长期记忆', section: '知识系统' },
+    { id: 'knowledge', label: '知识库', icon: '▣', description: '导入文档、检索来源并管理片段', section: '知识系统' },
+    { id: 'observability', label: 'Agent 日志', icon: '≈', description: '跟踪工具调用、过程日志与输出', section: '运行与诊断' },
+    { id: 'eval', label: '评估面板', icon: '✓', description: '跑 eval、看失败点和回归结果', section: '运行与诊断' },
+    { id: 'shortcuts', label: '快捷键', icon: '⌘', description: '整理常用操作的快捷键入口', section: '运行与诊断' },
   ];
+
+  const groupedTabs = useMemo(() => {
+    return tabs.reduce<Record<string, typeof tabs>>((acc, tab) => {
+      acc[tab.section] = acc[tab.section] || [];
+      acc[tab.section].push(tab);
+      return acc;
+    }, {});
+  }, []);
 
   const renderSubpanelContent = () => {
     switch (activeTab) {
@@ -64,39 +67,20 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleTabClick = (tabId: SettingsTab) => {
-    setActiveTab(tabId);
-    setCurrentView('subpanel');
-  };
-
-  const handleBack = () => {
-    setCurrentView('menu');
-  };
+  const activeTabMeta = tabs.find((tab) => tab.id === activeTab);
 
   return (
     <>
-      {/* 背景遮罩 */}
       {isOpen && (
         <div className={styles.overlay} onClick={onClose} />
       )}
       
-      {/* 抽屉面板 */}
       <div className={`${styles.drawer} ${isOpen ? styles.open : ''}`}>
-        {/* 标题栏 */}
         <div className={styles.drawerHeader}>
-          {currentView === 'menu' ? (
-            <h2>⚙️ 设置</h2>
-          ) : (
-            <div className={styles.subpanelHeader}>
-              <button className={styles.backBtn} onClick={handleBack} title="返回">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="19" y1="12" x2="5" y2="12" />
-                  <polyline points="12 19 5 12 12 5" />
-                </svg>
-              </button>
-              <h3>{tabs.find(tab => tab.id === activeTab)?.label}</h3>
-            </div>
-          )}
+          <div>
+            <p className={styles.drawerEyebrow}>设置</p>
+            <h2>设置工作台</h2>
+          </div>
           <button className={styles.closeBtn} onClick={onClose} title="关闭">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -105,33 +89,38 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
         
-        {/* 内容区 */}
         <div className={styles.drawerBody}>
-          {currentView === 'menu' ? (
-            /* 一级菜单列表 */
-            <div className={styles.menuList}>
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  className={styles.menuItem}
-                  onClick={() => handleTabClick(tab.id)}
-                >
-                  <span className={styles.menuIcon}>{tab.icon}</span>
-                  <span className={styles.menuLabel}>{tab.label}</span>
-                  <span className={styles.menuArrow}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </span>
-                </button>
-              ))}
+          <aside className={styles.menuList}>
+            {Object.entries(groupedTabs).map(([section, sectionTabs]) => (
+              <div key={section} className={styles.menuSection}>
+                <div className={styles.menuSectionTitle}>{section}</div>
+                {sectionTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    className={`${styles.menuItem} ${activeTab === tab.id ? styles.menuItemActive : ''}`}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    <span className={styles.menuIcon}>{tab.icon}</span>
+                    <span className={styles.menuLabelWrap}>
+                      <span className={styles.menuLabel}>{tab.label}</span>
+                      <span className={styles.menuDescription}>{tab.description}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </aside>
+
+          <div className={styles.subpanel}>
+            <div className={styles.subpanelIntro}>
+              <p>{activeTabMeta?.section}</p>
+              <h3>{activeTabMeta?.label}</h3>
+              <span>{activeTabMeta?.description}</span>
             </div>
-          ) : (
-            /* 二级子面板 */
-            <div className={styles.subpanel}>
+            <div className={styles.subpanelContent}>
               {renderSubpanelContent()}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </>

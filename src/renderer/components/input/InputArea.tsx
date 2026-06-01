@@ -18,11 +18,16 @@
 import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import styles from './InputArea.module.css';
 import type { SendMessageHandler } from '../../types/chat';
+import type { PendingImageAttachment } from '../../types';
 import { getASRManager } from '../../core/asr/asrManager';
 import type { ASRResult } from '../../core/asr/asrInterface';
 import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('ui');
+const MAX_IMAGE_COUNT = 4;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_TOTAL_IMAGE_BYTES = 20 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 /* ==========================================
    组件 Props 类型定义
@@ -38,6 +43,8 @@ interface InputAreaProps {
   isVoiceChatEnabled?: boolean;
   /** 切换语音对话模式回调 */
   onToggleVoiceChat?: () => void;
+  /** 显示附件校验提示 */
+  showToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 /**
@@ -65,14 +72,18 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
   voiceChatState = 'idle',
   isVoiceChatEnabled = false,
   onToggleVoiceChat,
+  showToast,
 }, ref) => {
   
   const [inputText, setInputText] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recognitionText, setRecognitionText] = useState('');
+  const [pendingImages, setPendingImages] = useState<PendingImageAttachment[]>([]);
+  const [isDraggingImages, setIsDraggingImages] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const asrManagerRef = useRef(getASRManager());
 
   useImperativeHandle(ref, () => ({
@@ -103,24 +114,85 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
 
   const handleSend = async () => {
     const trimmedText = inputText.trim();
-    if (!trimmedText || isLoading) return;
+    if ((!trimmedText && pendingImages.length === 0) || isLoading) return;
     logger.info('发送按钮或回车提交输入', {
       textPreview: trimmedText.slice(0, 120),
       length: trimmedText.length,
+      imageCount: pendingImages.length,
       via: 'input-area',
     });
 
     // 先清空输入框，再发送消息（避免等待回复期间输入框残留文字）
     setInputText('');
+    const imagesToSend = pendingImages;
+    setPendingImages([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
 
     try {
-      await onSendMessage(trimmedText);
+      await onSendMessage(trimmedText, undefined, imagesToSend);
     } catch (error) {
       logger.error('输入区发送失败', error);
+      setPendingImages(imagesToSend);
     }
+  };
+
+  const readFileAsDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error(`无法读取图片：${file.name}`));
+    reader.readAsDataURL(file);
+  });
+
+  const addImageFiles = async (files: File[]) => {
+    const accepted: PendingImageAttachment[] = [];
+    let totalBytes = pendingImages.reduce((sum, image) => sum + image.sizeBytes, 0);
+
+    for (const file of files) {
+      if (pendingImages.length + accepted.length >= MAX_IMAGE_COUNT) {
+        logger.warn('图片附件数量超过限制', { maxCount: MAX_IMAGE_COUNT });
+        showToast?.(`单条消息最多添加 ${MAX_IMAGE_COUNT} 张图片。`, 'info');
+        break;
+      }
+      if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+        logger.warn('忽略不支持的图片格式', { name: file.name, mimeType: file.type });
+        showToast?.('仅支持 PNG、JPG 和 WEBP 图片。', 'error');
+        continue;
+      }
+      if (file.size > MAX_IMAGE_BYTES || totalBytes + file.size > MAX_TOTAL_IMAGE_BYTES) {
+        logger.warn('忽略超过大小限制的图片', { name: file.name, sizeBytes: file.size });
+        showToast?.('单张图片不能超过 10 MB，单条消息图片总计不能超过 20 MB。', 'error');
+        continue;
+      }
+
+      const dataUrl = await readFileAsDataUrl(file);
+      accepted.push({
+        id: `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        type: 'image',
+        name: file.name,
+        mimeType: file.type as PendingImageAttachment['mimeType'],
+        sizeBytes: file.size,
+        dataUrl,
+      });
+      totalBytes += file.size;
+    }
+
+    if (accepted.length > 0) {
+      logger.info('已添加图片附件', { imageCount: accepted.length, totalBytes });
+      setPendingImages((prev) => [...prev, ...accepted]);
+    }
+  };
+
+  const handleFileInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    await addImageFiles(Array.from(event.target.files || []));
+    event.target.value = '';
+  };
+
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDraggingImages(false);
+    await addImageFiles(Array.from(event.dataTransfer.files || []));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -221,8 +293,22 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
   };
 
   return (
-    <div className={styles.inputArea}>
+    <div
+      className={styles.inputArea}
+      onDragEnter={(event) => {
+        event.preventDefault();
+        setIsDraggingImages(true);
+      }}
+      onDragOver={(event) => event.preventDefault()}
+      onDragLeave={(event) => {
+        if (event.currentTarget === event.target) setIsDraggingImages(false);
+      }}
+      onDrop={handleDrop}
+    >
       <div className={styles.inputWrapper}>
+        {isDraggingImages && (
+          <div className={styles.dropOverlay}>释放鼠标，将图片添加到当前对话</div>
+        )}
         
         {/* 快捷建议芯片组 */}
         {showSuggestions && (
@@ -245,13 +331,30 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
             isFocused ? styles.inputContainerFocusWithin : ''
           } ${isRecording ? styles.recordingMode : ''}`}
         >
+          {pendingImages.length > 0 && (
+            <div className={styles.pendingImages}>
+              {pendingImages.map((image) => (
+                <div className={styles.pendingImageCard} key={image.id}>
+                  <img src={image.dataUrl} alt={image.name} />
+                  <button
+                    type="button"
+                    className={styles.removeImageBtn}
+                    title="移除图片"
+                    onClick={() => setPendingImages((prev) => prev.filter((item) => item.id !== image.id))}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           {/* 左侧：附件/功能按钮组 */}
           <div className={styles.inputExtras}>
             {/* 上传文件按钮 */}
             <button
               className={styles.extraBtn}
               title="上传文件"
-              onClick={() => logger.info('点击上传文件按钮')}
+              onClick={() => fileInputRef.current?.click()}
             >
               <svg
                 className={styles.extraBtnSvg}
@@ -265,6 +368,14 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
                 <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
               </svg>
             </button>
+            <input
+              ref={fileInputRef}
+              className={styles.hiddenFileInput}
+              type="file"
+              multiple
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleFileInputChange}
+            />
 
             {/* 语音输入按钮（语音转文字） */}
             <button
@@ -349,7 +460,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
           <button
             className={styles.sendBtn}
             onClick={handleSend}
-            disabled={!inputText.trim() || isLoading || isRecording}
+            disabled={(!inputText.trim() && pendingImages.length === 0) || isLoading || isRecording}
             title="发送消息"
           >
             <svg
@@ -394,6 +505,11 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
               <>
                 <span className={styles.voiceChatSpeaking}></span>
                 正在播放...
+              </>
+            )}
+            {voiceChatState === 'error' && (
+              <>
+                <span style={{ color: 'var(--text-secondary)' }}>语音识别出错，请检查麦克风权限或网络后重试</span>
               </>
             )}
           </div>

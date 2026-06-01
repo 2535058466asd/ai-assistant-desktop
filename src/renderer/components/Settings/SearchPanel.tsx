@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { createLogger } from '../../../shared/logger';
+import { readSearchConfig, saveSearchConfig, syncSearchConfig } from '../../config/searchConfig';
 import styles from './SearchPanel.module.css';
 
 const logger = createLogger('ui');
-const SEARCH_ENGINE_KEY = 'nova.search.preferredEngine';
-const LEGACY_SEARCH_ENGINE_KEY = 'qiyuan.search.preferredEngine';
-const SEARXNG_URL_KEY = 'nova.search.searxngUrl';
-const LEGACY_SEARXNG_URL_KEY = 'qiyuan.search.searxngUrl';
 
 const ENGINE_OPTIONS = [
   { value: 'auto', label: '自动（按优先级尝试）' },
@@ -15,29 +12,25 @@ const ENGINE_OPTIONS = [
   { value: 'bing', label: '必应' },
 ];
 
-function readStored(key: string, fallback: string = '', legacyKey?: string): string {
-  return localStorage.getItem(key) || (legacyKey ? localStorage.getItem(legacyKey) : null) || fallback;
-}
-
 export default function SearchPanel() {
   const [preferredEngine, setPreferredEngine] = useState('auto');
   const [searxngUrl, setSearxngUrl] = useState('http://localhost:8888');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    setPreferredEngine(readStored(SEARCH_ENGINE_KEY, 'auto', LEGACY_SEARCH_ENGINE_KEY));
-    setSearxngUrl(readStored(SEARXNG_URL_KEY, 'http://localhost:8888', LEGACY_SEARXNG_URL_KEY));
+    const config = readSearchConfig();
+    setPreferredEngine(config.preferredEngine);
+    setSearxngUrl(config.searxngUrl);
   }, []);
 
-  const handleSave = () => {
-    localStorage.setItem(SEARCH_ENGINE_KEY, preferredEngine);
-    localStorage.removeItem(LEGACY_SEARCH_ENGINE_KEY);
-    localStorage.setItem(SEARXNG_URL_KEY, searxngUrl);
-    localStorage.removeItem(LEGACY_SEARXNG_URL_KEY);
-
-    // 推送到主进程
+  const handleSave = async () => {
+    const config = {
+      preferredEngine: preferredEngine as 'auto' | 'searxng' | 'baidu' | 'bing',
+      searxngUrl,
+    };
+    saveSearchConfig(config);
     try {
-      (window as any).electronAPI?.searchSetConfig({ preferredEngine, searxngUrl });
+      await syncSearchConfig(config);
     } catch (e) {
       logger.error('搜索配置推送失败', e);
     }
@@ -54,7 +47,7 @@ export default function SearchPanel() {
         <h3 className={styles.sectionTitle}>搜索引擎</h3>
         <p className={styles.sectionDesc}>
           {preferredEngine === 'auto'
-            ? '自动模式：SearXNG → 百度 → 必应，依次尝试'
+            ? '自动模式：SearXNG → 必应 → 百度，依次尝试'
             : `指定使用 ${ENGINE_OPTIONS.find(o => o.value === preferredEngine)?.label}`}
         </p>
         <select

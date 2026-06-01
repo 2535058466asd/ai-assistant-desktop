@@ -24,6 +24,18 @@ interface KnowledgeSource {
   createdAt?: string;
 }
 
+const formatSourceTime = (value?: string) => {
+  if (!value) return '未知时间';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
+
 const KnowledgePanel: React.FC = () => {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,7 +47,6 @@ const KnowledgePanel: React.FC = () => {
 
   const api = (window as any).electronAPI;
 
-  // 加载统计信息
   const loadStats = useCallback(async () => {
     try {
       const result = await api.knowledgeStats();
@@ -55,7 +66,6 @@ const KnowledgePanel: React.FC = () => {
     loadStats();
   }, [loadStats]);
 
-  // 导入文件
   const handleImportFile = async () => {
     setImportResult(null);
     setLoading(true);
@@ -63,7 +73,7 @@ const KnowledgePanel: React.FC = () => {
       const result = await api.knowledgeImportFile(importFilePath, importCategory);
       setImportResult(result);
       if (result.success) {
-        loadStats(); // 刷新统计
+        loadStats();
       }
     } catch (e: any) {
       setImportResult({ success: false, error: e.message });
@@ -71,7 +81,6 @@ const KnowledgePanel: React.FC = () => {
     setLoading(false);
   };
 
-  // 识别图片并导入
   const handleImportImage = async () => {
     setImportResult(null);
     setLoading(true);
@@ -87,7 +96,6 @@ const KnowledgePanel: React.FC = () => {
     setLoading(false);
   };
 
-  // 搜索知识库
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
@@ -116,13 +124,11 @@ const KnowledgePanel: React.FC = () => {
     }
   };
 
-  // 文件路径和分类
   const [importFilePath, setImportFilePath] = useState('');
   const [importCategory, setImportCategory] = useState('imported');
 
-  // 判断文件类型
-  const getFileType = (path: string) => {
-    const ext = path.toLowerCase();
+  const getFileType = (filePath: string) => {
+    const ext = filePath.toLowerCase();
     if (ext.endsWith('.pdf')) return 'pdf';
     if (ext.endsWith('.docx') || ext.endsWith('.doc')) return 'word';
     if (ext.endsWith('.xlsx') || ext.endsWith('.xls')) return 'excel';
@@ -135,111 +141,113 @@ const KnowledgePanel: React.FC = () => {
 
   return (
     <div className={styles.panel}>
-      {/* 统计卡片 */}
-      <div className={styles.statsCard}>
-        <div className={styles.statsIcon}>📚</div>
-        <div className={styles.statsInfo}>
-          <div className={styles.statsCount}>{stats?.count ?? '...'}</div>
-          <div className={styles.statsLabel}>知识库文档数</div>
-        </div>
-      </div>
+      <div className={styles.grid}>
+        <section className={styles.sectionCard}>
+          <div className={styles.sectionHead}>
+            <div>
+              <span className={styles.sectionEyebrow}>导入</span>
+              <h4>导入知识</h4>
+            </div>
+            <span>{isImage ? '图片识别' : '文档切片'}</span>
+          </div>
 
-      {/* 导入区域 */}
-      <div className={styles.section}>
-        <h4 className={styles.sectionTitle}>📥 导入知识</h4>
-        <p className={styles.sectionDesc}>
-          支持 PDF、Word(.docx)、Excel(.xlsx)、TXT、MD 文件和图片
-        </p>
+          <p className={styles.sectionDesc}>支持 PDF、Word、Excel、TXT、MD 和图片导入。</p>
 
-        <div className={styles.importForm}>
-          <input
-            type="text"
-            className={styles.input}
-            placeholder="粘贴文件路径，如 D:\产品目录.pdf"
-            value={importFilePath}
-            onChange={e => setImportFilePath(e.target.value)}
-          />
-          <input
-            type="text"
-            className={styles.inputSmall}
-            placeholder="分类（可选）"
-            value={importCategory}
-            onChange={e => setImportCategory(e.target.value)}
-          />
-          <div className={styles.btnGroup}>
+          <div className={styles.importForm}>
+            <input
+              type="text"
+              className={styles.input}
+              placeholder="粘贴文件路径，如 D:\\产品目录.pdf"
+              value={importFilePath}
+              onChange={(e) => setImportFilePath(e.target.value)}
+            />
+            <input
+              type="text"
+              className={styles.input}
+              placeholder="分类标签，如 interview / product / notes"
+              value={importCategory}
+              onChange={(e) => setImportCategory(e.target.value)}
+            />
             <button
               className={styles.btnPrimary}
               onClick={isImage ? handleImportImage : handleImportFile}
               disabled={loading || !importFilePath.trim()}
             >
-              {loading ? '⏳ 处理中...' : isImage ? '🖼️ 识别图片并导入' : '📄 导入文件'}
+              {loading ? '处理中...' : isImage ? '识别图片并导入' : '解析文件并导入'}
             </button>
           </div>
-        </div>
 
-        {importResult && (
-          <div className={`${styles.resultBox} ${importResult.success ? styles.success : styles.error}`}>
-            {importResult.success ? `✅ ${importResult.info}` : `❌ ${importResult.error}`}
+          {importResult && (
+            <div className={`${styles.resultBox} ${importResult.success ? styles.success : styles.error}`}>
+              {importResult.success ? `✅ ${importResult.info}` : `❌ ${importResult.error}`}
+            </div>
+          )}
+        </section>
+
+        <section className={styles.sectionCard}>
+          <div className={styles.sectionHead}>
+            <div>
+              <span className={styles.sectionEyebrow}>检索</span>
+              <h4>搜索知识库</h4>
+            </div>
+            <span>来源可追溯</span>
           </div>
-        )}
-      </div>
 
-      {/* 搜索区域 */}
-      <div className={styles.section}>
-        <h4 className={styles.sectionTitle}>🔍 搜索知识库</h4>
-        <div className={styles.searchForm}>
-          <input
-            type="text"
-            className={styles.input}
-            placeholder="输入关键词搜索知识库"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-          />
-          <button
-            className={styles.btnSecondary}
-            onClick={handleSearch}
-            disabled={searching || !searchQuery.trim()}
-          >
-            {searching ? '⏳ 搜索中...' : '搜索'}
-          </button>
-        </div>
-
-        {searchResult && (
-          <div className={styles.searchResult}>
-            <pre className={styles.searchPre}>{searchResult}</pre>
+          <div className={styles.searchForm}>
+            <input
+              type="text"
+              className={styles.input}
+              placeholder="输入问题或关键词，如 RAG 展示、报价参数、产品差异"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+            <button
+              className={styles.btnSecondary}
+              onClick={handleSearch}
+              disabled={searching || !searchQuery.trim()}
+            >
+              {searching ? '搜索中...' : '搜索'}
+            </button>
           </div>
-        )}
-      </div>
 
-      <div className={styles.section}>
-        <h4 className={styles.sectionTitle}>🗂️ 来源文件</h4>
-        {sources.length === 0 ? (
-          <p className={styles.sectionDesc}>暂无来源文件。导入文档后这里会显示来源、分类和片段数。</p>
-        ) : (
-          <div className={styles.searchResult}>
-            {sources.map((source) => (
-              <div key={`${source.source}-${source.category}`}>
-                <strong>{source.source}</strong>
-                <span> · {source.category} · {source.count} 个片段</span>
-                <button className={styles.btnSecondary} onClick={() => handleDeleteSource(source.source)}>
-                  删除来源
-                </button>
-              </div>
-            ))}
+          <div className={styles.searchSurface}>
+            {searchResult ? (
+              <pre className={styles.searchPre}>{searchResult}</pre>
+            ) : (
+              <div className={styles.emptyState}>输入问题后，这里会显示带来源和片段编号的检索结果。</div>
+            )}
           </div>
-        )}
-      </div>
+        </section>
 
-      {/* 使用提示 */}
-      <div className={styles.tips}>
-        <h4 className={styles.sectionTitle}>💡 使用提示</h4>
-        <ul className={styles.tipsList}>
-          <li>你也可以直接在对话中对AI说"学习这个文件 D:\xxx.pdf"</li>
-          <li>导入的文档会自动切分为知识片段并建立向量索引</li>
-          <li>图片会通过AI视觉模型识别内容后存入知识库</li>
-          <li>知识库数据存储在项目目录的 chroma_db/ 文件夹中</li>
-        </ul>
+        <section className={styles.sourcesCard}>
+          <div className={styles.sectionHead}>
+            <div>
+              <span className={styles.sectionEyebrow}>来源</span>
+              <h4>来源文件</h4>
+            </div>
+            <span>{sources.length} 个来源</span>
+          </div>
+
+          {sources.length === 0 ? (
+            <div className={styles.emptyState}>暂无来源文件。导入文档后这里会显示来源、分类和片段数。</div>
+          ) : (
+            <div className={styles.sourceList}>
+              {sources.map((source) => (
+                <article key={`${source.source}-${source.category}`} className={styles.sourceItem}>
+                  <div>
+                    <strong>{source.source}</strong>
+                    <p>{source.category} · {source.count} 个片段 · 首次记录 {formatSourceTime(source.createdAt)}</p>
+                  </div>
+                  <button className={styles.btnSecondary} onClick={() => handleDeleteSource(source.source)}>
+                    删除来源
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
       </div>
     </div>
   );

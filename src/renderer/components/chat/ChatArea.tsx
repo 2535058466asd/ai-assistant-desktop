@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styles from './ChatArea.module.css';
 import type { UIMessage } from '../../types/chat';
+import type { ImageAttachment } from '../../types';
 import { getTTSManager } from '../../core/tts/ttsManager';
 import DOMPurify from 'dompurify';
 import { createLogger } from '../../../shared/logger';
@@ -148,6 +149,45 @@ const formatTokenCount = (tokens: number): string => {
   return tokens.toString();
 };
 
+const ChatImage: React.FC<{
+  attachment: ImageAttachment;
+  onOpen: (src: string, name: string) => void;
+}> = ({ attachment, onOpen }) => {
+  const [src, setSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    window.electronAPI?.attachmentReadDataUrl?.(attachment.relativePath, attachment.mimeType)
+      .then((result) => {
+        if (!active) return;
+        if (result?.success && result.data) {
+          setSrc(result.data);
+        } else {
+          setFailed(true);
+        }
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [attachment.mimeType, attachment.relativePath]);
+
+  if (failed) {
+    return <div className={styles.messageImageFallback}>图片无法读取<br />{attachment.name}</div>;
+  }
+
+  return src ? (
+    <button type="button" className={styles.messageImageButton} onClick={() => onOpen(src, attachment.name)}>
+      <img src={src} alt={attachment.name} className={styles.messageImage} />
+    </button>
+  ) : (
+    <div className={styles.messageImageFallback}>正在加载图片...</div>
+  );
+};
+
 /**
  * ChatArea 聊天区域组件
  * @param props - 组件属性
@@ -166,6 +206,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
   
   /** TTS 相关状态 */
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null); // 正在播放的消息 ID
+  const [previewImage, setPreviewImage] = useState<{ src: string; name: string } | null>(null);
   const ttsManagerRef = useRef(getTTSManager()); // TTS 管理器实例
   const audioRef = useRef<HTMLAudioElement | null>(null); // 音频元素引用
 
@@ -460,6 +501,17 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
                       <div className={styles.userBubbleWrapper}>
                         {/* 消息气泡 */}
                         <div className={styles.userBubble}>
+                          {message.attachments && message.attachments.length > 0 && (
+                            <div className={`${styles.messageImageGrid} ${message.attachments.length === 1 ? styles.messageImageGridSingle : ''}`}>
+                              {message.attachments.map((attachment) => (
+                                <ChatImage
+                                  key={attachment.id}
+                                  attachment={attachment}
+                                  onOpen={(src, name) => setPreviewImage({ src, name })}
+                                />
+                              ))}
+                            </div>
+                          )}
                           {renderMessageContent(message.content)}
                         </div>
                         {/* 时间戳 */}
@@ -636,6 +688,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
           {/* 滚动锚点元素 - 用于自动滚动到底部 */}
           <div ref={messagesEndRef} />
       </div>
+      {previewImage && (
+        <div className={styles.imagePreviewOverlay} role="dialog" aria-label={previewImage.name} onClick={() => setPreviewImage(null)}>
+          <button type="button" className={styles.imagePreviewClose} onClick={() => setPreviewImage(null)} aria-label="关闭图片预览">×</button>
+          <img src={previewImage.src} alt={previewImage.name} onClick={(event) => event.stopPropagation()} />
+        </div>
+      )}
     </div>
   );
 };

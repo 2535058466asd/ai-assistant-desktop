@@ -38,6 +38,8 @@ interface HeaderProps {
   onToggleTheme: () => void;
   /** 保留兼容旧调用；设置入口现在由左侧一级导航负责 */
   onOpenSettings?: () => void;
+  /** 是否显示聊天相关控件（模型选择器、语音按钮） */
+  showChatControls?: boolean;
 }
 
 /**
@@ -54,6 +56,7 @@ const Header: React.FC<HeaderProps> = ({
   theme,
   onToggleTheme,
   onOpenSettings,
+  showChatControls = true,
 }) => {
   /* ===== 状态管理 ===== */
 
@@ -143,7 +146,8 @@ const Header: React.FC<HeaderProps> = ({
         {/* 3. 品牌名称 */}
         <span className={styles.brandName}>Nova</span>
 
-        {/* 4. 模型选择器（带下拉菜单） */}
+        {/* 4. 模型选择器（仅聊天页显示） */}
+        {showChatControls && (
         <div className={styles.modelSelectorWrapper} ref={modelDropdownRef}>
           <div
             className={styles.modelSelector}
@@ -185,9 +189,8 @@ const Header: React.FC<HeaderProps> = ({
             </div>
           )}
         </div>
+        )}
       </div>
-
-      {/* ===== 右侧区域：操作按钮组 ===== */}
       <div className={styles.headerRight}>
         {/* 主题切换按钮 */}
         <button

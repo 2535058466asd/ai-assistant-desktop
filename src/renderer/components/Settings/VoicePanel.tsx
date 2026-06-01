@@ -3,77 +3,81 @@ import { getASRManager } from '../../core/asr/asrManager';
 import { getTTSManager } from '../../core/tts/ttsManager';
 import type { ASRType } from '../../core/asr/asrManager';
 import type { TTSType } from '../../core/tts/ttsManager';
+import { readMiMoTTSModel } from '../../config/ttsConfig';
+import { DEFAULT_VOLCENGINE_TTS_VOICE, normalizeVolcengineVoice, OFFICIAL_VOLCENGINE_TTS_VOICES } from '../../config/volcengineVoices';
 import { createLogger } from '../../../shared/logger';
 import styles from './VoicePanel.module.css';
 
 const logger = createLogger('ui');
 
 const ASR_ENGINES = [
-  { value: 'web-speech', label: '浏览器内置 Web Speech（推荐）' },
-  { value: 'volcengine', label: '火山引擎 ASR' },
+  { value: 'volcengine', label: '火山引擎 ASR（推荐）' },
 ];
 
 const TTS_ENGINES = [
-  { value: 'mimo', label: '小米 MiMo TTS' },
   { value: 'volcengine', label: '火山引擎 TTS' },
-  { value: 'web-speech', label: '浏览器内置 Web Speech' },
-];
-
-const TTS_VOICES = [
-  { value: 'zh_female_vv_uranus_bigtts', label: 'Vivi (女声)' },
-  { value: 'zh_male_chunshui_uranus_bigtts', label: '春水 (男声)' },
-  { value: 'zh_female_tianmei_uranus_bigtts', label: '甜美 (女声)' },
+  { value: 'mimo', label: '小米 MiMo TTS' },
 ];
 
 const MIMO_VOICES = [
-  { value: 'mimo_default', label: '默认 (Mimo)' },
+  { value: 'Chloe', label: 'Chloe (女声)' },
+  { value: 'Mia', label: 'Mia (女声)' },
+  { value: 'Milo', label: 'Milo (男声)' },
+  { value: 'Dean', label: 'Dean (男声)' },
   { value: '冰糖', label: '冰糖 (女声)' },
   { value: '茉莉', label: '茉莉 (女声)' },
   { value: '苏打', label: '苏打 (男声)' },
   { value: '白桦', label: '白桦 (男声)' },
-  { value: 'Mia', label: 'Mia (女声)' },
-  { value: 'Chloe', label: 'Chloe (女声)' },
-  { value: 'Milo', label: 'Milo (男声)' },
-  { value: 'Dean', label: 'Dean (男声)' },
 ];
 
 function readStored(key: string, fallback: string = ''): string {
   return localStorage.getItem(key) || fallback;
 }
 
+function readStoredWithLegacy(key: string, legacyKey: string, fallback: string = ''): string {
+  return readStored(key) || readStored(legacyKey) || fallback;
+}
+
+function readEnv(key: string): string {
+  return (import.meta.env[key] as string | undefined) || '';
+}
+
 function readASRType(): ASRType {
   const stored = readStored('nova.asr.type');
-  return stored === 'web-speech' || stored === 'volcengine' ? stored : 'volcengine';
+  return stored === 'volcengine' ? stored : 'volcengine';
 }
 
 export default function VoicePanel() {
   const [asrType, setAsrType] = useState<ASRType>('volcengine');
   const [ttsType, setTtsType] = useState('volcengine');
-  const [voice, setVoice] = useState('zh_female_vv_uranus_bigtts');
-  const [mimoVoice, setMimoVoice] = useState('mimo_default');
+  const [voice, setVoice] = useState(DEFAULT_VOLCENGINE_TTS_VOICE);
+  const [mimoVoice, setMimoVoice] = useState('Chloe');
   const [speed, setSpeed] = useState(1.0);
   const [pitch, setPitch] = useState(1.0);
   const [volume, setVolume] = useState(1.0);
   const [appId, setAppId] = useState('');
   const [accessToken, setAccessToken] = useState('');
-  const [mimoBaseUrl, setMimoBaseUrl] = useState('https://token-plan-cn.xiaomimimo.com/v1');
+  const [mimoBaseUrl, setMimoBaseUrl] = useState('https://api.xiaomimimo.com/v1');
   const [mimoApiKey, setMimoApiKey] = useState('');
   const [mimoModel, setMimoModel] = useState('mimo-v2.5-tts');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    const normalizedVolcVoice = normalizeVolcengineVoice(readStored('nova.tts.voice'));
+    localStorage.setItem('nova.tts.voice', normalizedVolcVoice);
+
     setAsrType(readASRType());
     setTtsType(readStored('nova.tts.type', 'volcengine'));
-    setVoice(readStored('nova.tts.voice', 'zh_female_vv_uranus_bigtts'));
-    setMimoVoice(readStored('nova.mimo.voice', 'mimo_default'));
+    setVoice(normalizedVolcVoice);
+    setMimoVoice(readStored('nova.mimo.voice', 'Chloe'));
     setSpeed(parseFloat(readStored('nova.tts.speed', '1.0')));
     setPitch(parseFloat(readStored('nova.tts.pitch', '1.0')));
     setVolume(parseFloat(readStored('nova.tts.volume', '1.0')));
-    setAppId(readStored('nova.volcengine.appId'));
-    setAccessToken(readStored('nova.volcengine.accessToken'));
-    setMimoBaseUrl(readStored('nova.mimo.baseUrl', 'https://token-plan-cn.xiaomimimo.com/v1'));
-    setMimoApiKey(readStored('nova.mimo.apiKey'));
-    setMimoModel(readStored('nova.mimo.model', 'mimo-v2.5-tts'));
+    setAppId(readEnv('VITE_VOLCENGINE_APP_ID') || readStoredWithLegacy('nova.volcengine.appId', 'qiyuan.volcengine.appId'));
+    setAccessToken(readEnv('VITE_VOLCENGINE_ACCESS_TOKEN') || readStoredWithLegacy('nova.volcengine.accessToken', 'qiyuan.volcengine.accessToken'));
+    setMimoBaseUrl(readEnv('VITE_MIMO_BASE_URL') || readStored('nova.mimo.baseUrl', 'https://api.xiaomimimo.com/v1'));
+    setMimoApiKey(readEnv('VITE_MIMO_API_KEY') || readStored('nova.mimo.apiKey'));
+    setMimoModel(readMiMoTTSModel());
   }, []);
 
   const needsVolcengine = asrType === 'volcengine' || ttsType === 'volcengine';
@@ -82,7 +86,7 @@ export default function VoicePanel() {
   const handleSave = () => {
     localStorage.setItem('nova.asr.type', asrType);
     localStorage.setItem('nova.tts.type', ttsType);
-    localStorage.setItem('nova.tts.voice', voice);
+    localStorage.setItem('nova.tts.voice', normalizeVolcengineVoice(voice));
     localStorage.setItem('nova.mimo.voice', mimoVoice);
     localStorage.setItem('nova.tts.speed', String(speed));
     localStorage.setItem('nova.tts.pitch', String(pitch));
@@ -91,7 +95,7 @@ export default function VoicePanel() {
     localStorage.setItem('nova.volcengine.accessToken', accessToken);
     localStorage.setItem('nova.mimo.baseUrl', mimoBaseUrl);
     localStorage.setItem('nova.mimo.apiKey', mimoApiKey);
-    localStorage.setItem('nova.mimo.model', mimoModel);
+    localStorage.setItem('nova.mimo.ttsModel', mimoModel);
 
     const nextAsrConfig = {
       type: asrType as ASRType,
@@ -116,7 +120,7 @@ export default function VoicePanel() {
         appId,
         accessToken,
         apiUrl: 'wss://openspeech.bytedance.com/api/v3/tts/bidirection',
-        voice,
+        voice: normalizeVolcengineVoice(voice),
         model: 'seed-tts-2.0-expressive',
         resourceId: 'seed-tts-2.0',
         format: 'pcm',
@@ -130,7 +134,7 @@ export default function VoicePanel() {
         apiKey: mimoApiKey,
         model: mimoModel,
         voice: mimoVoice,
-        format: 'mp3' as const,
+        format: 'wav' as const,
       },
     };
 
@@ -158,7 +162,7 @@ export default function VoicePanel() {
     <div className={styles.panel}>
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>语音识别 (ASR)</h3>
-        <p className={styles.sectionDesc}>负责听你说话并转成文字。它可以和聊天模型、TTS 分开选择；默认使用火山 ASR，配置不完整时会降级到浏览器内置方案。</p>
+        <p className={styles.sectionDesc}>负责听你说话并转成文字。当前只保留火山 ASR，不再自动降级到浏览器内置识别。</p>
         <select
           className={styles.select}
           value={asrType}
@@ -190,8 +194,10 @@ export default function VoicePanel() {
               value={voice}
               onChange={(e) => setVoice(e.target.value)}
             >
-              {TTS_VOICES.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              {OFFICIAL_VOLCENGINE_TTS_VOICES.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
               ))}
             </select>
           </>
@@ -282,14 +288,14 @@ export default function VoicePanel() {
       {needsMimo && (
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>小米 MiMo 凭证</h3>
-          <p className={styles.sectionDesc}>小米 MiMo 只用于语音合成（TTS），不用于语音识别（ASR）。</p>
+          <p className={styles.sectionDesc}>小米 MiMo 只用于语音合成（TTS），不用于语音识别（ASR）。Token Plan Key 要配 Token Plan Base URL，普通 Key 要配普通 Base URL，不能混用。</p>
           <label className={styles.label}>API Base URL</label>
           <input
             className={styles.input}
             type="text"
             value={mimoBaseUrl}
             onChange={(e) => setMimoBaseUrl(e.target.value)}
-            placeholder="https://token-plan-cn.xiaomimimo.com/v1"
+            placeholder="https://api.xiaomimimo.com/v1"
           />
           <label className={styles.label}>API Key</label>
           <input
