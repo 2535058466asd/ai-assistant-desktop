@@ -19,7 +19,7 @@ export interface ToolExecutionResult {
 export async function executeTool(name: string, args: Record<string, any>, meta: LogMeta = {}): Promise<ToolExecutionResult> {
   const toolMeta = getToolMetadata(name);
   logger.info('工具调用开始', { ...meta, phase: 'tool', name, args, ...toolMeta });
-  const api = (window as any).electronAPI;
+  const api = window.electronAPI;
   const startedAt = performance.now();
 
   try {

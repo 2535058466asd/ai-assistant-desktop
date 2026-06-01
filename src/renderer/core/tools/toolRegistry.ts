@@ -5,7 +5,18 @@ import type { ToolExecutionResult } from './toolExecutor';
 export type ToolRiskLevel = 'read' | 'low_write' | 'system' | 'destructive' | 'external_send';
 export type ToolCategory = 'file' | 'system' | 'web' | 'clipboard' | 'knowledge' | 'workspace' | 'app';
 
+type ElectronAPI = Window['electronAPI'];
 type ToolArgs = Record<string, any>;
+
+export function validateToolArgs(schema: ToolDefinition, args: ToolArgs): string | null {
+  const required = (schema.function.parameters?.required || []) as string[];
+  for (const key of required) {
+    if (args[key] === undefined || args[key] === null || args[key] === '') {
+      return `缺少必要参数: ${key}`;
+    }
+  }
+  return null;
+}
 
 export interface ToolSpec {
   schema: ToolDefinition;
@@ -14,7 +25,7 @@ export interface ToolSpec {
   isReadOnly: boolean;
   timeoutMs: number;
   requiresConfirmation?: (args: ToolArgs) => boolean;
-  execute: (api: any, args: ToolArgs) => Promise<ToolExecutionResult>;
+  execute: (api: ElectronAPI, args: ToolArgs) => Promise<ToolExecutionResult>;
 }
 
 export interface RegisteredTool {
@@ -25,7 +36,7 @@ export interface RegisteredTool {
   isReadOnly: boolean;
   timeoutMs: number;
   requiresConfirmation?: (args: ToolArgs) => boolean;
-  execute: (api: any, args: ToolArgs) => Promise<ToolExecutionResult>;
+  execute: (api: ElectronAPI, args: ToolArgs) => Promise<ToolExecutionResult>;
 }
 
 function hasHighRiskCommand(command: string): boolean {
@@ -82,7 +93,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   exec_command: {
     schema: functionTool(
       'exec_command',
-      '执行系统命令。用于查看系统信息、查询进程、执行开发命令、打开程序等。日常低风险命令可自动执行，高风险命令会要求用户确认。优先使用专用工具；只有专用工具不够用时再使用本工具。',
+      '执行系统命令。低风险命令自动执行，高风险需确认。优先用专用工具。',
       { command: { type: 'string', description: '要执行的命令' } },
       ['command']
     ),
@@ -97,7 +108,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   read_file: {
     schema: functionTool(
       'read_file',
-      '读取文件内容。当用户想查看某个文件的内容时使用。',
+      '读取文件内容。',
       { path: { type: 'string', description: '文件完整路径' } },
       ['path']
     ),
@@ -110,7 +121,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   write_file: {
     schema: functionTool(
       'write_file',
-      '创建或修改文件。当用户想保存内容、新建文件、修改文件时使用。',
+      '创建或修改文件。',
       {
         path: { type: 'string', description: '文件完整路径' },
         content: { type: 'string', description: '要写入的内容' },
@@ -126,7 +137,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   create_dir: {
     schema: functionTool(
       'create_dir',
-      '创建目录。用于新建文件夹或确保某个目录存在。',
+      '创建目录。',
       { path: { type: 'string', description: '要创建的目录路径' } },
       ['path']
     ),
@@ -139,7 +150,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   copy_file: {
     schema: functionTool(
       'copy_file',
-      '复制文件或目录。用于备份、整理文件，不会删除源文件。',
+      '复制文件或目录，不删除源文件。',
       {
         source_path: { type: 'string', description: '源文件或目录路径' },
         target_path: { type: 'string', description: '目标文件或目录路径' },
@@ -155,7 +166,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   move_file: {
     schema: functionTool(
       'move_file',
-      '移动或重命名文件/目录。会改变源路径位置，执行前应确认用户意图。',
+      '移动或重命名文件/目录。',
       {
         source_path: { type: 'string', description: '源文件或目录路径' },
         target_path: { type: 'string', description: '目标文件或目录路径' },
@@ -171,7 +182,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   delete_file: {
     schema: functionTool(
       'delete_file',
-      '删除文件或目录。这是不可逆操作，请确认用户意图后再调用。',
+      '删除文件或目录（不可逆，需确认）。',
       { path: { type: 'string', description: '文件或目录路径' } },
       ['path']
     ),
@@ -185,7 +196,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   list_dir: {
     schema: functionTool(
       'list_dir',
-      '列出指定目录下的文件和文件夹。',
+      '列出目录下的文件和文件夹。',
       { path: { type: 'string', description: '目录路径' } },
       ['path']
     ),
@@ -198,7 +209,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   search_files: {
     schema: functionTool(
       'search_files',
-      '在指定目录中搜索包含特定关键词的文件名。',
+      '按文件名搜索文件，支持通配符。',
       {
         directory: { type: 'string', description: '搜索目录路径' },
         keyword: { type: 'string', description: '文件名关键词' },
@@ -209,16 +220,18 @@ export const TOOLS: Record<string, ToolSpec> = {
     riskLevel: 'read',
     isReadOnly: true,
     timeoutMs: 15000,
-    execute: (api, args) => api.searchFiles(args.path ?? args.directory, args.pattern ?? args.keyword),
+    execute: (api, args) => api.searchFiles(args.directory, args.keyword),
   },
   grep_content: {
     schema: functionTool(
       'grep_content',
-      '在文件或目录内容中搜索包含特定关键词的行。',
+      '搜索文件内容，支持关键词和正则。可指定文件过滤和上下文行数。',
       {
         file_path: { type: 'string', description: '文件或目录路径' },
-        pattern: { type: 'string', description: '要搜索的关键词或正则表达式' },
-        file_pattern: { type: 'string', description: '可选的文件名过滤规则，如 *.ts' },
+        pattern: { type: 'string', description: '搜索关键词或正则表达式' },
+        file_pattern: { type: 'string', description: '文件名过滤，如 *.ts' },
+        regex: { type: 'boolean', description: '是否用正则匹配（默认 false）' },
+        context_lines: { type: 'number', description: '匹配行前后显示几行上下文（默认 0）' },
       },
       ['file_path', 'pattern']
     ),
@@ -226,13 +239,13 @@ export const TOOLS: Record<string, ToolSpec> = {
     riskLevel: 'read',
     isReadOnly: true,
     timeoutMs: 15000,
-    execute: (api, args) => api.grepContent(args.path ?? args.file_path, args.keyword ?? args.pattern, args.file_pattern),
+    execute: (api, args) => api.grepContent(args.file_path, args.pattern, args.file_pattern, { regex: args.regex, context_lines: args.context_lines }),
   },
 
   web_search: {
     schema: functionTool(
       'web_search',
-      '搜索互联网信息。当用户需要查询实时信息、新闻、知识、教程时使用。不适用于查天气。',
+      '搜索互联网信息。',
       { query: { type: 'string', description: '搜索关键词' } },
       ['query']
     ),
@@ -245,7 +258,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   web_fetch: {
     schema: functionTool(
       'web_fetch',
-      '获取指定 URL 的网页内容。当用户说“帮我看看这个链接的内容”时使用。',
+      '抓取指定 URL 的网页正文（转 Markdown）。',
       { url: { type: 'string', description: '要获取的网页 URL' } },
       ['url']
     ),
@@ -257,7 +270,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   },
 
   clipboard_read: {
-    schema: emptyFunctionTool('clipboard_read', '读取剪贴板内容。当用户说“翻译刚才复制的”或“总结剪贴板内容”时使用。'),
+    schema: emptyFunctionTool('clipboard_read', '读取剪贴板内容。'),
     category: 'clipboard',
     riskLevel: 'read',
     isReadOnly: true,
@@ -267,7 +280,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   clipboard_write: {
     schema: functionTool(
       'clipboard_write',
-      '将内容写入剪贴板。',
+      '写入内容到剪贴板。',
       { text: { type: 'string', description: '要复制到剪贴板的内容' } },
       ['text']
     ),
@@ -281,7 +294,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   open_app: {
     schema: functionTool(
       'open_app',
-      '打开应用程序或网页链接。当用户说“打开微信”“打开百度”时使用。',
+      '打开应用程序或网页链接。',
       { target: { type: 'string', description: '应用名称或 URL' } },
       ['target']
     ),
@@ -294,7 +307,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   notify: {
     schema: functionTool(
       'notify',
-      '发送系统通知提醒用户。当用户设置了提醒、需要告知重要信息时使用。',
+      '发送系统通知。',
       {
         title: { type: 'string', description: '通知标题' },
         body: { type: 'string', description: '通知内容' },
@@ -309,7 +322,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   },
 
   get_current_time: {
-    schema: emptyFunctionTool('get_current_time', '获取当前日期和时间。当用户问“今天几号”、“现在几点”、“今天星期几”时使用。'),
+    schema: emptyFunctionTool('get_current_time', '获取当前日期和时间。'),
     category: 'system',
     riskLevel: 'read',
     isReadOnly: true,
@@ -317,7 +330,7 @@ export const TOOLS: Record<string, ToolSpec> = {
     execute: (api) => api.getCurrentTime(),
   },
   get_system_info: {
-    schema: emptyFunctionTool('get_system_info', '获取系统信息（CPU、内存、磁盘、系统版本）。当用户问“电脑配置”、“内存多大”、“磁盘空间”时使用。'),
+    schema: emptyFunctionTool('get_system_info', '获取系统信息（CPU/内存/磁盘）。'),
     category: 'system',
     riskLevel: 'read',
     isReadOnly: true,
@@ -328,7 +341,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   knowledge_search: {
     schema: functionTool(
       'knowledge_search',
-      '搜索本地知识库。从向量数据库中检索最相关的文档片段。',
+      '搜索本地知识库，返回最相关文档片段。',
       {
         query: { type: 'string', description: '搜索查询文本' },
         n_results: { type: 'number', description: '返回结果数量，默认 3' },
@@ -344,7 +357,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   knowledge_add: {
     schema: functionTool(
       'knowledge_add',
-      '向知识库添加新的知识内容。支持批量添加多条文档。',
+      '向知识库添加文档内容。',
       {
         documents: {
           type: 'array',
@@ -370,7 +383,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   knowledge_import_file: {
     schema: functionTool(
       'knowledge_import_file',
-      '导入文件到知识库。支持 PDF、Word、Excel、TXT、MD 文件。',
+      '导入文件到知识库（PDF/Word/Excel/TXT/MD）。',
       {
         file_path: { type: 'string', description: '文件完整路径' },
         category: { type: 'string', description: '知识分类' },
@@ -403,7 +416,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   workspace_create_task: {
     schema: functionTool(
       'workspace_create_task',
-      '在个人 AI 工作台中创建项目任务。',
+      '创建工作台任务。',
       {
         title: { type: 'string', description: '任务标题' },
         project_id: { type: 'string', description: '项目 ID，默认 project-ai-workspace' },
@@ -423,7 +436,7 @@ export const TOOLS: Record<string, ToolSpec> = {
   workspace_update_project: {
     schema: functionTool(
       'workspace_update_project',
-      '更新个人 AI 工作台中的项目状态、下一步或阻塞点。',
+      '更新工作台项目状态或下一步。',
       {
         project_id: { type: 'string', description: '项目 ID' },
         status: { type: 'string', enum: ['active', 'blocked', 'planning', 'done'], description: '项目状态' },
@@ -453,6 +466,112 @@ export const TOOLS: Record<string, ToolSpec> = {
 
 export const toolDefinitions: ToolDefinition[] = Object.values(TOOLS).map((tool) => tool.schema);
 
+export interface SkillDefinition {
+  name: string;
+  description: string;
+  tools: string[];
+  instructions: string;
+}
+
+export const SKILLS: Record<string, SkillDefinition> = {
+  file_manager: {
+    name: 'file_manager',
+    description: '文件管理：列出目录、搜索文件、搜索内容、复制/移动/删除文件、创建目录',
+    tools: ['list_dir', 'search_files', 'grep_content', 'copy_file', 'move_file', 'delete_file', 'create_dir'],
+    instructions: '当用户需要操作文件时，优先使用专用文件工具而不是 exec_command。\n搜索文件时先用 search_files 定位，再用 read_file 读取内容。\ngrep_content 支持正则（regex: true）和上下文行数（context_lines），适合代码搜索。\n删除文件前务必确认用户意图。',
+  },
+  knowledge_manager: {
+    name: 'knowledge_manager',
+    description: '知识库管理：添加知识、导入文件、导入图片到知识库',
+    tools: ['knowledge_add', 'knowledge_import_file', 'knowledge_import_image'],
+    instructions: '操作知识库时，先用 knowledge_search 检索已有内容，避免重复导入。\n导入文件支持 PDF、Word、Excel、TXT、MD 格式，会自动切片。\n导入图片会先走视觉识别再转为知识片段。\n添加知识时可以用 category 参数分类，方便后续检索。',
+  },
+  system_tools: {
+    name: 'system_tools',
+    description: '系统工具：打开应用、发送通知、获取系统信息、写入剪贴板',
+    tools: ['open_app', 'notify', 'get_system_info', 'clipboard_write'],
+    instructions: '打开应用时直接传应用名称或 URL，工具会自动处理。\n系统通知适合设置提醒或告知用户重要信息。\n获取系统信息返回 CPU、内存、磁盘等硬件数据。',
+  },
+  workspace: {
+    name: 'workspace',
+    description: '工作台：创建任务、更新项目状态',
+    tools: ['workspace_create_task', 'workspace_update_project'],
+    instructions: '工作台用于管理个人项目和任务。\n创建任务时可指定优先级（low/medium/high）。\n更新项目时可修改状态（active/blocked/planning/done）、目标、下一步或阻塞点。',
+  },
+};
+
+const CORE_TOOL_NAMES = [
+  'exec_command', 'read_file', 'write_file', 'web_search', 'web_fetch',
+  'get_current_time', 'clipboard_read', 'knowledge_search',
+];
+
+function buildSkillEntryTools(): Record<string, ToolSpec> {
+  const entries: Record<string, ToolSpec> = {};
+  for (const [key, skill] of Object.entries(SKILLS)) {
+    entries[`open_${key}`] = {
+      schema: functionTool(
+        `open_${key}`,
+        `打开「${skill.description}」技能，获取可用工具列表和使用指南。当你需要${skill.description.split('：')[0]}相关能力时调用。`,
+        {},
+        []
+      ),
+      category: 'system',
+      riskLevel: 'read',
+      isReadOnly: true,
+      timeoutMs: 3000,
+      execute: async () => {
+        const subToolNames = skill.tools.join(', ');
+        return {
+          success: true,
+          data: `已激活「${skill.name}」技能。\n\n可用子工具: ${subToolNames}\n\n使用指南:\n${skill.instructions}`,
+        };
+      },
+    };
+  }
+  return entries;
+}
+
+const SKILL_ENTRY_TOOLS = buildSkillEntryTools();
+
+export function getInitialToolDefinitions(): ToolDefinition[] {
+  const core = CORE_TOOL_NAMES.map((name) => TOOLS[name]).filter(Boolean).map((t) => t.schema);
+  const skillEntries = Object.values(SKILL_ENTRY_TOOLS).map((t) => t.schema);
+  return [...core, ...skillEntries];
+}
+
+export function getToolDefinitionsForActiveSkills(activatedSkills: Set<string>): ToolDefinition[] {
+  const core = CORE_TOOL_NAMES.map((name) => TOOLS[name]).filter(Boolean).map((t) => t.schema);
+  const skillEntrySchemas = Object.entries(SKILL_ENTRY_TOOLS)
+    .filter(([key]) => !activatedSkills.has(key.replace('open_', '')))
+    .map(([, t]) => t.schema);
+  const activeSubTools: ToolDefinition[] = [];
+  for (const skillName of activatedSkills) {
+    const skill = SKILLS[skillName];
+    if (!skill) continue;
+    for (const toolName of skill.tools) {
+      const tool = TOOLS[toolName];
+      if (tool) activeSubTools.push(tool.schema);
+    }
+  }
+  return [...core, ...skillEntrySchemas, ...activeSubTools];
+}
+
+export function getSkillInstructionsForActive(activatedSkills: Set<string>): string {
+  const parts: string[] = [];
+  for (const skillName of activatedSkills) {
+    const skill = SKILLS[skillName];
+    if (skill) parts.push(skill.instructions);
+  }
+  return parts.join('\n\n');
+}
+
+export function getToolPromptSummary(toolDefs?: ToolDefinition[]): string {
+  const defs = toolDefs || toolDefinitions;
+  return defs
+    .map((t) => `- ${t.function.name}：${t.function.description}`)
+    .join('\n');
+}
+
 export const toolRegistry: Record<string, RegisteredTool> = Object.fromEntries(
   Object.entries(TOOLS).map(([name, tool]) => [
     name,
@@ -478,12 +597,6 @@ export function getToolMetadata(name: string) {
     isReadOnly: tool.isReadOnly,
     timeoutMs: tool.timeoutMs,
   };
-}
-
-export function getToolPromptSummary(): string {
-  return Object.values(toolRegistry)
-    .map((tool) => `- ${tool.name}：${tool.description}（分类：${tool.category}；风险：${tool.riskLevel}）`)
-    .join('\n');
 }
 
 function shouldConfirm(tool: RegisteredTool, args: ToolArgs): boolean {
@@ -517,6 +630,11 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, toolName: string
 export async function executeRegisteredTool(api: any, name: string, args: ToolArgs): Promise<ToolExecutionResult> {
   const tool = toolRegistry[name];
   if (!tool) return { success: false, error: `未知工具: ${name}` };
+  const schema = TOOLS[name]?.schema;
+  if (schema) {
+    const validationError = validateToolArgs(schema, args);
+    if (validationError) return { success: false, error: validationError };
+  }
   if (!confirmTool(tool, args)) {
     return { success: false, error: `工具 ${name} 已被用户取消或被安全策略拦截` };
   }
