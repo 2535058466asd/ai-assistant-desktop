@@ -1,6 +1,19 @@
+export type ModelContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
+export function getTextContent(content?: string | ModelContentPart[]): string {
+  if (typeof content === 'string') return content;
+  if (!content) return '';
+  return content
+    .filter((part): part is Extract<ModelContentPart, { type: 'text' }> => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n');
+}
+
 export interface ModelMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content?: string;
+  content?: string | ModelContentPart[];
   reasoning_content?: string;
   tool_call_id?: string;
   tool_calls?: ToolCall[];

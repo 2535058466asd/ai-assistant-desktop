@@ -8,23 +8,24 @@ import type {
   AgentProcessEvent,
   ToolProcessEvent,
   ToolCallSummary,
+  ImageAttachment,
 } from '../../types';
 
 import type { HistoryManager } from '../history';
 import type { ConversationRuntime } from '../conversation/conversationRuntime';
 import type { ContextCompactor } from '../context/contextCompactor';
 import type { AgentEventBridge } from '../events/agentEventBridge';
-import { toolDefinitions } from '../tools/toolDefinitions';
+import { getToolDefinitionsForActiveSkills, getSkillInstructionsForActive, SKILLS } from '../tools/toolRegistry';
 import { executeTool, type ToolExecutionResult } from '../tools/toolExecutor';
-import { getModelProvider, type ModelMessage, type StreamChunk } from '../model';
-import { getResolvedRuntimeModel } from '../model/modelRuntime';
+import { getModelProvider, type ModelContentPart, type ModelMessage, type StreamChunk, type ToolDefinition } from '../model';
+import { getTextContent } from '../model/types';
+import { getResolvedRuntimeModel, resolveModelForRequest } from '../model/modelRuntime';
 import { getErrorMessage } from '../model/modelErrorHandler';
 import { createLogger, type LogMeta } from '../../../shared/logger';
 
 const logger = createLogger('agent');
 
-// 最大工具调用轮次
-const MAX_TOOL_ROUNDS = 5;
+const MAX_TOOL_ROUNDS = Number(import.meta.env.VITE_MAX_TOOL_ROUNDS) || 5;
 
 /**
  * Agent 循环依赖接口
@@ -34,7 +35,7 @@ export interface AgentLoopDependencies {
   conversationRuntime: ConversationRuntime;
   contextCompactor: ContextCompactor;
   eventBridge: AgentEventBridge;
-  buildSystemPrompt: (userInput: string) => Promise<string>;
+  buildSystemPrompt: (userInput: string, skillInstructions?: string, toolDefinitions?: ToolDefinition[]) => Promise<string>;
 }
 
 /**
@@ -72,7 +73,11 @@ export interface AgentLoopStreamCallbacks {
  * 负责执行 Function Calling 的核心循环逻辑
  */
 export class AgentLoop {
-  constructor(private readonly deps: AgentLoopDependencies) {}
+  constructor(private deps: AgentLoopDependencies) {}
+
+  updateContextCompactor(contextCompactor: ContextCompactor) {
+    this.deps.contextCompactor = contextCompactor;
+  }
 
   /**
    * 执行 Agent 循环
@@ -94,6 +99,7 @@ export class AgentLoop {
     let round = 0;
     let accumulatedUsage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
     let usedModel = '';
+    const activatedSkills = new Set<string>();
 
     while (round < MAX_TOOL_ROUNDS) {
       round++;
@@ -125,10 +131,10 @@ export class AgentLoop {
       const { content, reasoningContent, toolCalls, error, usage, model } = await this.callModelWithToolsStream(
         userInput,
         (accumulated) => {
-          // 跨轮次累积：前面轮次的文字 + 当前轮次的流式文字
           streamCallbacks.onStreamChunk(messageId, previousContent + accumulated);
         },
-        meta
+        meta,
+        activatedSkills
       );
 
       // 累积 usage
@@ -266,6 +272,28 @@ export class AgentLoop {
       // 执行所有工具调用，收集摘要
       const roundSummaries = await this.executeToolCalls(messageId, round, toolCalls, meta);
       allToolCallSummaries.push(...roundSummaries);
+
+      // 检测技能入口工具调用，激活对应技能
+      for (const tc of toolCalls) {
+        const name = tc.function?.name;
+        if (name && name.startsWith('open_')) {
+          const skillName = name.replace('open_', '');
+          if (SKILLS[skillName] && !activatedSkills.has(skillName)) {
+            activatedSkills.add(skillName);
+            logger.info('技能已激活', { ...meta, phase: 'skill', skillName });
+          }
+        }
+      }
+    }
+
+    if (round >= MAX_TOOL_ROUNDS) {
+      logger.warn('智能体循环达到最大轮次限制', {
+        ...meta,
+        phase: 'output',
+        messageId,
+        round,
+        maxRounds: MAX_TOOL_ROUNDS,
+      });
     }
 
     return {
@@ -416,17 +444,34 @@ export class AgentLoop {
   private async callModelWithToolsStream(
     userInput: string,
     onTextDelta: (accumulated: string) => void,
-    meta: LogMeta = {}
+    meta: LogMeta = {},
+    activatedSkills: Set<string> = new Set()
   ): Promise<{ content: string; reasoningContent: string; toolCalls: any[]; error?: any; usage?: any; model?: string }> {
-    const systemPrompt = await this.deps.buildSystemPrompt(userInput);
+    const skillInstructions = getSkillInstructionsForActive(activatedSkills);
+    const currentToolDefs = getToolDefinitionsForActiveSkills(activatedSkills);
+    const systemPrompt = await this.deps.buildSystemPrompt(userInput, skillInstructions, currentToolDefs);
+    const history = this.deps.conversationRuntime.getModelHistory();
+    const hasImages = history.some((message) => message.attachments && message.attachments.length > 0);
+    const runtime = getResolvedRuntimeModel();
+    const requestModel = resolveModelForRequest(runtime, hasImages);
+    if (requestModel !== runtime.modelId) {
+      logger.info('图片任务自动路由', {
+        ...meta,
+        phase: 'model',
+        provider: runtime.provider,
+        selectedModel: runtime.modelId,
+        resolvedModel: requestModel,
+        imageCount: history.reduce((count, message) => count + (message.attachments?.length || 0), 0),
+      });
+    }
 
     const requestBody = {
-      model: this.getActiveRequestModel(),
+      model: requestModel,
       messages: [
         { role: 'system', content: systemPrompt },
-        ...this.deps.conversationRuntime.getHistoryForLLM()
+        ...await this.buildHistoryForLLM(history)
       ],
-      tools: toolDefinitions,
+      tools: currentToolDefs,
       stream: true,
       traceId: meta.traceId,
     };
@@ -456,7 +501,7 @@ export class AgentLoop {
       const response = await provider.chatWithTools(requestBody as any);
       if (response.error) return { content: '', reasoningContent: '', toolCalls: [], error: response.error };
       const msg = response.choices[0]?.message;
-      const content = msg?.content || '';
+      const content = getTextContent(msg?.content);
       const reasoningContent = msg?.reasoning_content || '';
       const toolCalls = msg?.tool_calls || [];
       if (content) onTextDelta(content);
@@ -475,7 +520,7 @@ export class AgentLoop {
 
     const msg = response.choices[0]?.message;
     return {
-      content: msg?.content || accumulated,
+      content: getTextContent(msg?.content) || accumulated,
       reasoningContent: msg?.reasoning_content || '',
       toolCalls: msg?.tool_calls || [],
       usage: response.usage,
@@ -489,6 +534,44 @@ export class AgentLoop {
    */
   private getActiveRequestModel(): string {
     return getResolvedRuntimeModel().modelId;
+  }
+
+  private async buildHistoryForLLM(history: Message[]): Promise<ModelMessage[]> {
+    return Promise.all(history.map(async (message): Promise<ModelMessage> => {
+      const base: ModelMessage = {
+        role: message.role,
+        content: message.content,
+        ...(message.reasoning_content ? { reasoning_content: message.reasoning_content } : {}),
+        ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
+        ...(message.tool_call_id ? { tool_call_id: message.tool_call_id } : {}),
+      };
+
+      if (message.role !== 'user' || !message.attachments?.length) {
+        return base;
+      }
+
+      const parts: ModelContentPart[] = [{ type: 'text', text: message.content || '请分析这些图片。' }];
+      for (const attachment of message.attachments) {
+        const dataUrl = await this.readAttachmentDataUrl(attachment);
+        if (dataUrl) {
+          parts.push({ type: 'image_url', image_url: { url: dataUrl } });
+        }
+      }
+      return { ...base, content: parts };
+    }));
+  }
+
+  private async readAttachmentDataUrl(attachment: ImageAttachment): Promise<string | null> {
+    const result = await window.electronAPI?.attachmentReadDataUrl?.(attachment.relativePath, attachment.mimeType);
+    if (!result?.success || !result.data) {
+      logger.warn('读取聊天图片附件失败，跳过该图片', {
+        attachmentId: attachment.id,
+        name: attachment.name,
+        error: result?.error,
+      });
+      return null;
+    }
+    return result.data;
   }
 
   /**

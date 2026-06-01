@@ -22,6 +22,13 @@ export interface ResolvedModelRuntime {
   config: ActiveModelConfig;
 }
 
+export function resolveModelForRequest(runtime: ResolvedModelRuntime, hasImages: boolean): string {
+  if (!hasImages) return runtime.modelId;
+  if (runtime.provider === 'mimo') return 'mimo-v2.5';
+  if (runtime.provider === 'doubao') return runtime.modelId;
+  throw new Error('当前 OpenAI-compatible 模型暂未配置图片理解能力，请切换到豆包或 MiMo。');
+}
+
 export function inferProviderFromModelId(modelId: string, currentProvider?: ModelProviderId | null): ModelProviderId | null {
   if (currentProvider === 'mimo' && modelId.startsWith('mimo-')) return 'mimo';
   if (currentProvider === 'doubao' && modelId.startsWith('doubao-')) return 'doubao';
