@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import TurndownService from 'turndown'
+import * as cheerio from 'cheerio'
 import { createLogger } from '../../shared/logger'
 
 const logger = createLogger('tool')
@@ -18,7 +19,7 @@ export function registerSearchSetConfig() {
     if (typeof nextConfig.searxngUrl === 'string' && nextConfig.searxngUrl.trim()) {
       searchConfig.searxngUrl = nextConfig.searxngUrl.trim().replace(/\/$/, '');
     }
-    logger.info('Search config updated', searchConfig);
+    logger.info('搜索配置已更新', searchConfig);
     return { success: true, data: searchConfig };
   });
 }
@@ -30,11 +31,46 @@ const turndown = new TurndownService({
   bulletListMarker: '-',
 })
 
-/**
- * HTML 转 Markdown（保留网页结构信息，AI 更容易理解）
- */
+turndown.remove(['script', 'style', 'noscript', 'svg', 'nav', 'footer', 'header', 'aside', 'form', 'iframe'])
+
+function cleanHtml(html: string): string {
+  const $ = cheerio.load(html)
+
+  $('script, style, noscript, svg, iframe, form').remove()
+  $('nav, header, footer, aside, [role="navigation"], [role="banner"], [role="contentinfo"]').remove()
+
+  const noisePattern = /ad[\s_-]?|banner|cookie|consent|popup|modal|overlay|social|share|comment|related|sidebar|widget|signup|subscribe|newsletter|promo|sponsor|tracking|analytics/i
+  $('div, section').each((_i, el) => {
+    const $el = $(el)
+    const classes = $el.attr('class') || ''
+    const id = $el.attr('id') || ''
+    if (noisePattern.test(classes) || noisePattern.test(id)) {
+      $el.remove()
+    }
+  })
+
+  let $content = $('article').first()
+  if (!$content.length) $content = $('main').first()
+  if (!$content.length) $content = $('[role="main"]').first()
+  if (!$content.length) $content = $('.post-content, .article-body, .article-content, .entry-content, .post-body, .markdown-body, .content-body, .rich-text').first()
+  if (!$content.length) $content = $('#content, #main-content, #article, #post, #main').first()
+  if (!$content.length) $content = $('body')
+
+  $content.find('*').each((_i, el) => {
+    const $el = $(el)
+    if (!$el.children().length && !$el.text().trim()) {
+      if (!/^(br|hr|img|input|video|audio|source|picture|figure|figcaption)$/i.test(el.tagName)) {
+        $el.remove()
+      }
+    }
+  })
+
+  return $.html($content)
+}
+
 function htmlToMarkdown(html: string): string {
-  return turndown.turndown(html)
+  const cleaned = cleanHtml(html)
+  return turndown.turndown(cleaned)
 }
 
 /**
@@ -68,7 +104,7 @@ function stripTag(html: string): string {
 /**
  * 解析百度搜索结果，只提取标题、摘要、链接（过滤广告和导航噪音）
  */
-function parseBaiduResults(html: string): string {
+function parseBaiduResults(html: string): { results: string[]; count: number } {
   const results: string[] = [];
 
   // 先去掉 script/style，减少干扰
@@ -81,35 +117,57 @@ function parseBaiduResults(html: string): string {
 
   while ((h3Match = h3Regex.exec(clean)) !== null && results.length < 8) {
     const title = stripTag(h3Match[1]);
-    if (!title || title.length < 2 || title.includes('百度')) continue;
+    if (!title || title.length < 4) continue;
+
+    // 跳过百度知识图谱、百科卡片、相关搜索等非结果内容
+    const lowerTitle = title.toLowerCase();
+    if (
+      title.includes('百度') ||
+      title.includes('相关搜索') ||
+      title.includes('其他人还在搜') ||
+      title.includes('相关问题') ||
+      title.includes('大家还在搜') ||
+      title.includes('为您推荐') ||
+      lowerTitle.includes('baidu')
+    ) continue;
 
     // 从 <h3> 向前找最近的 <a href="..."> 来获取链接
-    const beforeH3 = clean.substring(Math.max(0, h3Match.index - 500), h3Match.index);
-    const linkMatch = beforeH3.match(/<a[^>]*href="(https?:\/\/[^"]*|http:\/\/[^"]*)"[^>]*>\s*$/);
-    // 如果前面没找到，尝试在 h3 内部找
-    const linkInH3 = h3Match[1].match(/href="([^"]*)"/);
-    const link = linkMatch ? linkMatch[1] : (linkInH3 ? linkInH3[1] : '');
+    const beforeH3 = clean.substring(Math.max(0, h3Match.index - 800), h3Match.index);
+    // 只匹配真正的搜索结果链接（百度搜索结果链接通常是 http/https，且在 data-click 容器内）
+    const linkMatches = [...beforeH3.matchAll(/<a[^>]*href="(https?:\/\/[^"]*)"[^>]*>/g)];
+    const link = linkMatches.length > 0 ? linkMatches[linkMatches.length - 1][1] : '';
+
+    // 跳过百度百科、知道、贴吧等站内知识卡片（不是搜索结果）
+    if (link.includes('baike.baidu.com') || link.includes('zhidao.baidu.com') || link.includes('tieba.baidu.com')) {
+      // 额外检查：如果标题很短且像词条名，跳过
+      if (title.length < 15) continue;
+    }
+
+    // 跳过广告
+    const blockStart = Math.max(0, h3Match.index - 800);
+    const blockContext = clean.substring(blockStart, h3Match.index + h3Match[0].length + 200);
+    if (blockContext.includes('data-tuiguang') || blockContext.includes('广告')) continue;
 
     // 从 <h3> 向后找摘要（下一个 <h3> 之前的文本内容）
     const afterH3 = clean.substring(h3Match.index + h3Match[0].length);
     const nextH3 = afterH3.search(/<h3[^>]*>/i);
-    const snippet = nextH3 > 0 ? afterH3.substring(0, nextH3) : afterH3.substring(0, 500);
+    const snippet = nextH3 > 0 ? afterH3.substring(0, nextH3) : afterH3.substring(0, 800);
     const abstract = stripTag(snippet).substring(0, 200);
 
-    // 过滤广告和导航
-    if (title.includes('广告') || abstract.includes('广告')) continue;
-    if (abstract.length < 10) continue;
+    // 质量过滤：标题和摘要都要有足够的实际内容
+    if (abstract.length < 15) continue;
+    if (title.length < 4) continue;
 
     results.push(`[${results.length + 1}] ${title}\n    ${abstract}\n    ${link}`);
   }
 
-  return results.join('\n\n');
+  return { results, count: results.length };
 }
 
 /**
  * 解析必应搜索结果，只提取标题、摘要、链接
  */
-function parseBingResults(html: string): string {
+function parseBingResults(html: string): { results: string[]; count: number } {
   const results: string[] = [];
 
   // 必应搜索结果在 <li class="b_algo"> 中
@@ -137,13 +195,19 @@ function parseBingResults(html: string): string {
     results.push(`[${results.length + 1}] ${title}\n    ${abstract}\n    ${link}`);
   }
 
-  return results.join('\n\n');
+  return { results, count: results.length };
 }
 
 // 各搜索引擎实现
+function formatSearchResult(index: number, title: string, content: string, url: string, engines?: string[]): string {
+  const source = engines?.length ? `\n    来源: ${engines.join(', ')}` : '';
+  return `[${index + 1}] ${title}\n    ${content}\n    ${url}${source}`;
+}
+
 async function trySearXNG(query: string): Promise<{ success: boolean; data?: string } | null> {
+  const startedAt = Date.now();
   try {
-    logger.debug('web_search trying SearXNG', { query, url: searchConfig.searxngUrl });
+    logger.debug('web_search 尝试 SearXNG', { query, url: searchConfig.searxngUrl });
     const response = await fetch(`${searchConfig.searxngUrl}/search?q=${encodeURIComponent(query)}&format=json`, {
       signal: AbortSignal.timeout(8000),
       headers: {
@@ -154,23 +218,38 @@ async function trySearXNG(query: string): Promise<{ success: boolean; data?: str
     if (response.ok) {
       const data: any = await response.json();
       const results = (data.results || []).slice(0, 8)
-        .map((r: any, i: number) => `[${i + 1}] ${r.title}\n    ${r.content || ''}\n    ${r.url}`)
+        .filter((r: any) => r?.title && r?.url)
+        .map((r: any, i: number) => formatSearchResult(i, r.title, r.content || '', r.url, r.engines))
         .join('\n\n');
       if (results) {
-        logger.info('web_search SearXNG succeeded', { resultCount: data.results?.length || 0 });
+        logger.info('web_search SearXNG 成功', {
+          engine: 'searxng',
+          resultCount: data.results?.length || 0,
+          durationMs: Date.now() - startedAt,
+        });
         return { success: true, data: results };
       }
     }
+    logger.warn('web_search SearXNG 无有效结果', {
+      engine: 'searxng',
+      fallbackReason: `HTTP ${response.status}`,
+      durationMs: Date.now() - startedAt,
+    });
     return null;
   } catch (e: any) {
-    logger.debug('web_search SearXNG failed', { error: e.message });
+    logger.warn('web_search SearXNG 失败，准备降级', {
+      engine: 'searxng',
+      fallbackReason: e.message,
+      durationMs: Date.now() - startedAt,
+    });
     return null;
   }
 }
 
 async function tryBaidu(query: string): Promise<{ success: boolean; data?: string } | null> {
+  const startedAt = Date.now();
   try {
-    logger.debug('web_search trying Baidu', { query });
+    logger.debug('web_search 尝试百度 HTML', { query });
     const bdResponse = await fetch(`https://www.baidu.com/s?wd=${encodeURIComponent(query)}&rn=10`, {
       signal: AbortSignal.timeout(10000),
       headers: {
@@ -181,22 +260,44 @@ async function tryBaidu(query: string): Promise<{ success: boolean; data?: strin
     });
     if (bdResponse.ok) {
       const html = await bdResponse.text();
-      const results = parseBaiduResults(html);
-      if (results.length > 50) {
-        logger.info('web_search Baidu succeeded');
-        return { success: true, data: results };
+      if (/百度安全验证|请输入验证码|网络不给力，请稍后重试|访问异常/i.test(html)) {
+        logger.warn('web_search 百度返回验证页面，判定失败', {
+          engine: 'baidu-html',
+          fallbackReason: 'verification_page',
+          durationMs: Date.now() - startedAt,
+        });
+        return null;
+      }
+      const { results, count } = parseBaiduResults(html);
+      if (count > 0 && results.join('\n\n').length > 50) {
+        logger.info('web_search 百度 HTML 成功', {
+          engine: 'baidu-html',
+          resultCount: count,
+          durationMs: Date.now() - startedAt,
+        });
+        return { success: true, data: results.join('\n\n') };
       }
     }
+    logger.warn('web_search 百度 HTML 无有效结果', {
+      engine: 'baidu-html',
+      fallbackReason: `HTTP ${bdResponse.status}`,
+      durationMs: Date.now() - startedAt,
+    });
     return null;
   } catch (e: any) {
-    logger.debug('web_search Baidu failed', { error: e.message });
+    logger.warn('web_search 百度 HTML 失败', {
+      engine: 'baidu-html',
+      fallbackReason: e.message,
+      durationMs: Date.now() - startedAt,
+    });
     return null;
   }
 }
 
 async function tryBing(query: string): Promise<{ success: boolean; data?: string } | null> {
+  const startedAt = Date.now();
   try {
-    logger.debug('web_search trying Bing CN', { query });
+    logger.debug('web_search 尝试必应 HTML', { query });
     const bingResponse = await fetch(`https://cn.bing.com/search?q=${encodeURIComponent(query)}&count=10`, {
       signal: AbortSignal.timeout(10000),
       headers: {
@@ -207,15 +308,28 @@ async function tryBing(query: string): Promise<{ success: boolean; data?: string
     });
     if (bingResponse.ok) {
       const html = await bingResponse.text();
-      const results = parseBingResults(html);
-      if (results.length > 50) {
-        logger.info('web_search Bing CN succeeded');
-        return { success: true, data: results };
+      const { results, count } = parseBingResults(html);
+      if (count > 0 && results.join('\n\n').length > 50) {
+        logger.info('web_search 必应 HTML 成功', {
+          engine: 'bing-html',
+          resultCount: count,
+          durationMs: Date.now() - startedAt,
+        });
+        return { success: true, data: results.join('\n\n') };
       }
     }
+    logger.warn('web_search 必应 HTML 无有效结果', {
+      engine: 'bing-html',
+      fallbackReason: `HTTP ${bingResponse.status}`,
+      durationMs: Date.now() - startedAt,
+    });
     return null;
   } catch (e: any) {
-    logger.debug('web_search Bing CN failed', { error: e.message });
+    logger.warn('web_search 必应 HTML 失败', {
+      engine: 'bing-html',
+      fallbackReason: e.message,
+      durationMs: Date.now() - startedAt,
+    });
     return null;
   }
 }
@@ -225,7 +339,7 @@ export function registerWebSearch() {
   ipcMain.handle('web-search', async (_event, query: string) => {
     try {
       const engine = searchConfig.preferredEngine
-      logger.info('web_search starting', { query, preferredEngine: engine })
+      logger.info('web_search 开始', { query, preferredEngine: engine })
 
       // 指定引擎时只尝试该引擎
       if (engine === 'searxng') {
@@ -244,17 +358,17 @@ export function registerWebSearch() {
         return { success: false, error: '必应搜索失败' }
       }
 
-      // auto: 按优先级依次尝试
+      // auto: 优先使用结构化 JSON；HTML 抓取仅作为兜底。
       const searxng = await trySearXNG(query)
       if (searxng) return searxng
-
-      const baidu = await tryBaidu(query)
-      if (baidu) return baidu
 
       const bing = await tryBing(query)
       if (bing) return bing
 
-      logger.warn('web_search all providers failed', { query });
+      const baidu = await tryBaidu(query)
+      if (baidu) return baidu
+
+      logger.warn('web_search 所有搜索方式均失败', { query });
       return { success: false, error: '所有搜索方式均失败，请检查网络连接' };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -281,8 +395,10 @@ export function registerWebFetch() {
           hostname.startsWith('192.168.') ||
           hostname.startsWith('10.') ||
           hostname.startsWith('172.') ||
+          hostname.startsWith('169.254.') ||
           hostname.endsWith('.local') ||
-          hostname === '::1'
+          hostname === '::1' ||
+          hostname === '[::1]'
         ) {
           return { success: false, error: '不允许访问内网地址' };
         }

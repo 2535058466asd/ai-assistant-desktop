@@ -1,44 +1,28 @@
 import { ipcMain, app } from 'electron'
 import fs from 'fs'
+import fsp from 'fs/promises'
 import path from 'path'
 
-/**
- * 解析路径：将各种格式的路径统一转换为实际路径
- * 
- * 支持的输入格式（不管LLM生成什么格式，都能正确处理）：
- * ~/Desktop/xxx → 用户桌面
- * ~/Documents/xxx → 用户文档
- * ~/Downloads/xxx → 用户下载
- * ~/xxx → 用户主目录
- * %USERPROFILE%/Desktop/xxx → 展开 Windows 环境变量
- * 桌面/xxx、文档/xxx、下载/xxx → 中文目录名
- * C:/xxx、D:/xxx → 绝对路径，原样返回
- */
 export function resolvePath(filePath: string): string {
   const home = app.getPath('home');
   const desktop = app.getPath('desktop');
   const documents = app.getPath('documents');
   const downloads = app.getPath('downloads');
 
-  // 1. 展开 Windows 环境变量（如 %USERPROFILE%、%HOMEPATH%）
   if (process.platform === 'win32' && filePath.includes('%')) {
     filePath = filePath.replace(/%([^%]+)%/g, (_, varName) => {
       return process.env[varName] || `%${varName}%`;
     });
   }
 
-  // 2. 标准化反斜杠为正斜杠（方便后续匹配）
   const normalized = filePath.replace(/\\/g, '/');
 
-  // 3. 已经是绝对路径（C:/、D:/），检查是否包含需要替换的目录
   if (/^[A-Za-z]:\//.test(normalized) || normalized.startsWith('/')) {
-    // 自动修正：Public/Desktop → 用户桌面（公共桌面没有写入权限）
     const publicDesktop = app.getPath('desktop').replace(/\/[^/]+$/, '/Public/Desktop');
     if (normalized.toLowerCase().startsWith(publicDesktop.toLowerCase().replace(/\\/g, '/'))) {
       const rest = normalized.slice(publicDesktop.length);
       return path.join(desktop, rest);
     }
-    // 自动修正：Public/Documents → 用户文档
     const publicDocuments = app.getPath('documents').replace(/\/[^/]+$/, '/Public/Documents');
     if (normalized.toLowerCase().startsWith(publicDocuments.toLowerCase().replace(/\\/g, '/'))) {
       const rest = normalized.slice(publicDocuments.length);
@@ -47,14 +31,12 @@ export function resolvePath(filePath: string): string {
     return filePath;
   }
 
-  // 4. 特殊目录映射（支持英文和中文）
   const dirMap: Record<string, string> = {
     'desktop': desktop, '桌面': desktop,
     'documents': documents, '文档': documents,
     'downloads': downloads, '下载': downloads,
   };
 
-  // 匹配 ~/Desktop、/Desktop、桌面 等各种写法
   for (const [key, resolved] of Object.entries(dirMap)) {
     const pattern = new RegExp(`^~?/?${key}/?`, 'i');
     if (pattern.test(normalized)) {
@@ -63,7 +45,6 @@ export function resolvePath(filePath: string): string {
     }
   }
 
-  // 5. ~/ → 用户主目录
   if (normalized.startsWith('~/')) {
     const rest = normalized.replace(/^~/, '');
     return path.join(home, rest);
@@ -72,12 +53,11 @@ export function resolvePath(filePath: string): string {
   return filePath;
 }
 
-// read_file — 读取文件
 export function registerReadFile() {
   ipcMain.handle('read-file', async (_event, filePath: string) => {
     try {
       filePath = resolvePath(filePath);
-      const content = fs.readFileSync(filePath, 'utf-8');
+      const content = await fsp.readFile(filePath, 'utf-8');
       return { success: true, data: content };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -85,14 +65,13 @@ export function registerReadFile() {
   });
 }
 
-// write_file — 写入文件
 export function registerWriteFile() {
   ipcMain.handle('write-file', async (_event, filePath: string, content: string) => {
     try {
       filePath = resolvePath(filePath);
       const dir = path.dirname(filePath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(filePath, content, 'utf-8');
+      await fsp.mkdir(dir, { recursive: true });
+      await fsp.writeFile(filePath, content, 'utf-8');
       return { success: true, data: `文件已保存: ${filePath}` };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -100,12 +79,11 @@ export function registerWriteFile() {
   });
 }
 
-// create_dir — 创建目录
 export function registerCreateDir() {
   ipcMain.handle('create-dir', async (_event, dirPath: string) => {
     try {
       dirPath = resolvePath(dirPath);
-      fs.mkdirSync(dirPath, { recursive: true });
+      await fsp.mkdir(dirPath, { recursive: true });
       return { success: true, data: `目录已创建: ${dirPath}` };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -113,18 +91,17 @@ export function registerCreateDir() {
   });
 }
 
-// copy_file — 复制文件或目录
 export function registerCopyFile() {
   ipcMain.handle('copy-file', async (_event, sourcePath: string, targetPath: string) => {
     try {
       sourcePath = resolvePath(sourcePath);
       targetPath = resolvePath(targetPath);
-      if (!fs.existsSync(sourcePath)) {
-        return { success: false, error: `源路径不存在: ${sourcePath}` };
-      }
+      await fsp.access(sourcePath).catch(() => {
+        throw new Error(`源路径不存在: ${sourcePath}`);
+      });
       const targetDir = path.dirname(targetPath);
-      if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-      fs.cpSync(sourcePath, targetPath, { recursive: true, force: false, errorOnExist: true });
+      await fsp.mkdir(targetDir, { recursive: true });
+      await fsp.cp(sourcePath, targetPath, { recursive: true, force: false, errorOnExist: true });
       return { success: true, data: `已复制: ${sourcePath} -> ${targetPath}` };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -132,21 +109,21 @@ export function registerCopyFile() {
   });
 }
 
-// move_file — 移动或重命名文件/目录
 export function registerMoveFile() {
   ipcMain.handle('move-file', async (_event, sourcePath: string, targetPath: string) => {
     try {
       sourcePath = resolvePath(sourcePath);
       targetPath = resolvePath(targetPath);
-      if (!fs.existsSync(sourcePath)) {
-        return { success: false, error: `源路径不存在: ${sourcePath}` };
-      }
+      await fsp.access(sourcePath).catch(() => {
+        throw new Error(`源路径不存在: ${sourcePath}`);
+      });
       const targetDir = path.dirname(targetPath);
-      if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-      if (fs.existsSync(targetPath)) {
+      await fsp.mkdir(targetDir, { recursive: true });
+      try {
+        await fsp.access(targetPath);
         return { success: false, error: `目标路径已存在: ${targetPath}` };
-      }
-      fs.renameSync(sourcePath, targetPath);
+      } catch { /* 目标不存在，继续 */ }
+      await fsp.rename(sourcePath, targetPath);
       return { success: true, data: `已移动: ${sourcePath} -> ${targetPath}` };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -154,19 +131,18 @@ export function registerMoveFile() {
   });
 }
 
-// delete_file — 删除文件或目录
 export function registerDeleteFile() {
   ipcMain.handle('delete-file', async (_event, filePath: string) => {
     try {
       filePath = resolvePath(filePath);
-      if (!fs.existsSync(filePath)) {
+      const stat = await fsp.stat(filePath).catch(() => null);
+      if (!stat) {
         return { success: false, error: `路径不存在: ${filePath}` };
       }
-      const stat = fs.statSync(filePath);
       if (stat.isDirectory()) {
-        fs.rmSync(filePath, { recursive: true, force: true });
+        await fsp.rm(filePath, { recursive: true, force: true });
       } else {
-        fs.unlinkSync(filePath);
+        await fsp.unlink(filePath);
       }
       return { success: true, data: `已删除: ${filePath}` };
     } catch (error: any) {
@@ -175,27 +151,26 @@ export function registerDeleteFile() {
   });
 }
 
-// list_dir — 列出目录内容
 export function registerListDir() {
   ipcMain.handle('list-dir', async (_event, dirPath: string) => {
     try {
       dirPath = resolvePath(dirPath);
-      if (!fs.existsSync(dirPath)) {
+      const stat = await fsp.stat(dirPath).catch(() => null);
+      if (!stat) {
         return { success: false, error: `目录不存在: ${dirPath}` };
       }
-      const stat = fs.statSync(dirPath);
       if (!stat.isDirectory()) {
         return { success: false, error: `不是目录: ${dirPath}` };
       }
-      const items = fs.readdirSync(dirPath);
-      const result = items.map(item => {
+      const items = await fsp.readdir(dirPath);
+      const result = await Promise.all(items.map(async (item) => {
         try {
-          const itemStat = fs.statSync(path.join(dirPath, item));
+          const itemStat = await fsp.stat(path.join(dirPath, item));
           return itemStat.isDirectory() ? `${item}/` : item;
         } catch {
           return item;
         }
-      });
+      }));
       return { success: true, data: result.join('\n') || '(空目录)' };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -203,38 +178,48 @@ export function registerListDir() {
   });
 }
 
-// search_files — 按文件名搜索文件
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function formatDate(ts: number): string {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+
 export function registerSearchFiles() {
   ipcMain.handle('search-files', async (_event, dirPath: string, pattern: string) => {
     try {
       dirPath = resolvePath(dirPath);
-      if (!fs.existsSync(dirPath)) {
+      const stat = await fsp.stat(dirPath).catch(() => null);
+      if (!stat) {
         return { success: false, error: `目录不存在: ${dirPath}` };
       }
       const regexStr = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
       const regex = new RegExp(regexStr, 'i');
       const results: string[] = [];
 
-      function walkDir(dir: string, depth: number = 0) {
+      async function walkDir(dir: string, depth: number = 0) {
         if (depth > 10) return;
         try {
-          const items = fs.readdirSync(dir);
+          const items = await fsp.readdir(dir);
           for (const item of items) {
             if (item.startsWith('.') || item === 'node_modules' || item === '.git') continue;
             const fullPath = path.join(dir, item);
             try {
-              const stat = fs.statSync(fullPath);
-              if (stat.isDirectory()) {
-                walkDir(fullPath, depth + 1);
+              const itemStat = await fsp.stat(fullPath);
+              if (itemStat.isDirectory()) {
+                await walkDir(fullPath, depth + 1);
               } else if (regex.test(item)) {
-                results.push(fullPath);
+                results.push(`${fullPath} (${formatSize(itemStat.size)}, ${formatDate(itemStat.mtimeMs)})`);
               }
-            } catch { /* 跳过无权限的文件 */ }
+            } catch { /* skip */ }
           }
-        } catch { /* 跳过无权限的目录 */ }
+        } catch { /* skip */ }
       }
 
-      walkDir(dirPath);
+      await walkDir(dirPath);
       if (results.length > 50) {
         return { success: true, data: results.slice(0, 50).join('\n') + `\n\n...(共找到 ${results.length} 个文件，已显示前50个)` };
       }
@@ -245,47 +230,72 @@ export function registerSearchFiles() {
   });
 }
 
-// grep_content — 按内容搜索文件
 export function registerGrepContent() {
-  ipcMain.handle('grep-content', async (_event, dirPath: string, keyword: string, filePattern?: string) => {
+  ipcMain.handle('grep-content', async (_event, dirPath: string, keyword: string, filePattern?: string, options?: { regex?: boolean; context_lines?: number }) => {
     try {
       dirPath = resolvePath(dirPath);
-      if (!fs.existsSync(dirPath)) {
+      const stat = await fsp.stat(dirPath).catch(() => null);
+      if (!stat) {
         return { success: false, error: `目录不存在: ${dirPath}` };
       }
       const results: string[] = [];
       const fileRegex = filePattern ? new RegExp(filePattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.'), 'i') : null;
+      const useRegex = options?.regex ?? false;
+      const contextLines = options?.context_lines ?? 0;
+      let matchFn: (line: string) => boolean;
+      try {
+        if (useRegex) {
+          const re = new RegExp(keyword, 'i');
+          matchFn = (line: string) => re.test(line);
+        } else {
+          const lower = keyword.toLowerCase();
+          matchFn = (line: string) => line.toLowerCase().includes(lower);
+        }
+      } catch (e: any) {
+        return { success: false, error: `正则表达式无效: ${e.message}` };
+      }
 
-      function walkDir(dir: string, depth: number = 0) {
+      async function walkDir(dir: string, depth: number = 0) {
         if (depth > 10) return;
         try {
-          const items = fs.readdirSync(dir);
+          const items = await fsp.readdir(dir);
           for (const item of items) {
             if (item.startsWith('.') || item === 'node_modules' || item === '.git') continue;
             const fullPath = path.join(dir, item);
             try {
-              const stat = fs.statSync(fullPath);
-              if (stat.isDirectory()) {
-                walkDir(fullPath, depth + 1);
-              } else if (stat.size < 1024 * 1024) {
+              const itemStat = await fsp.stat(fullPath);
+              if (itemStat.isDirectory()) {
+                await walkDir(fullPath, depth + 1);
+              } else if (itemStat.size < 1024 * 1024) {
                 if (fileRegex && !fileRegex.test(item)) continue;
                 try {
-                  const content = fs.readFileSync(fullPath, 'utf-8');
+                  const content = await fsp.readFile(fullPath, 'utf-8');
                   const lines = content.split('\n');
                   for (let i = 0; i < lines.length; i++) {
-                    if (lines[i].includes(keyword)) {
-                      results.push(`${fullPath}:${i + 1}: ${lines[i].trim()}`);
+                    if (matchFn(lines[i])) {
+                      if (contextLines > 0) {
+                        const start = Math.max(0, i - contextLines);
+                        const end = Math.min(lines.length - 1, i + contextLines);
+                        const block: string[] = [];
+                        for (let j = start; j <= end; j++) {
+                          const prefix = j === i ? '>' : ' ';
+                          block.push(`${prefix} ${j + 1}: ${lines[j]}`);
+                        }
+                        results.push(`--- ${fullPath}:${i + 1} ---\n${block.join('\n')}`);
+                      } else {
+                        results.push(`${fullPath}:${i + 1}: ${lines[i].trim()}`);
+                      }
                       if (results.length >= 30) return;
                     }
                   }
-                } catch { /* 跳过二进制文件 */ }
+                } catch { /* skip binary */ }
               }
-            } catch { /* 跳过无权限的文件 */ }
+            } catch { /* skip */ }
           }
-        } catch { /* 跳过无权限的目录 */ }
+        } catch { /* skip */ }
       }
 
-      walkDir(dirPath);
+      await walkDir(dirPath);
       if (results.length >= 30) {
         return { success: true, data: results.join('\n') + `\n\n...(结果过多，已显示前30条)` };
       }

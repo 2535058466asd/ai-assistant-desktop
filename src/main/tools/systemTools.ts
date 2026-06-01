@@ -7,12 +7,13 @@ export function registerSystemTools() {
   ipcMain.handle('getCurrentTime', async () => {
     try {
       const now = new Date();
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const result = {
         timestamp: now.getTime(),
         iso: now.toISOString(),
-        local: now.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
-        date: now.toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' }),
-        time: now.toLocaleTimeString('zh-CN', { timeZone: 'Asia/Shanghai' }),
+        local: now.toLocaleString('zh-CN', { timeZone: tz }),
+        date: now.toLocaleDateString('zh-CN', { timeZone: tz }),
+        time: now.toLocaleTimeString('zh-CN', { timeZone: tz }),
         dayOfWeek: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][now.getDay()],
       };
       return { success: true, data: JSON.stringify(result) };

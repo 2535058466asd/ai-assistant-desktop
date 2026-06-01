@@ -1,10 +1,3 @@
-/**
- * Nova AI - RAG 知识库工具
- *
- * 注册知识库相关的 IPC Handler
- * 遵循项目现有工具的注册模式
- */
-
 import { ipcMain } from 'electron';
 import {
   addDocuments,
@@ -15,70 +8,99 @@ import {
 } from '../services/ragService';
 import { parseFile, chunkText } from '../services/documentParser';
 import { recognizeImage } from '../services/imageRecognizer';
+import { createLogger } from '../../shared/logger';
 
-/**
- * 注册知识库搜索工具
- * AI 通过此工具从知识库中检索相关内容
- */
+const logger = createLogger('tool');
+
 export function registerKnowledgeSearch() {
   ipcMain.handle('knowledge-search', async (_event, query: string, nResults: number = 3) => {
-    return await searchKnowledge(query, nResults);
+    try {
+      return await searchKnowledge(query, nResults);
+    } catch (error: any) {
+      logger.error('知识库搜索失败', { error: error.message });
+      return { success: false, error: error.message };
+    }
   });
 }
 
-/**
- * 注册知识库添加工具
- * AI 通过此工具向知识库添加新知识
- */
 export function registerKnowledgeAdd() {
   ipcMain.handle('knowledge-add', async (_event, documents: string[], metadatas?: Record<string, string>[]) => {
-    return await addDocuments(documents, metadatas);
+    try {
+      const MAX_CHUNK = 800;
+      const needsChunking = documents.some(d => d.length > MAX_CHUNK);
+      if (!needsChunking) {
+        return await addDocuments(documents, metadatas);
+      }
+
+      const chunkedDocs: string[] = [];
+      const chunkedMetas: Record<string, string>[] = [];
+      documents.forEach((doc, i) => {
+        if (doc.length > MAX_CHUNK) {
+          const chunks = chunkText(doc, MAX_CHUNK, 150);
+          chunks.forEach((chunk, j) => {
+            chunkedDocs.push(chunk);
+            chunkedMetas.push(metadatas?.[i] ? { ...metadatas[i], chunkId: `${metadatas[i].chunkId || i}#${j + 1}` } : { source: 'ai-add', chunkId: `${i}#${j + 1}` });
+          });
+        } else {
+          chunkedDocs.push(doc);
+          if (metadatas?.[i]) chunkedMetas.push(metadatas[i]);
+        }
+      });
+
+      return await addDocuments(chunkedDocs, chunkedMetas.length > 0 ? chunkedMetas : undefined);
+    } catch (error: any) {
+      logger.error('知识库添加失败', { error: error.message });
+      return { success: false, error: error.message };
+    }
   });
 }
 
-/**
- * 注册知识库统计工具
- * 查看知识库中有多少条文档
- */
 export function registerKnowledgeStats() {
   ipcMain.handle('knowledge-stats', async () => {
-    return await getKnowledgeStats();
+    try {
+      return await getKnowledgeStats();
+    } catch (error: any) {
+      logger.error('知识库统计失败', { error: error.message });
+      return { success: false, error: error.message };
+    }
   });
 }
 
 export function registerKnowledgeSources() {
   ipcMain.handle('knowledge-sources', async () => {
-    return await listKnowledgeSources();
+    try {
+      return await listKnowledgeSources();
+    } catch (error: any) {
+      logger.error('知识库来源列表失败', { error: error.message });
+      return { success: false, error: error.message };
+    }
   });
 }
 
 export function registerKnowledgeDeleteBySource() {
   ipcMain.handle('knowledge-delete-by-source', async (_event, source: string) => {
-    return await deleteDocumentsBySource(source);
+    try {
+      return await deleteDocumentsBySource(source);
+    } catch (error: any) {
+      logger.error('知识库删除失败', { source, error: error.message });
+      return { success: false, error: error.message };
+    }
   });
 }
 
-/**
- * 注册文件导入知识库工具
- * 支持 PDF/Word/Excel/TXT/MD 文件
- * 自动解析 → 切分 → 存入向量数据库
- */
 export function registerKnowledgeImportFile() {
   ipcMain.handle('knowledge-import-file', async (_event, filePath: string, category?: string) => {
     try {
-      // 1. 解析文件
       const parseResult = await parseFile(filePath);
       if (!parseResult.success || !parseResult.text) {
         return { success: false, error: parseResult.error || '文件解析失败' };
       }
 
-      // 2. 切分文本
-      const chunks = chunkText(parseResult.text, 500, 50);
+      const chunks = chunkText(parseResult.text);
       if (chunks.length === 0) {
         return { success: false, error: '文件内容为空' };
       }
 
-      // 3. 构建元数据
       const fileName = filePath.split(/[/\\]/).pop() || 'unknown';
       const importedAt = new Date().toISOString();
       const metadatas = chunks.map((_, index) => ({
@@ -88,14 +110,13 @@ export function registerKnowledgeImportFile() {
         created_at: importedAt,
       }));
 
-      // 4. 存入知识库
       const result = await addDocuments(chunks, metadatas);
 
       return {
         success: true,
+        data: `文件 "${fileName}" 已导入知识库，切分为 ${chunks.length} 个片段`,
         count: result.count,
         chunks: chunks.length,
-        info: `文件 "${fileName}" 已导入知识库，切分为 ${chunks.length} 个片段`,
       };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -103,24 +124,17 @@ export function registerKnowledgeImportFile() {
   });
 }
 
-/**
- * 注册图片识别并导入知识库工具
- * 调用豆包多模态API识别图片 → 提取内容 → 存入知识库
- */
 export function registerKnowledgeImportImage() {
   ipcMain.handle('knowledge-import-image', async (_event, imagePath: string, category?: string) => {
     try {
-      // 1. 调用豆包视觉模型识别图片
       const recognizeResult = await recognizeImage(imagePath);
       if (!recognizeResult.success || !recognizeResult.text) {
         return { success: false, error: recognizeResult.error || '图片识别失败' };
       }
 
-      // 2. 切分识别结果
-      const chunks = chunkText(recognizeResult.text, 500, 50);
+      const chunks = chunkText(recognizeResult.text);
       const fileName = imagePath.split(/[/\\]/).pop() || 'unknown';
 
-      // 3. 存入知识库
       const importedAt = new Date().toISOString();
       const metadatas = chunks.map((_, index) => ({
         source: fileName,
@@ -134,8 +148,8 @@ export function registerKnowledgeImportImage() {
 
       return {
         success: true,
+        data: `图片 "${fileName}" 已识别并导入知识库`,
         count: result.count,
-        info: `图片 "${fileName}" 已识别并导入知识库`,
       };
     } catch (error: any) {
       return { success: false, error: error.message };

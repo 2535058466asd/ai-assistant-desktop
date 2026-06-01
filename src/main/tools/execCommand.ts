@@ -36,9 +36,14 @@ export function registerExecCommand() {
             data: stderr || stdout || ''
           });
         } else {
+          let output = stdout.trim() || '(命令执行成功，无输出)';
+          if (output.length > 2000) {
+            const lineCount = output.split('\n').length;
+            output = output.slice(0, 2000) + `\n\n...(输出过长，已截断。共 ${lineCount} 行)`;
+          }
           resolve({
             success: true,
-            data: stdout.trim() || '(命令执行成功，无输出)',
+            data: output,
             stderr: stderr.trim() || undefined
           });
         }

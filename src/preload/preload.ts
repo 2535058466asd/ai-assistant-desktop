@@ -55,8 +55,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('search-files', dirPath, pattern);
   },
   // 按内容搜索文件
-  grepContent: async (dirPath: string, keyword: string, filePattern?: string) => {
-    return ipcRenderer.invoke('grep-content', dirPath, keyword, filePattern);
+  grepContent: async (dirPath: string, keyword: string, filePattern?: string, options?: { regex?: boolean; context_lines?: number }) => {
+    return ipcRenderer.invoke('grep-content', dirPath, keyword, filePattern, options);
   },
   // 读取剪贴板
   clipboardRead: async () => {
@@ -123,8 +123,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('memory-get-all-preferences');
   },
   // 记忆服务 - 添加记忆
-  memoryAddMemory: async (content: string, category: string = 'fact', importance: number = 5) => {
-    return ipcRenderer.invoke('memory-add-memory', content, category, importance);
+  memoryAddMemory: async (content: string, category: string = 'fact', importance: number = 5, options?: any) => {
+    return ipcRenderer.invoke('memory-add-memory', content, category, importance, options);
   },
   // 记忆服务 - 获取所有记忆
   memoryGetAllMemories: async () => {
@@ -142,6 +142,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   memoryDeleteMemory: async (id: string) => {
     return ipcRenderer.invoke('memory-delete-memory', id);
   },
+  // 记忆服务 - 归档或恢复记忆
+  memorySetStatus: async (id: string, status: 'active' | 'archived') => {
+    return ipcRenderer.invoke('memory-set-status', id, status);
+  },
   // 记忆服务 - 清空所有记忆
   memoryClearAllMemories: async () => {
     return ipcRenderer.invoke('memory-clear-all-memories');
@@ -155,6 +159,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ttsCacheSave: async (text: string, voice: string, audioBase64: string) => {
     return ipcRenderer.invoke('tts-cache-save', text, voice, audioBase64);
   },
+  // ========== 聊天图片附件 ==========
+  attachmentSaveImage: async (input: { chatId: string; name: string; mimeType: string; dataUrl: string }) => {
+    return ipcRenderer.invoke('attachment-save-image', input);
+  },
+  attachmentReadDataUrl: async (relativePath: string, mimeType: string) => {
+    return ipcRenderer.invoke('attachment-read-data-url', relativePath, mimeType);
+  },
+  attachmentDeleteByChat: async (chatId: string) => {
+    return ipcRenderer.invoke('attachment-delete-by-chat', chatId);
+  },
+  // ========== SQLite 聊天存档 ==========
+  conversationList: async () => ipcRenderer.invoke('conversation-list'),
+  conversationGetMessages: async (chatId: string) => ipcRenderer.invoke('conversation-get-messages', chatId),
+  conversationSave: async (conversation: any, messages: any[]) => ipcRenderer.invoke('conversation-save', conversation, messages),
+  conversationDelete: async (chatId: string) => ipcRenderer.invoke('conversation-delete', chatId),
+  conversationRename: async (chatId: string, title: string) => ipcRenderer.invoke('conversation-rename', chatId, title),
+  conversationSetPinned: async (chatId: string, isPinned: boolean) => ipcRenderer.invoke('conversation-set-pinned', chatId, isPinned),
+  conversationImportLegacy: async (entries: any[]) => ipcRenderer.invoke('conversation-import-legacy', entries),
 
   // ========== TTS / ASR 白名单 IPC ==========
   modelFetch: async (request: { endpoint: string; headers?: Record<string, string>; body?: string }) =>
@@ -233,7 +255,7 @@ declare global {
       searchSetConfig: (config: { preferredEngine?: string; searxngUrl?: string }) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       listDir: (dirPath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       searchFiles: (dirPath: string, pattern: string) => Promise<{ success: boolean; data?: string; error?: string }>;
-      grepContent: (dirPath: string, keyword: string, filePattern?: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      grepContent: (dirPath: string, keyword: string, filePattern?: string, options?: { regex?: boolean; context_lines?: number }) => Promise<{ success: boolean; data?: string; error?: string }>;
       clipboardRead: () => Promise<{ success: boolean; data?: string; error?: string }>;
       clipboardWrite: (text: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       openApp: (target: string) => Promise<{ success: boolean; data?: string; error?: string }>;
@@ -252,15 +274,36 @@ declare global {
       memorySetPreference: (key: string, value: any) => Promise<void>;
       memoryGetPreference: (key: string) => Promise<any>;
       memoryGetAllPreferences: () => Promise<any>;
-      memoryAddMemory: (content: string, category?: string, importance?: number) => Promise<void>;
+      memoryAddMemory: (content: string, category?: string, importance?: number, options?: {
+        sourceConversation?: string;
+        sourceMessage?: string;
+        sourceKind?: 'explicit' | 'inferred' | 'manual';
+        memoryKey?: string;
+        confidence?: number;
+        validFrom?: number;
+        validUntil?: number;
+      }) => Promise<any>;
       memoryGetAllMemories: () => Promise<any[]>;
       memoryGetPrompt: (userInput?: string) => Promise<string>;
       memorySearchMemories: (keyword: string) => Promise<any[]>;
       memoryDeleteMemory: (id: string) => Promise<void>;
+      memorySetStatus: (id: string, status: 'active' | 'archived') => Promise<void>;
       memoryClearAllMemories: () => Promise<void>;
       // TTS 持久化缓存
       ttsCacheCheck: (text: string, voice: string) => Promise<{ exists: boolean; audioData?: string }>;
       ttsCacheSave: (text: string, voice: string, audioBase64: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+      // 聊天图片附件
+      attachmentSaveImage: (input: { chatId: string; name: string; mimeType: string; dataUrl: string }) => Promise<{ success: boolean; data?: { id: string; type: 'image'; name: string; mimeType: 'image/png' | 'image/jpeg' | 'image/webp'; sizeBytes: number; relativePath: string }; error?: string }>;
+      attachmentReadDataUrl: (relativePath: string, mimeType: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      attachmentDeleteByChat: (chatId: string) => Promise<{ success: boolean; error?: string }>;
+      // SQLite 聊天存档
+      conversationList: () => Promise<{ success: boolean; data?: any[]; error?: string }>;
+      conversationGetMessages: (chatId: string) => Promise<{ success: boolean; data?: any[]; error?: string }>;
+      conversationSave: (conversation: any, messages: any[]) => Promise<{ success: boolean; error?: string }>;
+      conversationDelete: (chatId: string) => Promise<{ success: boolean; error?: string }>;
+      conversationRename: (chatId: string, title: string) => Promise<{ success: boolean; error?: string }>;
+      conversationSetPinned: (chatId: string, isPinned: boolean) => Promise<{ success: boolean; error?: string }>;
+      conversationImportLegacy: (entries: any[]) => Promise<{ success: boolean; data?: { conversations: number; messages: number }; error?: string }>;
       // TTS / ASR 白名单 IPC
       ttsV3Connect: (config: any) => Promise<any>;
       ttsV3Synthesize: (config: any, text: string, options?: { sessionId?: string }) => Promise<any>;
