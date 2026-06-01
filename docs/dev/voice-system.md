@@ -6,8 +6,8 @@ Nova 的语音系统分成三层：ASR、TTS 和半双工语音对话编排。AS
 
 | 层 | 职责 | 当前 Provider |
 |---|---|---|
-| ASR | 麦克风语音转文字 | 火山 ASR、Web Speech |
-| TTS | AI 回复文字转音频 | 火山 TTS、MiMo TTS、Web Speech |
+| ASR | 麦克风语音转文字 | 火山 ASR |
+| TTS | AI 回复文字转音频 | 火山 TTS、MiMo TTS |
 | VoiceChat | 半双工流程编排 | 使用当前 ASR + 当前 TTS |
 
 ASR 不负责播放，TTS 不负责识别，VoiceChat 不直接关心具体供应商 API。
@@ -56,7 +56,9 @@ ASR = 火山 ASR
 TTS = 火山 TTS
 ```
 
-如果火山凭证缺失，Manager 会降级到浏览器 Web Speech，避免语音功能完全不可用。
+如果凭证缺失，Manager 现在会直接报配置错误，不再自动降级到浏览器 Web Speech。
+
+正式演示和主力使用建议优先选择火山 ASR + 火山 TTS，或火山 ASR + MiMo TTS。
 
 ## 为什么移除 MiMo ASR
 
@@ -79,6 +81,5 @@ MiMo ASR 之前不是正统实时 ASR，而是：
 
 ## 后续优化方向
 
-- 在设置页显示当前实际 fallback 状态，例如“已选择火山 ASR，当前降级到 Web Speech”。
 - 给 ASR/TTS 增加诊断信息：支持状态、初始化状态、最近错误、麦克风权限。
 - 将 VoiceChat 编排层继续收敛为更纯粹的状态机，减少 Provider 细节泄漏。
