@@ -8,12 +8,13 @@
 import { ChromaClient, Collection } from 'chromadb';
 import * as path from 'path';
 import * as fs from 'fs';
+import { app } from 'electron';
 import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('rag');
 
-// 知识库存储路径（项目根目录下）
-const CHROMA_PATH = path.join(__dirname, '../../chroma_db');
+// 知识库存储路径（userData 目录下，打包后路径稳定）
+const CHROMA_PATH = path.join(app.getPath('userData'), 'chroma_db');
 const DEFAULT_COLLECTION = 'knowledge_base';
 
 let client: any | null = null;
@@ -70,24 +71,55 @@ export async function addDocuments(
   try {
     const col = await getCollection();
 
-    // 自动生成ID
-    const docIds = ids || documents.map((_, i) => `doc_${Date.now()}_${i}`);
+    // 去重：查询每个 chunk 的最近邻，distance < 0.1 则跳过
+    // 当调用方传入 ids 时跳过去重，避免破坏 ID 与文档的对应关系
+    const skipDedup = !!ids && ids.length === documents.length;
+    const uniqueDocs: string[] = [];
+    const uniqueMetas: Record<string, string>[] = [];
+    const existingCount = skipDedup ? 0 : await col.count();
 
-    // 自动生成元数据
-    const docMetas = metadatas || documents.map((_, i) => ({
+    for (let i = 0; i < documents.length; i++) {
+      if (existingCount > 0) {
+        try {
+          const nearest = await col.query({
+            queryTexts: [documents[i]],
+            nResults: 1,
+          });
+          const dist = nearest.distances?.[0]?.[0];
+          if (dist !== undefined && dist < 0.1) {
+            logger.debug(`📚 [RAG] 跳过重复文档片段 ${i}`);
+            continue;
+          }
+        } catch {
+          // 查询失败不阻塞导入
+        }
+      }
+      uniqueDocs.push(documents[i]);
+      uniqueMetas.push(metadatas?.[i] || { source: 'manual', chunkId: `${i}` });
+    }
+
+    if (uniqueDocs.length === 0) {
+      return { success: true, count: 0 };
+    }
+
+    // 自动生成ID
+    const docIds = ids || uniqueDocs.map((_, i) => `doc_${Date.now()}_${i}`);
+
+    // 自动生成元数据（仅在调用方未传入 metadatas 时）
+    const docMetas = metadatas ? uniqueMetas : uniqueDocs.map((_, i) => ({
       source: 'manual',
       chunkId: docIds[i],
       created_at: new Date().toISOString(),
     }));
 
     await col.add({
-      documents,
+      documents: uniqueDocs,
       metadatas: docMetas,
       ids: docIds,
     });
 
-    logger.debug(`📚 [RAG] 添加 ${documents.length} 条文档到知识库`);
-    return { success: true, count: documents.length };
+    logger.debug(`📚 [RAG] 添加 ${uniqueDocs.length} 条文档到知识库（过滤 ${documents.length - uniqueDocs.length} 条重复）`);
+    return { success: true, count: uniqueDocs.length };
   } catch (error: any) {
     logger.error('📚 [RAG] 添加文档失败:', error.message);
     return { success: false, count: 0, error: error.message };
@@ -123,13 +155,32 @@ export async function searchKnowledge(
     // 格式化检索结果
     const documents = results.documents[0] || [];
     const metadatas = results.metadatas[0] || [];
-    const distances = results.distances[0] || [];
+    const distances: number[] = results.distances[0] || [];
+
+    // 简单 re-ranking：查询词命中数越多，distance 越小
+    const queryTerms = query.split(/\s+/).filter(w => w.length > 1);
+    const indices = documents.map((_: string, i: number) => i);
+
+    if (queryTerms.length > 0) {
+      indices.sort((a: number, b: number) => {
+        const docA = (documents[a] || '').toLowerCase();
+        const docB = (documents[b] || '').toLowerCase();
+        let boostA = 0, boostB = 0;
+        for (const term of queryTerms) {
+          const t = term.toLowerCase();
+          if (docA.includes(t)) boostA += 0.05;
+          if (docB.includes(t)) boostB += 0.05;
+        }
+        return (distances[a] - boostA) - (distances[b] - boostB);
+      });
+    }
 
     let formatted = '';
-    documents.forEach((doc: string, i: number) => {
+    indices.forEach((i: number, rank: number) => {
+      const doc = documents[i];
       const meta = metadatas[i] || {};
       const distance = (distances[i] || 0).toFixed(4);
-      formatted += `--- 相关内容 ${i + 1}（距离: ${distance}，越小越相关）---\n`;
+      formatted += `--- 相关内容 ${rank + 1}（距离: ${distance}，越小越相关）---\n`;
       formatted += `来源: ${meta.source || '未知'} | 分类: ${meta.category || '未分类'} | 片段: ${meta.chunkId || '未知'}\n`;
       formatted += `${doc}\n\n`;
     });

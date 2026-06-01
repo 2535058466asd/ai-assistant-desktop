@@ -120,41 +120,133 @@ function parseText(filePath: string): ParseResult {
 
 /**
  * 将解析后的文本切分成适合RAG的文档片段
- * 按段落分割，每段不超过 maxChars 字符
+ * 中文感知：标题边界、多级分隔符、最小 chunk 保护
  */
 export function chunkText(
   text: string,
-  maxChars: number = 500,
-  overlap: number = 50
+  maxChars: number = 800,
+  overlap: number = 150
 ): string[] {
-  // 先按双换行分段
-  const paragraphs = text.split(/\n{2,}/).map(p => p.trim()).filter(p => p.length > 0);
+  const MIN_CHUNK = 100;
+
+  // 第一步：按标题硬切分
+  const sections = splitByHeadings(text);
 
   const chunks: string[] = [];
 
-  for (const para of paragraphs) {
-    if (para.length <= maxChars) {
-      chunks.push(para);
-    } else {
-      // 长段落按句子分割
-      const sentences = para.split(/(?<=[。！？.!?\n])/);
-      let current = '';
-
-      for (const sentence of sentences) {
-        if (current.length + sentence.length > maxChars && current.length > 0) {
-          chunks.push(current.trim());
-          // 保留overlap字符用于上下文衔接
-          current = current.slice(-overlap) + sentence;
-        } else {
-          current += sentence;
+  for (const section of sections) {
+    if (section.length <= maxChars) {
+      if (section.length >= MIN_CHUNK) {
+        chunks.push(section);
+      } else {
+        // 过短的片段合并到上一个 chunk
+        if (chunks.length > 0 && chunks[chunks.length - 1].length + section.length <= maxChars) {
+          chunks[chunks.length - 1] += '\n\n' + section;
+        } else if (section.length > 0) {
+          chunks.push(section);
         }
       }
+      continue;
+    }
 
-      if (current.trim()) {
-        chunks.push(current.trim());
+    // 第二步：按双换行分段
+    const paragraphs = section.split(/\n{2,}/).map(p => p.trim()).filter(p => p.length > 0);
+
+    for (const para of paragraphs) {
+      if (para.length <= maxChars) {
+        appendChunk(chunks, para, maxChars, MIN_CHUNK);
+      } else {
+        // 第三步：长段落按多级分隔符切分
+        splitLongParagraph(chunks, para, maxChars, overlap, MIN_CHUNK);
       }
     }
   }
 
-  return chunks;
+  return chunks.filter(c => c.trim().length > 0);
+}
+
+function appendChunk(chunks: string[], text: string, maxChars: number, minChunk: number): void {
+  if (chunks.length > 0 && chunks[chunks.length - 1].length + text.length + 2 <= maxChars) {
+    chunks[chunks.length - 1] += '\n\n' + text;
+  } else if (text.length >= minChunk || chunks.length === 0) {
+    chunks.push(text);
+  } else {
+    // 过短，尽量合并（不超过 maxChars）
+    if (chunks.length > 0 && chunks[chunks.length - 1].length + text.length + 1 <= maxChars) {
+      chunks[chunks.length - 1] += '\n' + text;
+    } else {
+      chunks.push(text);
+    }
+  }
+}
+
+function splitByHeadings(text: string): string[] {
+  // 匹配 Markdown 标题、中文编号标题（仅匹配带章节部篇的结构化标题，不匹配普通列表项）
+  const headingPattern = /^(#{1,6}\s+.+|第[一二三四五六七八九十\d]+[章节部篇]\s*.+)$/gm;
+
+  const starts: number[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = headingPattern.exec(text)) !== null) {
+    starts.push(match.index);
+  }
+
+  if (starts.length === 0) return [text];
+
+  const sections: string[] = [];
+
+  for (let i = 0; i < starts.length; i++) {
+    const end = i + 1 < starts.length ? starts[i + 1] : text.length;
+    const section = text.slice(starts[i], end).trim();
+    if (section) sections.push(section);
+  }
+
+  // 标题前的前导文本
+  if (starts[0] > 0) {
+    const preamble = text.slice(0, starts[0]).trim();
+    if (preamble) sections.unshift(preamble);
+  }
+
+  return sections;
+}
+
+function splitLongParagraph(chunks: string[], para: string, maxChars: number, overlap: number, minChunk: number): void {
+  // 多级分隔符：句号 > 分号/冒号 > 逗号 > 硬切
+  const separators = [/(?<=[。！？.!?\n])/, /(?<=[；：;:])/, /(?<=[，,])/];
+  let sentences: string[] = [para];
+
+  for (const sep of separators) {
+    const candidate = para.split(sep).filter(s => s.length > 0);
+    if (candidate.length > 1) {
+      sentences = candidate;
+      break;
+    }
+  }
+
+  // 如果所有分隔符都无法切分，硬切
+  if (sentences.length <= 1 && para.length > maxChars) {
+    sentences = [];
+    for (let i = 0; i < para.length; i += maxChars - overlap) {
+      sentences.push(para.slice(i, i + maxChars));
+    }
+  }
+
+  let current = '';
+  for (const sentence of sentences) {
+    if (current.length + sentence.length > maxChars && current.length >= minChunk) {
+      chunks.push(current.trim());
+      current = current.slice(-overlap) + sentence;
+    } else {
+      current += sentence;
+    }
+  }
+
+  if (current.trim().length >= minChunk) {
+    chunks.push(current.trim());
+  } else if (current.trim().length > 0 && chunks.length > 0
+    && chunks[chunks.length - 1].length + current.trim().length <= maxChars) {
+    chunks[chunks.length - 1] += current.trim();
+  } else if (current.trim().length > 0) {
+    chunks.push(current.trim());
+  }
 }

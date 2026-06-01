@@ -90,6 +90,24 @@ export class VolcengineTTSWebSocketService {
     logger.debug('🎤 [Main] TTS WebSocket 服务初始化')
   }
 
+  updateConfig(config: TTSConfig) {
+    const changed = JSON.stringify(this.config) !== JSON.stringify(config)
+    if (!changed) return
+
+    const shouldReconnect = !!this.ws && this.ws.readyState === WebSocket.OPEN
+    this.config = config
+    logger.debug('🔄 [Main] TTS 配置已更新', {
+      resourceId: this.config.resourceId,
+      voice: this.config.voice,
+      model: this.config.model
+    })
+
+    if (shouldReconnect) {
+      logger.debug('🧹 [Main] TTS 配置变化，关闭旧连接以应用新配置')
+      this.disconnect()
+    }
+  }
+
   setMainWindow(window: BrowserWindow) {
     this.mainWindow = window
   }
@@ -507,6 +525,8 @@ let ttsService: VolcengineTTSWebSocketService | null = null
 export function getTTSService(config: TTSConfig, mainWindow: BrowserWindow): VolcengineTTSWebSocketService {
   if (!ttsService) {
     ttsService = new VolcengineTTSWebSocketService(config)
+  } else {
+    ttsService.updateConfig(config)
   }
   ttsService.setMainWindow(mainWindow)
   return ttsService
