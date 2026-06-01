@@ -1,6 +1,6 @@
 // ==========================================
 // ASR 配置文件
-// 支持：豆包语音 ASR 2.0 WebSocket v3、浏览器 Web Speech
+// 支持：豆包语音 ASR 2.0 WebSocket v3
 // ==========================================
 
 import type { ASRType } from '../core/asr';
@@ -38,11 +38,11 @@ function readEnvValue(key: string): string {
 
 function readASRType(): ASRConfig['type'] {
   const stored = readStoredValue('nova.asr.type');
-  return stored === 'web-speech' || stored === 'volcengine' ? stored : 'volcengine';
+  return stored === 'volcengine' ? stored : 'volcengine';
 }
 
 // 默认 ASR 配置。
-// ASR 只负责“听你说话并转文字”，默认使用火山 ASR；凭证缺失时由 ASRManager 降级到 Web Speech。
+// ASR 只负责“听你说话并转文字”，默认使用火山 ASR。
 export const DEFAULT_ASR_CONFIG: ASRConfig = {
   type: readASRType(),
   

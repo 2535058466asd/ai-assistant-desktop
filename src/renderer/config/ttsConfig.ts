@@ -1,9 +1,10 @@
 // ==========================================
 // TTS 配置文件
-// 支持：豆包 TTS 2.0、小米 MiMo TTS、浏览器 Web Speech
+// 支持：豆包 TTS 2.0、小米 MiMo TTS
 // ==========================================
 
 import type { TTSType } from '../core/tts';
+import { DEFAULT_VOLCENGINE_TTS_VOICE, normalizeVolcengineVoice } from './volcengineVoices';
 
 export interface TTSConfig {
   type: TTSType;
@@ -50,7 +51,7 @@ function readEnvValue(key: string): string {
 
 function readTTSType(): TTSConfig['type'] {
   const stored = readStoredValue('nova.tts.type');
-  return stored === 'volcengine' || stored === 'mimo' || stored === 'web-speech' ? stored : 'volcengine';
+  return stored === 'volcengine' || stored === 'mimo' ? stored : 'volcengine';
 }
 
 function readStoredNumber(key: string, fallback: number): number {
@@ -58,7 +59,23 @@ function readStoredNumber(key: string, fallback: number): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
-// 默认 TTS 配置（支持豆包、小米、浏览器）。
+const MIMO_TTS_MODELS = new Set([
+  'mimo-v2.5-tts',
+  'mimo-v2.5-tts-voicedesign',
+  'mimo-v2.5-tts-voiceclone',
+  'mimo-v2-tts'
+]);
+
+export function readMiMoTTSModel(): string {
+  const stored = readStoredValue('nova.mimo.ttsModel');
+  return MIMO_TTS_MODELS.has(stored) ? stored : 'mimo-v2.5-tts';
+}
+
+function readVolcengineVoice(): string {
+  return normalizeVolcengineVoice(readStoredValue('nova.tts.voice'));
+}
+
+// 默认 TTS 配置（支持豆包、小米）。
 // TTS 负责“AI 说话的声音”，可以和聊天模型、ASR 引擎独立选择。
 export const DEFAULT_TTS_CONFIG: TTSConfig = {
   type: readTTSType(),
@@ -68,7 +85,7 @@ export const DEFAULT_TTS_CONFIG: TTSConfig = {
     appId: readEnvValue('VITE_VOLCENGINE_APP_ID') || readStoredValue('nova.volcengine.appId'),
     accessToken: readEnvValue('VITE_VOLCENGINE_ACCESS_TOKEN') || readStoredValue('nova.volcengine.accessToken'),
     apiUrl: 'wss://openspeech.bytedance.com/api/v3/tts/bidirection',
-    voice: readStoredValue('nova.tts.voice') || 'zh_female_vv_uranus_bigtts',
+    voice: readVolcengineVoice() || DEFAULT_VOLCENGINE_TTS_VOICE,
     model: 'seed-tts-2.0-expressive',
     resourceId: 'seed-tts-2.0',
     format: 'pcm',
@@ -80,11 +97,11 @@ export const DEFAULT_TTS_CONFIG: TTSConfig = {
 
   // 小米 MiMo TTS 配置（可通过环境变量设置）
   mimo: {
-    baseUrl: readEnvValue('VITE_MIMO_BASE_URL') || readStoredValue('nova.mimo.baseUrl') || 'https://token-plan-cn.xiaomimimo.com/v1',
+    baseUrl: readEnvValue('VITE_MIMO_BASE_URL') || readStoredValue('nova.mimo.baseUrl') || 'https://api.xiaomimimo.com/v1',
     apiKey: readEnvValue('VITE_MIMO_API_KEY') || readStoredValue('nova.mimo.apiKey') || '',
-    model: readStoredValue('nova.mimo.model') || 'mimo-v2.5-tts',
-    voice: readStoredValue('nova.mimo.voice') || 'mimo_default',
-    format: 'mp3'
+    model: readMiMoTTSModel(),
+    voice: readStoredValue('nova.mimo.voice') || 'Chloe',
+    format: 'wav'
   },
   
   // 通用配置
@@ -100,7 +117,7 @@ export function loadTTSConfig(): TTSConfig {
       appId: readEnvValue('VITE_VOLCENGINE_APP_ID') || readStoredValue('nova.volcengine.appId'),
       accessToken: readEnvValue('VITE_VOLCENGINE_ACCESS_TOKEN') || readStoredValue('nova.volcengine.accessToken'),
       apiUrl: 'wss://openspeech.bytedance.com/api/v3/tts/bidirection',
-      voice: readStoredValue('nova.tts.voice') || 'zh_female_vv_uranus_bigtts',
+      voice: readVolcengineVoice() || DEFAULT_VOLCENGINE_TTS_VOICE,
       model: 'seed-tts-2.0-expressive',
       resourceId: 'seed-tts-2.0',
       format: 'pcm',
@@ -110,11 +127,11 @@ export function loadTTSConfig(): TTSConfig {
       pitch: 0
     },
     mimo: {
-      baseUrl: readEnvValue('VITE_MIMO_BASE_URL') || readStoredValue('nova.mimo.baseUrl') || 'https://token-plan-cn.xiaomimimo.com/v1',
+      baseUrl: readEnvValue('VITE_MIMO_BASE_URL') || readStoredValue('nova.mimo.baseUrl') || 'https://api.xiaomimimo.com/v1',
       apiKey: readEnvValue('VITE_MIMO_API_KEY') || readStoredValue('nova.mimo.apiKey') || '',
-      model: readStoredValue('nova.mimo.model') || 'mimo-v2.5-tts',
-      voice: readStoredValue('nova.mimo.voice') || 'mimo_default',
-      format: 'mp3'
+      model: readMiMoTTSModel(),
+      voice: readStoredValue('nova.mimo.voice') || 'Chloe',
+      format: 'wav'
     },
     speed: readStoredNumber('nova.tts.speed', 1.0),
     pitch: readStoredNumber('nova.tts.pitch', 1.0),

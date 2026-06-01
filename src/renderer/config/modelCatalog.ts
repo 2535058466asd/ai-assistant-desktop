@@ -6,6 +6,22 @@ export interface ProviderModelCatalog {
   models: ModelOption[];
 }
 
+export interface ModelCapabilities {
+  text: boolean;
+  image: boolean;
+  tools: boolean;
+}
+
+const DEFAULT_CAPABILITIES: ModelCapabilities = { text: true, image: false, tools: true };
+
+const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
+  'doubao-seed-2-0-pro-260215': { text: true, image: true, tools: true },
+  'doubao-seed-2-0-lite-260215': { text: true, image: true, tools: true },
+  'doubao-seed-2-0-mini-260215': { text: true, image: true, tools: true },
+  'mimo-v2.5': { text: true, image: true, tools: true },
+  'mimo-v2.5-pro': { text: true, image: false, tools: true },
+};
+
 const MODEL_CATALOG: Record<ModelProviderId, ProviderModelCatalog> = {
   doubao: {
     defaultModel: 'doubao-seed-2-0-pro-260215',
@@ -20,7 +36,6 @@ const MODEL_CATALOG: Record<ModelProviderId, ProviderModelCatalog> = {
     models: [
       { id: 'mimo-v2.5', name: 'MiMo 2.5', isOnline: true },
       { id: 'mimo-v2.5-pro', name: 'MiMo 2.5 Pro', isOnline: true },
-      { id: 'mimo-v2-pro', name: 'MiMo 2 Pro', isOnline: true },
     ],
   },
   'openai-compatible': {
@@ -59,3 +74,6 @@ export function findModelOption(provider: ModelProviderId, modelId: string): Mod
   return getModelsForProvider(provider, modelId).find((model) => model.id === modelId) || null;
 }
 
+export function getModelCapabilities(modelId: string): ModelCapabilities {
+  return MODEL_CAPABILITIES[modelId] || DEFAULT_CAPABILITIES;
+}
