@@ -7,7 +7,7 @@ import { createLogger } from '../../../shared/logger';
 const logger = createLogger('agent');
 
 export class ContextCompactor {
-  private static readonly MAX_TOOL_RESULT_TOKENS = 500;
+  private static readonly MAX_TOOL_RESULT_TOKENS = 1500;
   private static readonly MAX_CONTEXT_TOKENS = 80000;
   private static readonly KEEP_RECENT_MESSAGES = 6;
   private static readonly COMPACT_THRESHOLD = 0.8;
@@ -36,9 +36,8 @@ export class ContextCompactor {
       if (!message.content) continue;
       const content = message.content.toString();
       const chineseChars = (content.match(/[\u4e00-\u9fa5]/g) || []).length;
-      const englishWords = (content.match(/\b\w+\b/g) || []).length;
-      const otherChars = content.length - chineseChars - englishWords;
-      totalTokens += chineseChars * 2 + englishWords * 1.3 + otherChars;
+      const otherChars = content.length - chineseChars;
+      totalTokens += chineseChars * 2 + otherChars * 0.4;
     }
     return totalTokens;
   }

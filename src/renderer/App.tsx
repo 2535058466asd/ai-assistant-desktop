@@ -20,11 +20,12 @@ import { ToastProvider, useToast } from './components/Toast';
 import { getOrchestrator } from './core/orchestrator';
 import { getVoiceChatMode } from './core/voiceChat/VoiceChatMode';
 import type { VoiceChatState } from './core/voiceChat/VoiceChatMode';
-import type { AgentProcessEvent, Message } from './types';
+import type { AgentProcessEvent, ImageAttachment, Message } from './types';
 import type { StreamCallbacks } from './core/orchestrator';
 import { createLogger, type LogMeta } from '../shared/logger';
 import { createModelProvider, setModelProvider } from './core/model';
 import { syncProviderConfigForModel } from './core/model/modelRuntime';
+import { syncSearchConfig } from './config/searchConfig';
 import { upsertById } from './utils/storage';
 
 const logger = createLogger('ui');
@@ -56,6 +57,12 @@ function AppContent() {
   const streamTraceMap = useRef<Map<string, string>>(new Map());
   // 防重复触发 TTS：记录已经播放过的 messageId
   const spokenMessageIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    syncSearchConfig().catch((error) => {
+      logger.error('搜索配置初始化失败', { error });
+    });
+  }, []);
 
   useEffect(() => {
     const orchestrator = orchestratorRef.current;
@@ -100,7 +107,6 @@ function AppContent() {
           messageId: message.id,
           phase: 'output',
         });
-        setIsLoading(false);
         setMessages((prev) => upsertById(prev, message));
       },
       onStreamChunk: (messageId: string, content: string) => {
@@ -116,6 +122,7 @@ function AppContent() {
         const traceId = streamTraceMap.current.get(messageId);
         streamTraceMap.current.delete(messageId);
         logger.info('助手回复输出结束', { traceId, messageId, phase: 'output' });
+        setIsLoading(false);
 
         // 只做状态更新（纯函数），不在这里触发 TTS 等副作用
         setMessages((prev) =>
@@ -154,20 +161,9 @@ function AppContent() {
     
     orchestrator.onStream(streamCallbacks);
 
-    // 加载历史消息
-    const history = orchestrator.getHistory();
-    if (history.length > 0) {
-      setMessages(history);
-    } else {
-      const welcomeMessage: Message = {
-        id: Date.now().toString(36) + Math.random().toString(36).substring(2),
-        role: 'assistant',
-        content: orchestrator.getWelcomeMessage(),
-        timestamp: Date.now(),
-        sessionId: 'welcome',
-      };
-      setMessages([welcomeMessage]);
-    }
+    // UI 历史由 AppLayout 从 SQLite 聊天存档恢复。
+    // 不在这里写入伪造的欢迎消息：它会与 AppLayout 的恢复流程竞争，
+    // 在启动阶段覆盖当前对话的真实历史。空消息状态由 AppLayout 渲染欢迎页。
   }, []);
   
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -203,17 +199,18 @@ function AppContent() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  const handleSendMessage = async (content: string, meta: LogMeta = {}) => {
-    if (!content.trim()) return;
+  const handleSendMessage = async (content: string, meta: LogMeta = {}, attachments: ImageAttachment[] = []) => {
+    if (!content.trim() && attachments.length === 0) return;
     logger.info('用户提交消息', {
       ...meta,
       phase: 'input',
       textPreview: content.slice(0, 120),
       length: content.length,
+      imageCount: attachments.length,
     });
     setIsLoading(true); // 显示加载动画
     try {
-      await orchestratorRef.current.processTextInput(content, true, meta);
+      await orchestratorRef.current.processTextInput(content, true, meta, attachments);
     } catch (error) {
       logger.error('发送消息失败', { ...meta, phase: 'output', error });
       showToast?.('发送消息失败，请重试', 'error');
@@ -245,7 +242,8 @@ function AppContent() {
   const handleSetMessages = useCallback((newMessages: Message[], meta: LogMeta = {}) => {
     const logMeta: LogMeta = { phase: 'history', reason: 'set_messages', ...meta };
     logger.info('用户切换对话消息', { ...logMeta, messageCount: newMessages.length });
-    setMessages(newMessages);
+    // SQLite 保存完整 Agent 上下文；聊天区只展示用户与助手消息。
+    setMessages(newMessages.filter((message) => message.role === 'user' || message.role === 'assistant'));
     setProcessEventsByMessageId({});
     // 清理 spokenMessageIds，避免内存泄漏
     spokenMessageIds.current.clear();
@@ -262,6 +260,7 @@ function AppContent() {
       onSendMessage={handleSendMessage}
       onClearMessages={handleClearMessages}
       onSetMessages={handleSetMessages}
+      onGetArchiveMessages={() => orchestratorRef.current.getArchiveHistory()}
       onModelChange={handleModelChange}
       showToast={showToast}
       theme={theme}

@@ -93,6 +93,26 @@ export interface MessageToolCall {
   };
 }
 
+/** 已保存到 Nova 本地目录的图片附件。聊天历史只保存引用，不保存 Base64。 */
+export interface ImageAttachment {
+  id: string;
+  type: 'image';
+  name: string;
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+  sizeBytes: number;
+  relativePath: string;
+}
+
+/** 输入框中的临时图片。发送成功后会转换为 ImageAttachment。 */
+export interface PendingImageAttachment {
+  id: string;
+  type: 'image';
+  name: string;
+  mimeType: ImageAttachment['mimeType'];
+  sizeBytes: number;
+  dataUrl: string;
+}
+
 /** 工具调用摘要（给 UI 展示用） */
 export interface ToolCallSummary {
   name: string;
@@ -107,6 +127,7 @@ export interface Message {
   id: string;
   role: MessageRole;
   content: string;
+  attachments?: ImageAttachment[];
   timestamp: Timestamp;
   sessionId: SessionId;
   isTTS?: boolean;

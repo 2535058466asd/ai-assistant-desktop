@@ -1,10 +1,9 @@
 // ==========================================
 // TTS 管理器
-// 支持：豆包、小米 MiMo、浏览器 Web Speech
+// 支持：豆包、小米 MiMo
 // ==========================================
 
 import type { TTSService, TTSRequest, TTSResult } from './ttsInterface';
-import { WebSpeechTTS } from './webSpeechTTS';
 import { VolcengineTTSV3, type VolcengineTTSV3Config } from './volcengineTTSV3';
 import { MiMoTTS, type MiMoTTSConfig } from './mimoTTS';
 import type { TTSConfig as GlobalTTSConfig } from '../../config/ttsConfig';
@@ -12,18 +11,46 @@ import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('tts');
 
-export type TTSType = 'volcengine' | 'mimo' | 'web-speech';
+export type TTSType = 'volcengine' | 'mimo';
 
 interface TTSConfig extends Omit<GlobalTTSConfig, 'volcengine' | 'mimo'> {
   volcengine?: VolcengineTTSV3Config;
   mimo?: MiMoTTSConfig;
 }
 
+class UnsupportedTTSService implements TTSService {
+  constructor(private readonly reason: string) {}
+
+  async speak(_request: TTSRequest): Promise<TTSResult> {
+    logger.warn('TTS 服务不可用', { reason: this.reason });
+    return { success: false, error: this.reason };
+  }
+
+  stop(): void {}
+
+  isSupported(): boolean {
+    return false;
+  }
+
+  getVoices(): string[] {
+    return [];
+  }
+}
+
 export class TTSManager {
   private currentService: TTSService;
   private config: TTSConfig;
+  private activeType: TTSType = 'volcengine';
   private configKey = '';
   private audioCache: Map<string, ArrayBuffer> = new Map();
+  private static readonly MAX_CACHE_SIZE = 50;
+
+  private evictCache() {
+    while (this.audioCache.size > TTSManager.MAX_CACHE_SIZE) {
+      const oldest = this.audioCache.keys().next().value;
+      if (oldest !== undefined) this.audioCache.delete(oldest);
+    }
+  }
 
   constructor(config?: Partial<TTSConfig>) {
     this.config = {
@@ -79,35 +106,40 @@ export class TTSManager {
     this.configKey = nextConfigKey;
     
     this.currentService = this.createService(this.config.type);
-    logger.info('TTS 管理器已初始化', { type: this.config.type });
+    logger.info('TTS 管理器已初始化', {
+      requestedType: this.config.type,
+      effectiveType: this.activeType
+    });
   }
 
   private createService(type: TTSType): TTSService {
     switch (type) {
       case 'volcengine':
-        // 豆包 TTS 2.0 WebSocket v3 双向流式
         if (this.config.volcengine?.appId && this.config.volcengine?.accessToken) {
           logger.info('正在初始化豆包语音 TTS v3');
+          this.activeType = 'volcengine';
           return new VolcengineTTSV3(this.config.volcengine);
-        } else {
-          logger.warn('豆包语音 TTS 配置不完整，降级使用浏览器 Web Speech');
-          return new WebSpeechTTS();
         }
+        logger.warn('豆包语音 TTS 配置不完整，当前不启用 TTS', {
+          requestedType: 'volcengine'
+        });
+        this.activeType = 'volcengine';
+        return new UnsupportedTTSService('豆包 TTS 凭证未配置完整，请先填写 App ID 和 Access Token。');
       case 'mimo':
-        // 小米 MiMo TTS
         if (this.config.mimo?.baseUrl && this.config.mimo?.apiKey) {
           logger.info('正在初始化小米 MiMo TTS');
+          this.activeType = 'mimo';
           return new MiMoTTS(this.config.mimo);
-        } else {
-          logger.warn('小米 MiMo TTS 配置不完整，降级使用浏览器 Web Speech');
-          return new WebSpeechTTS();
         }
-      case 'web-speech':
-        logger.info('使用浏览器 Web Speech TTS');
-        return new WebSpeechTTS();
+        logger.warn('小米 MiMo TTS 配置不完整，当前不启用 TTS', {
+          requestedType: 'mimo'
+        });
+        this.activeType = 'mimo';
+        return new UnsupportedTTSService('小米 MiMo TTS 配置不完整，请先填写 Base URL 和 API Key。');
       default:
-        logger.warn('未知 TTS 类型，降级使用浏览器 Web Speech', { type });
-        return new WebSpeechTTS();
+        logger.warn('未知 TTS 类型，当前不启用 TTS', { type });
+        this.activeType = 'volcengine';
+        return new UnsupportedTTSService('未知 TTS 类型，无法进行语音合成。');
     }
   }
 
@@ -155,6 +187,7 @@ export class TTSManager {
         
         // 同时存入内存缓存
         this.audioCache.set(cacheKey, audioBuffer);
+        this.evictCache();
         logger.debug('TTS 本地缓存已载入内存', { memoryCacheSize: this.audioCache.size });
         
         return { success: true, audioData: audioBuffer };
@@ -163,9 +196,8 @@ export class TTSManager {
       logger.warn('TTS 本地缓存检查失败，继续请求语音服务', error);
     }
 
-    // 第3步：向豆包请求 TTS
+    // 第3步：向 TTS 服务请求
     try {
-      // 首先尝试使用当前配置的 TTS 服务
       const result = await this.currentService.speak(mergedRequest);
 
       // 缓存成功的音频
@@ -180,28 +212,12 @@ export class TTSManager {
 
       return result;
     } catch (error) {
-      // 如果当前不是 Web Speech，则降级到 Web Speech
-      if (this.config.type !== 'web-speech') {
-        logger.warn('当前 TTS 服务失败，降级使用浏览器 Web Speech', { type: this.config.type, error });
-        
-        // 自动切换到 Web Speech TTS
-        const fallbackService = new WebSpeechTTS();
-        this.currentService = fallbackService;
-        this.config.type = 'web-speech';
-        
-        // 使用 Web Speech 重新尝试
-        try {
-          logger.info('正在使用浏览器 Web Speech 重试 TTS');
-          return await fallbackService.speak(mergedRequest);
-        } catch (fallbackError) {
-          logger.error('浏览器 Web Speech 降级也失败', fallbackError);
-          throw new Error('所有 TTS 服务都失败了');
-        }
-      } else {
-        // 已经在用 Web Speech，直接报错
-        logger.error('浏览器 Web Speech TTS 失败', error);
-        throw new Error('TTS 服务失败');
-      }
+      logger.error('TTS 服务失败', {
+        requestedType: this.config.type,
+        effectiveType: this.activeType,
+        error
+      });
+      throw error;
     }
   }
 

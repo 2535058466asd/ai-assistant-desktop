@@ -3,8 +3,10 @@ import type { Message, ConversationContext, SessionId } from '../../types';
 export class ContextManager {
   private contexts: Map<SessionId, ConversationContext> = new Map();
   private maxHistoryLength: number = 50;
+  private lastCleanupTime: number = Date.now();
 
   createContext(sessionId: SessionId): ConversationContext {
+    this.maybeCleanup();
     const context: ConversationContext = {
       sessionId,
       history: [],
@@ -31,10 +33,6 @@ export class ContextManager {
     const context = this.getOrCreateContext(sessionId);
     context.history.push(message);
     context.lastActiveTime = Date.now();
-
-    if (context.history.length > this.maxHistoryLength) {
-      context.history = context.history.slice(-this.maxHistoryLength);
-    }
   }
 
   getHistory(sessionId: SessionId): Message[] {
@@ -76,6 +74,14 @@ export class ContextManager {
     }
 
     return cleanedCount;
+  }
+
+  private maybeCleanup(): void {
+    const now = Date.now();
+    if (now - this.lastCleanupTime > 5 * 60 * 1000) {
+      this.lastCleanupTime = now;
+      this.cleanupInactiveSessions();
+    }
   }
 
   setMaxHistoryLength(length: number): void {

@@ -4,7 +4,7 @@ import { OpenAICompatibleProvider } from './openAICompatibleProvider';
 import type { ModelProvider } from './types';
 import { getActiveModelConfig, type ActiveModelConfig } from '../../config/modelConfig';
 
-export type { ModelProvider, ModelMessage, ModelResponse, ToolDefinition, ToolCall, StreamChunk } from './types';
+export type { ModelProvider, ModelMessage, ModelContentPart, ModelResponse, ToolDefinition, ToolCall, StreamChunk } from './types';
 
 /**
  * 根据统一配置创建具体模型 Provider。

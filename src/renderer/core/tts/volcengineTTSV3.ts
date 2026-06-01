@@ -6,6 +6,7 @@
 
 import type { TTSService, TTSRequest, TTSResult } from './ttsInterface'
 import { createLogger } from '../../../shared/logger'
+import { OFFICIAL_VOLCENGINE_TTS_VOICES } from '../../config/volcengineVoices'
 
 const logger = createLogger('tts')
 
@@ -28,6 +29,7 @@ export class VolcengineTTSV3 implements TTSService {
   private onAudioChunkCallback: ((chunk: ArrayBuffer) => void) | null = null
   private onCompleteCallback: ((audio: ArrayBuffer) => void) | null = null
   private onErrorCallback: ((error: string) => void) | null = null
+  private lastSessionStartedId: string | null = null
 
   // 防并发锁：正在合成中时拒绝新的合成请求
   private isSynthesizing: boolean = false
@@ -78,7 +80,8 @@ export class VolcengineTTSV3 implements TTSService {
 
     window.electronAPI.on('tts-session-started', (data: { sessionId: string }) => {
       const inst = VolcengineTTSV3.activeInstance
-      if (inst) {
+      if (inst && data?.sessionId && inst.lastSessionStartedId !== data.sessionId) {
+        inst.lastSessionStartedId = data.sessionId
         logger.debug('✅ TTS 会话已开始:', data?.sessionId)
       }
     })
@@ -126,6 +129,7 @@ export class VolcengineTTSV3 implements TTSService {
             data.error.includes('connect')) {
           inst.isConnected = false
         }
+        inst.audioChunks = []
         if (inst.onErrorCallback) {
           inst.onErrorCallback(data.error)
         }
@@ -182,9 +186,10 @@ export class VolcengineTTSV3 implements TTSService {
 
       const sessionId = this.generateUUID()
       this.currentSessionId = sessionId
+      this.lastSessionStartedId = null
       logger.debug('🎯 [VolcengineTTSV3] 生成 sessionId:', sessionId)
 
-      return new Promise<TTSResult>((resolve) => {
+      const synthesisPromise = new Promise<TTSResult>((resolve) => {
         this.onCompleteCallback = (audioBuffer: ArrayBuffer) => {
           logger.debug('🔔 [VolcengineTTSV3] onCompleteCallback 被调用，音频大小:', audioBuffer.byteLength)
           this.onCompleteCallback = null
@@ -225,6 +230,21 @@ export class VolcengineTTSV3 implements TTSService {
 
         logger.debug('✅ [VolcengineTTSV3] TTS 合成请求已发送，等待响应...')
       })
+
+      const timeoutPromise = new Promise<TTSResult>((resolve) => {
+        setTimeout(() => {
+          if (this.isSynthesizing) {
+            logger.warn('⏰ TTS 合成超时（30秒），强制释放锁')
+            this.onCompleteCallback = null
+            this.onErrorCallback = null
+            this.isSynthesizing = false
+            this.isConnected = false
+            resolve({ success: false, error: 'TTS 合成超时' })
+          }
+        }, 30000)
+      })
+
+      return Promise.race([synthesisPromise, timeoutPromise])
     } catch (error) {
       logger.error('❌ TTS 合成失败:', error)
       this.onCompleteCallback = null
@@ -268,11 +288,7 @@ export class VolcengineTTSV3 implements TTSService {
   }
 
   getVoices(): string[] {
-    return [
-      'zh_female_vv_uranus_bigtts',
-      'zh_male_chunshui_uranus_bigtts',
-      'zh_female_tianmei_uranus_bigtts'
-    ]
+    return OFFICIAL_VOLCENGINE_TTS_VOICES.map((voice) => voice.value)
   }
 
   setVoice(voiceId: string): void {

@@ -1,8 +1,9 @@
 import apiConfig from '../../config/apiConfig';
 import { createLogger } from '../../../shared/logger';
-import type { ChatWithToolsRequest, ModelError, ModelProvider, ModelResponse, StreamChunk } from './types';
+import { getTextContent, type ChatWithToolsRequest, type ModelError, type ModelProvider, type ModelResponse, type StreamChunk } from './types';
 import { modelFetch, modelFetchStream } from './modelTransport';
 import { normalizeError } from './modelErrorHandler';
+import { createSSEAccumulator, handleSSEChunk } from './sseParser';
 
 const logger = createLogger('model');
 const DEFAULT_ARK_API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
@@ -136,13 +137,7 @@ export class DoubaoProvider implements ModelProvider {
       }
 
       // 豆包流式返回也是 SSE，需要把分片 content 和 tool_calls 重新组装。
-      let buffer = '';
-      let accumulatedContent = '';
-      let accumulatedReasoningContent = '';
-      const toolCalls: Array<{ id: string; name: string; arguments: string }> = [];
-      let finishReason: string | null = null;
-      let responseId = '';
-      let responseModel = '';
+      const acc = createSSEAccumulator();
 
       const response = await modelFetchStream({
         endpoint,
@@ -152,67 +147,7 @@ export class DoubaoProvider implements ModelProvider {
         },
         body: JSON.stringify(requestBody),
       }, (chunkText) => {
-        buffer += chunkText;
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
-          const data = trimmed.slice(6);
-          if (data === '[DONE]') {
-            onChunk({ type: 'done' });
-            continue;
-          }
-
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.id) responseId = parsed.id;
-            if (parsed.model) responseModel = parsed.model;
-
-            const choice = parsed.choices?.[0];
-            if (!choice) continue;
-
-            if (choice.finish_reason) finishReason = choice.finish_reason;
-
-            const delta = choice.delta;
-            if (!delta) continue;
-
-            // 文字增量
-            if (delta.content) {
-              accumulatedContent += delta.content;
-              onChunk({ type: 'text_delta', textDelta: delta.content });
-            }
-            if (delta.reasoning_content) {
-              accumulatedReasoningContent += delta.reasoning_content;
-            }
-
-            // 工具调用增量
-            if (delta.tool_calls) {
-              for (const tc of delta.tool_calls) {
-                const idx = tc.index ?? 0;
-                // arguments 通常会被拆成多段 JSON 字符串片段，所以必须持续追加。
-                while (toolCalls.length <= idx) {
-                  toolCalls.push({ id: '', name: '', arguments: '' });
-                }
-                if (tc.id) toolCalls[idx].id = tc.id;
-                if (tc.function?.name) toolCalls[idx].name = tc.function.name;
-                if (tc.function?.arguments) toolCalls[idx].arguments += tc.function.arguments;
-                onChunk({
-                  type: 'tool_call_delta',
-                  toolCallIndex: idx,
-                  toolCallDelta: {
-                    id: tc.id,
-                    name: tc.function?.name,
-                    argumentsDelta: tc.function?.arguments,
-                  },
-                });
-              }
-            }
-          } catch {
-            // 忽略解析错误的行
-          }
-        }
+        handleSSEChunk(acc, chunkText, onChunk);
       });
 
       logger.debug('豆包流式 HTTP 响应状态', {
@@ -229,12 +164,12 @@ export class DoubaoProvider implements ModelProvider {
       }
 
       // 构建完整响应，保持和非流式 chatWithTools 的返回结构一致。
-      const message: any = { role: 'assistant', content: accumulatedContent || null };
-      if (accumulatedReasoningContent) {
-        message.reasoning_content = accumulatedReasoningContent;
+      const message: any = { role: 'assistant', content: acc.accumulatedContent || null };
+      if (acc.accumulatedReasoningContent) {
+        message.reasoning_content = acc.accumulatedReasoningContent;
       }
-      if (toolCalls.length > 0 && toolCalls.some(tc => tc.name)) {
-        message.tool_calls = toolCalls
+      if (acc.toolCalls.length > 0 && acc.toolCalls.some(tc => tc.name)) {
+        message.tool_calls = acc.toolCalls
           .filter(tc => tc.name)
           .map((tc, i) => ({
             id: tc.id || `call_${i}`,
@@ -244,9 +179,9 @@ export class DoubaoProvider implements ModelProvider {
       }
 
       return {
-        id: responseId,
-        model: responseModel,
-        choices: [{ message, finish_reason: finishReason }],
+        id: acc.responseId,
+        model: acc.responseModel,
+        choices: [{ message, finish_reason: acc.finishReason }],
       };
     } catch (error) {
       const normalized = normalizeError(error, '豆包', { traceId: request.traceId, phase: 'model' });
@@ -270,6 +205,6 @@ export class DoubaoProvider implements ModelProvider {
       ],
       stream: false,
     });
-    return response.choices[0]?.message?.content || '无重要信息';
+    return getTextContent(response.choices[0]?.message?.content) || '无重要信息';
   }
 }

@@ -47,10 +47,24 @@ export class MemoryService {
   /**
    * 添加记忆
    */
-  async addMemory(content: string, category: string = 'fact', importance: number = 5): Promise<void> {
-    if (window.electronAPI?.memoryAddMemory) {
-      await window.electronAPI.memoryAddMemory(content, category, importance);
+  async addMemory(
+    content: string,
+    category: string = 'fact',
+    importance: number = 5,
+    options?: {
+      sourceConversation?: string;
+      sourceMessage?: string;
+      sourceKind?: 'explicit' | 'inferred' | 'manual';
+      memoryKey?: string;
+      confidence?: number;
+      validFrom?: number;
+      validUntil?: number;
     }
+  ): Promise<any> {
+    if (window.electronAPI?.memoryAddMemory) {
+      return await window.electronAPI.memoryAddMemory(content, category, importance, options);
+    }
+    return { action: 'ignored', reason: 'electron_api_unavailable' };
   }
 
   /**
@@ -89,6 +103,12 @@ export class MemoryService {
   async deleteMemory(id: string): Promise<void> {
     if (window.electronAPI?.memoryDeleteMemory) {
       await window.electronAPI.memoryDeleteMemory(id);
+    }
+  }
+
+  async setMemoryStatus(id: string, status: 'active' | 'archived'): Promise<void> {
+    if (window.electronAPI?.memorySetStatus) {
+      await window.electronAPI.memorySetStatus(id, status);
     }
   }
 

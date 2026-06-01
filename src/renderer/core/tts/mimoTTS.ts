@@ -23,8 +23,8 @@ export class MiMoTTS implements TTSService {
   constructor(config: MiMoTTSConfig) {
     this.config = {
       model: 'mimo-v2.5-tts',
-      voice: 'mimo_default',
-      format: 'mp3',
+      voice: 'Chloe',
+      format: 'wav',
       ...config
     };
     logger.info('小米 MiMo TTS 初始化', { model: this.config.model, voice: this.config.voice });
@@ -32,7 +32,13 @@ export class MiMoTTS implements TTSService {
 
   async speak(request: TTSRequest): Promise<TTSResult> {
     try {
-      logger.debug('小米 MiMo TTS 请求', { text: request.text.substring(0, 100) });
+      logger.debug('小米 MiMo TTS 请求', {
+        text: request.text.substring(0, 100),
+        model: this.config.model,
+        voice: request.voice || this.config.voice,
+        format: this.config.format,
+        baseUrlType: this.config.baseUrl.includes('token-plan-cn') ? 'token-plan' : 'standard'
+      });
 
       const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
         {
@@ -79,6 +85,10 @@ export class MiMoTTS implements TTSService {
 
       const responseData = await response.json();
 
+      if (!responseData || typeof responseData !== 'object') {
+        throw new Error('MiMo TTS 返回了无效的响应体');
+      }
+
       // 小米 TTS 返回的是 OpenAI-compatible choices[0].message.audio.data。
       // 兼容早期顶层 audio 字段，避免服务端格式微调时直接失败。
       let audioBuffer: ArrayBuffer;
@@ -103,8 +113,10 @@ export class MiMoTTS implements TTSService {
         logger.error('小米 MiMo TTS 返回格式不支持', {
           keys: Object.keys(responseData || {}),
           choiceKeys: Object.keys(responseData.choices?.[0]?.message || {}),
+          model: this.config.model,
+          baseUrlType: this.config.baseUrl.includes('token-plan-cn') ? 'token-plan' : 'standard'
         });
-        throw new Error('TTS 返回格式不支持');
+        throw new Error('MiMo 返回的是普通聊天响应，不是 TTS 音频。请确认模型是 mimo-v2.5-tts 系列，且 Key/Base URL 没有混用。');
       }
 
       logger.info('小米 MiMo TTS 合成成功', { audioSize: audioBuffer.byteLength });

@@ -74,11 +74,22 @@ function getMinLevel(): LogLevel {
 function redact(value: unknown): unknown {
   if (typeof value === 'string') {
     return value
+      .replace(/data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+/g, '[IMAGE_DATA_REDACTED]')
       .replace(/Bearer\s+[A-Za-z0-9._\-]+/g, 'Bearer [REDACTED]')
       .replace(/(api[_-]?key|authorization|access[_-]?token|refresh[_-]?token|secret|password)["'\s:=]+[^"',\s]+/gi, '$1=[REDACTED]');
   }
   if (!value || typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.map(redact);
+  if (value instanceof Error) {
+    return {
+      name: value.name,
+      message: redact(value.message),
+      stack: value.stack,
+      ...Object.fromEntries(
+        Object.entries(value as unknown as Record<string, unknown>).map(([key, item]) => [key, redact(item)])
+      ),
+    };
+  }
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>).map(([key, item]) => {
       if (/api[_-]?key|authorization|access[_-]?token|refresh[_-]?token|secret|password/i.test(key)) {

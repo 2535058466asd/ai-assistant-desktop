@@ -7,8 +7,21 @@ import { getMemoryService } from '../../services/memoryServiceClient';
 import { getModelProvider } from '../model';
 import { getActiveModelConfig } from '../../config/modelConfig';
 import { createLogger, type LogMeta } from '../../../shared/logger';
+import { getTextContent } from '../model/types';
 
 const logger = createLogger('memory');
+
+const SKIP_PATTERNS = /^(你好|hi|hello|早|早上好|晚上好|晚安|谢谢|thanks|ok|好的|嗯|哦|行|对|不是|再见|拜拜)/i;
+
+/**
+ * 判断是否值得调用 LLM 提取记忆
+ */
+export function shouldExtractMemory(userText: string, assistantText: string): boolean {
+  if (userText.trim().length < 8) return false;
+  if (SKIP_PATTERNS.test(userText.trim())) return false;
+  if (assistantText.length < 10) return false;
+  return true;
+}
 
 /**
  * 提取的记忆类型
@@ -17,6 +30,10 @@ export interface ExtractedMemory {
   content: string;
   category: 'preference' | 'fact' | 'project' | 'decision' | 'belief' | 'event';
   importance: number;
+  confidence: number;
+  memoryKey?: string;
+  sourceKind: 'explicit' | 'inferred';
+  validUntil?: number;
 }
 
 /**
@@ -31,7 +48,7 @@ export async function extractMemoriesWithLLM(
   meta: LogMeta = {}
 ): Promise<ExtractedMemory[]> {
   try {
-    const prompt = `分析以下对话，提取值得长期记住的信息。
+    const prompt = `分析以下对话，提取值得长期记住的信息。当前时间：${new Date().toISOString()}。
 
 用户：${userText}
 助手：${assistantText}
@@ -39,8 +56,12 @@ export async function extractMemoriesWithLLM(
 判断原则：
 - 只提取用户主动透露的、稳定的、跨对话仍有价值的信息
 - 不提取一次性的、临时的、只在当前对话有用的信息
+- 不提取助手推测、助手建议、工具结果或助手回复中新增的信息
 - 不提取短暂的情绪状态（"我好烦"、"压力好大"），但提取长期的态度和观点
-- 不提取搜索请求本身（"帮我搜xxx"），但提取搜索背后的意图（如果有的话）
+- 不提取搜索、写作、打开软件、生成文件等单次请求，也不要推测其背后的长期偏好
+- 用户明确说"记住"、"以后都要"、"我的偏好是"时，sourceKind 设为 explicit
+- 其余可长期保留但需要推断的信息，sourceKind 设为 inferred，并降低 confidence
+- event 必须给出合理的 validUntil；无法判断有效期的普通临时事件不要提取
 - 如果不确定要不要记，就不记
 
 类别说明：
@@ -59,7 +80,15 @@ export async function extractMemoriesWithLLM(
 没有值得记的：返回空数组 []
 
 输出JSON格式：
-[{"content": "记忆内容", "category": "preference|fact|project|decision|belief|event", "importance": 1-10}]
+[{
+  "content": "简洁、可独立理解的记忆内容",
+  "category": "preference|fact|project|decision|belief|event",
+  "importance": 1-10,
+  "confidence": 0.0-1.0,
+  "sourceKind": "explicit|inferred",
+  "memoryKey": "稳定事实键，例如 profile.user_name、preference.reply_style、project.nova.focus；没有稳定键时省略",
+  "validUntil": "event 的过期时间戳（毫秒）；非 event 省略"
+}]
 
 只输出JSON，不要其他文字。`;
 
@@ -76,8 +105,22 @@ export async function extractMemoriesWithLLM(
     });
 
     // 解析JSON响应
-    const memories = JSON.parse(response.choices[0].message.content || '[]');
-    return Array.isArray(memories) ? memories : [];
+    const parsed = JSON.parse(getTextContent(response.choices[0].message.content) || '[]');
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter((memory: any) => typeof memory?.content === 'string' && memory.content.trim().length >= 4)
+      .map((memory: any) => ({
+        content: memory.content.trim().slice(0, 500),
+        category: normalizeCategory(memory.category),
+        importance: clampNumber(memory.importance, 1, 10, 5),
+        confidence: clampNumber(memory.confidence, 0, 1, memory.sourceKind === 'explicit' ? 1 : 0.7),
+        sourceKind: memory.sourceKind === 'explicit' ? 'explicit' as const : 'inferred' as const,
+        memoryKey: typeof memory.memoryKey === 'string' ? memory.memoryKey.trim().slice(0, 100) : undefined,
+        validUntil: normalizeTimestamp(memory.validUntil),
+      }))
+      .filter((memory: ExtractedMemory) => memory.sourceKind === 'explicit' || memory.confidence >= 0.78)
+      .filter((memory: ExtractedMemory) => memory.category !== 'event' || !!memory.validUntil);
   } catch (error) {
     logger.error('LLM 记忆提取失败', { ...meta, phase: 'persist', error });
     return [];
@@ -98,14 +141,21 @@ export async function tryExtractAndSaveMemory(userText: string, assistantText: s
     
     // 保存提取的记忆
     for (const memory of extractedMemories) {
-      await memoryService.addMemory(memory.content, memory.category, memory.importance);
-      logger.info('已从对话保存记忆', { ...meta, phase: 'persist', ...memory });
+      const result = await memoryService.addMemory(memory.content, memory.category, memory.importance, {
+        confidence: memory.confidence,
+        memoryKey: memory.memoryKey,
+        sourceKind: memory.sourceKind,
+        validUntil: memory.validUntil,
+        sourceConversation: meta.chatId,
+        sourceMessage: meta.messageId,
+      });
+      logger.info('候选记忆治理完成', { ...meta, phase: 'persist', ...memory, result });
     }
 
     // 提取用户名字（保留原有逻辑作为备份）
-    const nameMatch = userText.match(/我叫(.+)|我的名字是(.+)|我是(.+)/);
+    const nameMatch = userText.match(/(?:我叫|我的名字是)\s*([\u4e00-\u9fa5A-Za-z0-9_-]{1,20})(?:[，。！？,.!\s]|$)/);
     if (nameMatch) {
-      const userName = (nameMatch[1] || nameMatch[2] || nameMatch[3]).trim();
+      const userName = nameMatch[1].trim();
       if (userName && userName.length < 20) {
         await memoryService.setPreference('userName', userName);
         logger.info('已通过兜底规则保存用户名', { ...meta, phase: 'persist', userName });
@@ -116,4 +166,19 @@ export async function tryExtractAndSaveMemory(userText: string, assistantText: s
     logger.error('提取并保存记忆失败', { ...meta, phase: 'persist', error });
     // 提取记忆失败不影响聊天，所以不抛出错误
   }
+}
+
+function normalizeCategory(category: unknown): ExtractedMemory['category'] {
+  const allowed = new Set<ExtractedMemory['category']>(['preference', 'fact', 'project', 'decision', 'belief', 'event']);
+  return allowed.has(category as ExtractedMemory['category']) ? category as ExtractedMemory['category'] : 'fact';
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
+}
+
+function normalizeTimestamp(value: unknown): number | undefined {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) && parsed > Date.now() ? Math.round(parsed) : undefined;
 }

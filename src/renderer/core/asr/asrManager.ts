@@ -1,25 +1,57 @@
 // ==========================================
 // ASR 管理器
-// 支持：豆包语音 ASR 2.0 WebSocket v3、浏览器 Web Speech
+// 支持：豆包语音 ASR 2.0 WebSocket v3
 // ==========================================
 
 import type { ASRService, ASRRequest, ASRResult } from './asrInterface';
-import { WebSpeechASR } from './webSpeechASR';
 import { VolcengineASRV3, type VolcengineASRV3Config } from './volcengineASRV3';
 import type { ASRConfig as GlobalASRConfig } from '../../config/asrConfig';
 import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('asr');
 
-export type ASRType = 'volcengine' | 'web-speech';
+export type ASRType = 'volcengine';
 
 interface ASRConfig extends Omit<GlobalASRConfig, 'volcengine'> {
   volcengine?: VolcengineASRV3Config;
 }
 
+class UnsupportedASRService implements ASRService {
+  constructor(private readonly reason: string) {}
+
+  async initialize(): Promise<void> {
+    logger.warn('ASR 服务不可用', { reason: this.reason });
+  }
+
+  async startListening(
+    _onResult: (result: ASRResult) => void,
+    onError?: (error: string) => void,
+    onEnd?: () => void
+  ): Promise<boolean> {
+    onError?.(this.reason);
+    onEnd?.();
+    return false;
+  }
+
+  stopListening(): void {}
+
+  async recognize(_request: ASRRequest): Promise<ASRResult> {
+    return { success: false, error: this.reason };
+  }
+
+  isSupported(): boolean {
+    return false;
+  }
+
+  getLanguages(): string[] {
+    return ['zh-CN'];
+  }
+}
+
 export class ASRManager {
   private currentService: ASRService;
   private config: ASRConfig;
+  private activeType: ASRType = 'volcengine';
   private configKey = '';
   private serviceInitialized = false;
   private initializingService: Promise<void> | null = null;
@@ -42,20 +74,20 @@ export class ASRManager {
   private createService(type: ASRType): ASRService {
     switch (type) {
       case 'volcengine':
-        // 豆包 ASR 2.0 WebSocket v3 双向流式优化版
         if (this.config.volcengine?.appId && this.config.volcengine?.accessToken) {
           logger.info('正在初始化豆包语音 ASR v3');
+          this.activeType = 'volcengine';
           return new VolcengineASRV3(this.config.volcengine);
-        } else {
-          logger.warn('豆包语音 ASR 配置不完整，降级使用浏览器 Web Speech');
-          return new WebSpeechASR();
         }
-      case 'web-speech':
-        logger.info('使用浏览器 Web Speech ASR');
-        return new WebSpeechASR();
+        logger.warn('豆包语音 ASR 配置不完整，当前不启用 ASR', {
+          requestedType: 'volcengine'
+        });
+        this.activeType = 'volcengine';
+        return new UnsupportedASRService('豆包 ASR 凭证未配置完整，请先填写 App ID 和 Access Token。');
       default:
-        logger.warn('未知 ASR 类型，降级使用浏览器 Web Speech', { type });
-        return new WebSpeechASR();
+        logger.warn('未知 ASR 类型，当前不启用 ASR', { type });
+        this.activeType = 'volcengine';
+        return new UnsupportedASRService('未知 ASR 类型，无法启动语音识别。');
     }
   }
 
@@ -81,7 +113,10 @@ export class ASRManager {
     this.currentService = this.createService(this.config.type);
     this.serviceInitialized = false;
     this.initializingService = null;
-    logger.info('ASR 管理器已初始化', { type: this.config.type });
+    logger.info('ASR 管理器已初始化', {
+      requestedType: this.config.type,
+      effectiveType: this.activeType
+    });
   }
 
   private async ensureServiceInitialized(): Promise<void> {
@@ -91,11 +126,18 @@ export class ASRManager {
       this.initializingService = this.currentService.initialize()
         .then(() => {
           this.serviceInitialized = true;
-          logger.info('ASR 服务初始化完成', { type: this.config.type });
+          logger.info('ASR 服务初始化完成', {
+            requestedType: this.config.type,
+            effectiveType: this.activeType
+          });
         })
         .catch((error) => {
           this.serviceInitialized = false;
-          logger.error('ASR 服务初始化失败', { type: this.config.type, error });
+          logger.error('ASR 服务初始化失败', {
+            requestedType: this.config.type,
+            effectiveType: this.activeType,
+            error
+          });
           throw error;
         })
         .finally(() => {

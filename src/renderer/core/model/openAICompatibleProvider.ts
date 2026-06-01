@@ -1,7 +1,8 @@
 import { createLogger } from '../../../shared/logger';
-import type { ChatWithToolsRequest, ModelProvider, ModelResponse, StreamChunk } from './types';
+import { getTextContent, type ChatWithToolsRequest, type ModelProvider, type ModelResponse, type StreamChunk } from './types';
 import { modelFetch, modelFetchStream } from './modelTransport';
 import { normalizeError } from './modelErrorHandler';
+import { createSSEAccumulator, handleSSEChunk } from './sseParser';
 import { withRetry } from './modelRetry';
 
 const logger = createLogger('model');
@@ -117,6 +118,9 @@ export class OpenAICompatibleProvider implements ModelProvider {
         return json;
       } catch (error: any) {
         const normalized = normalizeError(error, this.displayName, { traceId: request.traceId, phase: 'model' });
+        if (normalized.retryable) {
+          throw normalized;
+        }
         return {
           choices: [],
           error: normalized,
@@ -152,13 +156,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
       // 流式接口不是一次返回完整 JSON，而是一行行 SSE：data: {...}
       // 这里把 text delta 和 tool_calls delta 重新拼成一个完整的 ModelResponse。
-      let buffer = '';
-      let accumulatedContent = '';
-      let accumulatedReasoningContent = '';
-      const toolCalls: Array<{ id: string; name: string; arguments: string }> = [];
-      let finishReason: string | null = null;
-      let responseId = '';
-      let responseModel = '';
+      const acc = createSSEAccumulator();
 
       const response = await modelFetchStream({
         endpoint,
@@ -168,64 +166,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
         },
         body: JSON.stringify(body),
       }, (chunkText) => {
-        buffer += chunkText;
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
-          const data = trimmed.slice(6);
-          if (data === '[DONE]') {
-            onChunk({ type: 'done' });
-            continue;
-          }
-
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.id) responseId = parsed.id;
-            if (parsed.model) responseModel = parsed.model;
-
-            const choice = parsed.choices?.[0];
-            if (!choice) continue;
-            if (choice.finish_reason) finishReason = choice.finish_reason;
-
-            const delta = choice.delta;
-            if (!delta) continue;
-
-            if (delta.content) {
-              accumulatedContent += delta.content;
-              onChunk({ type: 'text_delta', textDelta: delta.content });
-            }
-            if (delta.reasoning_content) {
-              accumulatedReasoningContent += delta.reasoning_content;
-            }
-
-            if (delta.tool_calls) {
-              for (const tc of delta.tool_calls) {
-                const idx = tc.index ?? 0;
-                // 同一个工具调用的 name / arguments 可能被拆成多段 delta，需要按 index 累积。
-                while (toolCalls.length <= idx) {
-                  toolCalls.push({ id: '', name: '', arguments: '' });
-                }
-                if (tc.id) toolCalls[idx].id = tc.id;
-                if (tc.function?.name) toolCalls[idx].name = tc.function.name;
-                if (tc.function?.arguments) toolCalls[idx].arguments += tc.function.arguments;
-                onChunk({
-                  type: 'tool_call_delta',
-                  toolCallIndex: idx,
-                  toolCallDelta: {
-                    id: tc.id,
-                    name: tc.function?.name,
-                    argumentsDelta: tc.function?.arguments,
-                  },
-                });
-              }
-            }
-          } catch {
-            // 忽略解析错误的行
-          }
-        }
+        handleSSEChunk(acc, chunkText, onChunk);
       });
 
       logger.debug(`${this.displayName} 流式 HTTP 状态`, { traceId: request.traceId, phase: 'model', status: response.status, ok: response.ok, statusText: response.statusText });
@@ -236,12 +177,12 @@ export class OpenAICompatibleProvider implements ModelProvider {
       }
 
       // Orchestrator 期望拿到一个类似非流式接口的完整响应，所以这里做一次汇总。
-      const message: any = { role: 'assistant', content: accumulatedContent || null };
-      if (accumulatedReasoningContent) {
-        message.reasoning_content = accumulatedReasoningContent;
+      const message: any = { role: 'assistant', content: acc.accumulatedContent || null };
+      if (acc.accumulatedReasoningContent) {
+        message.reasoning_content = acc.accumulatedReasoningContent;
       }
-      if (toolCalls.length > 0 && toolCalls.some(tc => tc.name)) {
-        message.tool_calls = toolCalls
+      if (acc.toolCalls.length > 0 && acc.toolCalls.some(tc => tc.name)) {
+        message.tool_calls = acc.toolCalls
           .filter(tc => tc.name)
           .map((tc, i) => ({
             id: tc.id || `call_${i}`,
@@ -251,9 +192,9 @@ export class OpenAICompatibleProvider implements ModelProvider {
       }
 
       const result = {
-        id: responseId,
-        model: responseModel,
-        choices: [{ message, finish_reason: finishReason }],
+        id: acc.responseId,
+        model: acc.responseModel,
+        choices: [{ message, finish_reason: acc.finishReason }],
       };
 
       if (isVerboseModelLog()) {
@@ -281,6 +222,6 @@ export class OpenAICompatibleProvider implements ModelProvider {
         },
       ],
     });
-    return response.choices[0]?.message?.content || '无重要信息';
+    return getTextContent(response.choices[0]?.message?.content) || '无重要信息';
   }
 }

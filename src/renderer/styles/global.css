@@ -10,6 +10,10 @@
    1. 颜色系统 - 暗色主题（默认）
    ========================================== */
 :root {
+  /* --- 卡片背景（语义化，替代各模块硬编码 rgba） --- */
+  --card-bg: rgba(10, 18, 32, 0.52);               /* 面板/卡片容器 */
+  --card-nested-bg: rgba(15, 23, 42, 0.26);        /* 卡片内嵌套元素 */
+
   /* --- 背景色层级（更深邃） --- */
   --bg-primary: #06080f;           /* 最底层背景 - 纯深空黑 */
   --bg-secondary: #0c1021;         /* 侧边栏/卡片背景 - 深海蓝 */
@@ -84,8 +88,11 @@
    亮色主题（Light Mode）- 精致优雅
    ========================================== */
 [data-theme="light"] {
-  /* --- 背景色层级 --- */
-  --bg-primary: #fafbfc;
+  /* --- 卡片背景 --- */
+  --card-bg: rgba(255, 255, 255, 0.82);
+  --card-nested-bg: rgba(248, 250, 252, 0.78);
+
+  /* --- 背景色层级 --- */  --bg-primary: #fafbfc;
   --bg-secondary: #ffffff;
   --bg-tertiary: #f1f5f9;
   --bg-hover: #e8ecf1;
@@ -168,13 +175,13 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: transparent;
+  background: rgba(148, 163, 184, 0.12);
   border-radius: 3px;
   transition: background 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  background: rgba(148, 163, 184, 0.3);
 }
 
 /* 侧边栏专用细滚动条 */

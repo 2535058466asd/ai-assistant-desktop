@@ -8,6 +8,7 @@ import type {
   Message,
   AgentProcessEvent,
   ToolProcessEvent,
+  ImageAttachment,
 } from '../types';
 
 import { getVoiceGatewayManager } from './voice';
@@ -16,12 +17,13 @@ import { ConversationRuntime } from './conversation/conversationRuntime';
 import { ContextCompactor } from './context/contextCompactor';
 import { AgentEventBridge } from './events/agentEventBridge';
 import { AgentLoop } from './agent';
-import { getNovaSystemPrompt, DEFAULT_NOVA_SETTINGS } from './novaSettings';
+import { getNovaSystemPrompt, getToolGuidancePrompt, DEFAULT_NOVA_SETTINGS } from './novaSettings';
 import { getMemoryService } from '../services/memoryServiceClient';
-import { tryExtractAndSaveMemory } from './utils/memoryExtractor';
+import { tryExtractAndSaveMemory, shouldExtractMemory } from './utils/memoryExtractor';
 import { createLogger, createTraceId, type LogMeta } from '../../shared/logger';
 import { getResolvedRuntimeModel } from './model/modelRuntime';
-import { getToolPromptSummary } from './tools/toolRegistry';
+import { getToolPromptSummary, getInitialToolDefinitions } from './tools/toolRegistry';
+import type { ToolDefinition } from './model';
 
 const logger = createLogger('agent');
 
@@ -93,6 +95,7 @@ export class Orchestrator {
   resetConversation(history: Message[] = [], meta: LogMeta = {}) {
     const sessionId = this.conversationRuntime.reset(history);
     this.contextCompactor = new ContextCompactor(this.historyManager, sessionId);
+    this.agentLoop.updateContextCompactor(this.contextCompactor);
     logger.info('智能体对话上下文已重置', {
       ...meta,
       sessionId,
@@ -150,8 +153,8 @@ export class Orchestrator {
    * @param text 用户输入的文本
    * @param isTextInput 是否是文字输入（默认为true）
    */
-  async processTextInput(text: string, isTextInput: boolean = true, meta: LogMeta = {}): Promise<void> {
-    if (!text.trim()) return;
+  async processTextInput(text: string, isTextInput: boolean = true, meta: LogMeta = {}, attachments: ImageAttachment[] = []): Promise<void> {
+    if (!text.trim() && attachments.length === 0) return;
     const traceId = meta.traceId || createTraceId();
     const traceMeta: LogMeta = {
       ...meta,
@@ -167,6 +170,7 @@ export class Orchestrator {
       ...traceMeta,
       sessionId: this.conversationRuntime.getSessionId(),
       textPreview: text.slice(0, 120),
+      imageCount: attachments.length,
     });
 
     // 1. 创建用户消息并通知 UI
@@ -177,6 +181,7 @@ export class Orchestrator {
       timestamp: Date.now(),
       sessionId: this.conversationRuntime.getSessionId(),
       traceId,
+      ...(attachments.length > 0 ? { attachments } : {}),
     };
 
     this.conversationRuntime.addMessage(userMessage);
@@ -300,7 +305,9 @@ export class Orchestrator {
 
       // 尝试从对话中提取重要信息并存入记忆
       try {
-        await tryExtractAndSaveMemory(text, accumulatedContent, { ...traceMeta, phase: 'persist' });
+        if (shouldExtractMemory(text, accumulatedContent)) {
+          await tryExtractAndSaveMemory(text, accumulatedContent, { ...traceMeta, phase: 'persist' });
+        }
       } catch (memoryError) {
         logger.error('记忆提取失败', { ...traceMeta, phase: 'persist', error: memoryError });
         // 提取记忆失败不影响聊天，所以不抛出错误
@@ -316,18 +323,58 @@ export class Orchestrator {
    * 构建系统提示词（技能描述 + 用户记忆）
    * @param userInput 用户输入，用于记忆检索
    */
-  private async buildSystemPrompt(userInput: string = ''): Promise<string> {
-    const memoryPrompt = await this.memoryService.getMemoryPrompt(userInput);
+  private async buildSystemPrompt(
+    userInput: string = '',
+    skillInstructions: string = '',
+    toolDefinitions: ToolDefinition[] = getInitialToolDefinitions()
+  ): Promise<string> {
+    const [memoryPrompt, envContext] = await Promise.all([
+      this.memoryService.getMemoryPrompt(userInput),
+      this.buildEnvironmentContext(),
+    ]);
 
     return `${getNovaSystemPrompt()}
 
+${envContext}
+
 ${memoryPrompt || ''}
 
-【工具使用指引】
-你可以使用以下工具来帮助用户。工具的 JSON Schema 会随请求发送，请优先根据工具描述、参数和风险等级选择：
-${getToolPromptSummary()}
+${skillInstructions ? `【技能指令】\n${skillInstructions}\n` : ''}${getToolGuidancePrompt()}
 
-根据用户需求选择合适的工具。不需要工具时直接回复。工具执行失败时友好地告诉用户。`;
+【工具列表】
+以下是当前可用工具。部分工具是技能入口（以 open_ 开头），调用后会解锁更多子工具。
+${getToolPromptSummary(toolDefinitions)}`;
+  }
+
+  private async buildEnvironmentContext(): Promise<string> {
+    const now = new Date();
+    const timeStr = now.toLocaleString('zh-CN', { dateStyle: 'full', timeStyle: 'short' });
+    const dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
+
+    let userName = '';
+    let knowledgeInfo = '';
+    try {
+      userName = await this.memoryService.getPreference('userName') || '';
+    } catch { /* ignore */ }
+    try {
+      const stats = await window.electronAPI?.knowledgeStats?.();
+      if (stats?.success && stats.data?.count > 0) {
+        knowledgeInfo = `知识库中有 ${stats.data.count} 条文档片段，用户提问相关内容时可以主动检索。`;
+      }
+    } catch { /* ignore */ }
+
+    const sessionHistory = this.conversationRuntime.getHistory();
+    const isNewSession = sessionHistory.length <= 1;
+    const sessionInfo = isNewSession
+      ? '这是一个新会话。'
+      : `这是一个延续的会话，当前有 ${sessionHistory.length} 条历史消息。`;
+
+    return `【当前环境】
+- 时间：${timeStr}（星期${dayOfWeek}）
+- 平台：${navigator.platform || '未知'}，Electron 桌面应用
+${userName ? `- 用户称呼：${userName}` : ''}
+${knowledgeInfo ? `- ${knowledgeInfo}` : ''}
+- ${sessionInfo}`;
   }
 
   /**
@@ -395,6 +442,13 @@ ${getToolPromptSummary()}
    */
   getHistory(): Message[] {
     return this.conversationRuntime.getHistory();
+  }
+
+  /**
+   * 获取未压缩的完整消息，仅用于 SQLite 聊天存档。
+   */
+  getArchiveHistory(): Message[] {
+    return this.conversationRuntime.getArchiveHistory();
   }
 
 
