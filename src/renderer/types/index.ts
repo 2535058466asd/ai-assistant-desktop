@@ -130,6 +130,8 @@ export interface Message {
   attachments?: ImageAttachment[];
   timestamp: Timestamp;
   sessionId: SessionId;
+  /** AgentLoop 内部上下文消息。需要归档给模型恢复，但不允许展示为聊天气泡。 */
+  isInternal?: boolean;
   isTTS?: boolean;
   isStreaming?: boolean;
   reasoning_content?: string;

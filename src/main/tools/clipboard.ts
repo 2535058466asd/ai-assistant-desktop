@@ -12,6 +12,19 @@ export function registerClipboardRead() {
   });
 }
 
+// clipboard_read_files — 读取剪贴板中的文件路径
+export function registerClipboardReadFiles() {
+  ipcMain.handle('clipboard-read-files', async () => {
+    try {
+      const filePaths = (clipboard as any).readFileName?.();
+      if (!filePaths) return { success: true, data: [] };
+      return { success: true, data: filePaths.split('\n').filter(Boolean) };
+    } catch {
+      return { success: true, data: [] };
+    }
+  });
+}
+
 // clipboard_write — 写入剪贴板
 export function registerClipboardWrite() {
   ipcMain.handle('clipboard-write', async (_event, text: string) => {

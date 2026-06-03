@@ -1,6 +1,7 @@
 import type { Message, SessionId } from '../../types';
 import type { HistoryManager } from '../history';
 import { createLogger } from '../../../shared/logger';
+import { normalizeArchivedHistory } from './messageVisibility';
 
 const logger = createLogger('agent');
 
@@ -23,9 +24,14 @@ export class ConversationRuntime {
   reset(history: Message[] = []): SessionId {
     this.sessionId = generateId();
     this.historyManager.initialize(this.sessionId);
-    this.archiveHistory = [...history];
-    this.historyManager.setHistory(this.sessionId, history);
-    logger.info('对话上下文已重置', { sessionId: this.sessionId, historyCount: history.length });
+    const normalizedHistory = normalizeArchivedHistory(history);
+    this.archiveHistory = [...normalizedHistory];
+    this.historyManager.setHistory(this.sessionId, normalizedHistory);
+    logger.info('对话上下文已重置', {
+      sessionId: this.sessionId,
+      historyCount: normalizedHistory.length,
+      removedLegacyInternalMessages: history.length - normalizedHistory.length,
+    });
     return this.sessionId;
   }
 

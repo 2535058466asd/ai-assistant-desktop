@@ -1,7 +1,8 @@
-import { ipcMain } from 'electron';
+import { ipcMain, dialog, BrowserWindow } from 'electron';
 import {
   addDocuments,
   searchKnowledge,
+  searchKnowledgeStructured,
   getKnowledgeStats,
   listKnowledgeSources,
   deleteDocumentsBySource,
@@ -151,6 +152,40 @@ export function registerKnowledgeImportImage() {
         data: `图片 "${fileName}" 已识别并导入知识库`,
         count: result.count,
       };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+}
+
+export function registerKnowledgeSearchStructured() {
+  ipcMain.handle('knowledge-search-structured', async (_event, query: string, nResults: number = 5) => {
+    try {
+      return await searchKnowledgeStructured(query, nResults);
+    } catch (error: any) {
+      logger.error('知识库结构化搜索失败', { error: error.message });
+      return { success: false, error: error.message };
+    }
+  });
+}
+
+export function registerShowOpenDialog() {
+  ipcMain.handle('show-open-dialog', async (_event, options?: { filters?: string[] }) => {
+    try {
+      const win = BrowserWindow.getFocusedWindow();
+      const filterNames = options?.filters || [];
+      const filters = filterNames.length > 0
+        ? [{ name: '文件', extensions: filterNames }]
+        : [
+            { name: '文档', extensions: ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'txt', 'md'] },
+            { name: '图片', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'] },
+          ];
+      const result = await dialog.showOpenDialog(win!, {
+        properties: ['openFile', 'multiSelections'],
+        filters,
+      });
+      if (result.canceled) return { success: true, data: [] };
+      return { success: true, data: result.filePaths };
     } catch (error: any) {
       return { success: false, error: error.message };
     }

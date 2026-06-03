@@ -7,9 +7,9 @@
 import { registerExecCommand } from './execCommand'
 import { registerReadFile, registerWriteFile, registerCreateDir, registerCopyFile, registerMoveFile, registerDeleteFile, registerListDir, registerSearchFiles, registerGrepContent } from './fileOps'
 import { registerWebSearch, registerWebFetch, registerSearchSetConfig } from './webTools'
-import { registerClipboardRead, registerClipboardWrite } from './clipboard'
+import { registerClipboardRead, registerClipboardWrite, registerClipboardReadFiles } from './clipboard'
 import { registerOpenApp } from './openApp'
-import { registerKnowledgeSearch, registerKnowledgeAdd, registerKnowledgeStats, registerKnowledgeImportFile, registerKnowledgeImportImage, registerKnowledgeSources, registerKnowledgeDeleteBySource } from './ragTools'
+import { registerKnowledgeSearch, registerKnowledgeAdd, registerKnowledgeStats, registerKnowledgeImportFile, registerKnowledgeImportImage, registerKnowledgeSources, registerKnowledgeDeleteBySource, registerKnowledgeSearchStructured, registerShowOpenDialog } from './ragTools'
 import { registerSystemTools } from './systemTools'
 import { createLogger } from '../../shared/logger'
 
@@ -38,21 +38,24 @@ export function registerAllTools() {
   // 剪贴板
   registerClipboardRead()
   registerClipboardWrite()
+  registerClipboardReadFiles()
 
   // 打开应用
   registerOpenApp()
 
   // 知识库 RAG
   registerKnowledgeSearch()
+  registerKnowledgeSearchStructured()
   registerKnowledgeAdd()
   registerKnowledgeStats()
   registerKnowledgeSources()
   registerKnowledgeDeleteBySource()
   registerKnowledgeImportFile()
   registerKnowledgeImportImage()
+  registerShowOpenDialog()
 
   // 系统工具（时间/系统信息/通知）
   registerSystemTools()
 
-  logger.info('Tools registered', { count: 25 });
+  logger.info('Tools registered', { count: 28 });
 }

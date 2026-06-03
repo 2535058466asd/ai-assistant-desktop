@@ -226,17 +226,20 @@ export class AgentLoop {
         });
       }
 
-      // 把助手消息（含可能的工具调用）加入历史
-      const assistantMsgForBrain: Message = {
-        id: `${messageId}-round${round}`,
-        role: 'assistant',
-        content: content || '',
-        timestamp: Date.now(),
-        sessionId: this.deps.conversationRuntime.getSessionId(),
-        ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
-        ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
-      };
-      this.deps.conversationRuntime.addMessage(assistantMsgForBrain);
+      // 只有带工具调用的中间轮次需要回填模型上下文。
+      // 最终回复由 Orchestrator 在循环结束后统一写入，避免同一回答保存两次。
+      if (toolCalls.length > 0) {
+        this.deps.conversationRuntime.addMessage({
+          id: `${messageId}-round${round}`,
+          role: 'assistant',
+          content: content || '',
+          timestamp: Date.now(),
+          sessionId: this.deps.conversationRuntime.getSessionId(),
+          isInternal: true,
+          ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
+          tool_calls: toolCalls,
+        });
+      }
 
       // 处理 content 的累积
       if (content && toolCalls.length === 0) {
@@ -412,6 +415,7 @@ export class AgentLoop {
         content: JSON.stringify(truncatedResult),
         timestamp: Date.now(),
         sessionId: this.deps.conversationRuntime.getSessionId(),
+        isInternal: true,
         tool_call_id: toolCall.id,
       });
 

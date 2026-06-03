@@ -18,6 +18,7 @@ import type { ImageAttachment } from '../../types';
 import { getTTSManager } from '../../core/tts/ttsManager';
 import DOMPurify from 'dompurify';
 import { createLogger } from '../../../shared/logger';
+import MarkdownRenderer from './MarkdownRenderer';
 
 const logger = createLogger('ui');
 
@@ -343,7 +344,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
    * @param content - 可能包含 HTML 的消息内容
    * @returns JSX 元素或纯文本
    */
-  const renderMessageContent = (content: string) => {
+  const renderMessageContent = (content: string, role?: string) => {
+    if (role === 'assistant') {
+      return <MarkdownRenderer content={content} />;
+    }
     /* 检查内容是否包含 HTML 标签 */
     if (/<\/?[a-z][\s\S]*>/i.test(content)) {
       return (
@@ -512,7 +516,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
                               ))}
                             </div>
                           )}
-                          {renderMessageContent(message.content)}
+                          {renderMessageContent(message.content, message.role)}
                         </div>
                         {/* 时间戳 */}
                         <div className={styles.userBubbleTime}>
@@ -547,7 +551,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
                           className={`${styles.aiBubble} ${message.isStreaming ? styles.streamingBubble : ''}`}
                           style={collapsedIds.has(message.id) ? { maxHeight: '60px', overflow: 'hidden' } : undefined}
                         >
-                          {renderMessageContent(message.content)}
+                          {renderMessageContent(message.content, message.role)}
                           {/* 流式输出时的闪烁光标 */}
                           {message.isStreaming && (
                             <span className={styles.streamingCursor}>|</span>
@@ -660,7 +664,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
           })}
 
           {/* ===== 打字指示器（AI 正在思考/生成回复时显示）===== */}
-          {isLoading && (
+          {isLoading && !messages.some(m => m.role === 'assistant' && m.isStreaming) && (
             <div className={styles.typingIndicator}>
               {/* AI 头像 */}
               <div className={styles.aiAvatar} title="Nova">

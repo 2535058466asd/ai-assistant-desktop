@@ -1,5 +1,5 @@
 // 导入 contextBridge 和 ipcRenderer，用于安全地暴露 API 到渲染进程
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 /**
  * 暴露安全的 API 到渲染进程
@@ -62,6 +62,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clipboardRead: async () => {
     return ipcRenderer.invoke('clipboard-read');
   },
+  // 读取剪贴板中的文件路径
+  clipboardReadFiles: async () => {
+    return ipcRenderer.invoke('clipboard-read-files');
+  },
+  // 从 File 对象提取本地路径（用于拖拽/粘贴文件）
+  getFilePaths: (files: any[]) => {
+    return files.map((f: any) => webUtils.getPathForFile(f)).filter(Boolean);
+  },
   // 写入剪贴板
   clipboardWrite: async (text: string) => {
     return ipcRenderer.invoke('clipboard-write', text);
@@ -109,6 +117,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 识别图片并导入知识库
   knowledgeImportImage: async (imagePath: string, category?: string) => {
     return ipcRenderer.invoke('knowledge-import-image', imagePath, category);
+  },
+  // 结构化搜索知识库（返回数组，供 UI 展示）
+  knowledgeSearchStructured: async (query: string, nResults?: number) => {
+    return ipcRenderer.invoke('knowledge-search-structured', query, nResults);
+  },
+  // 打开文件选择对话框
+  showOpenDialog: async (options?: { filters?: string[] }) => {
+    return ipcRenderer.invoke('show-open-dialog', options);
   },
   // 记忆服务 - 设置偏好
   memorySetPreference: async (key: string, value: any) => {
@@ -217,6 +233,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   asrV3SendAudio: async (config: any, audioBase64: string, isLast: boolean) =>
     ipcRenderer.invoke('asr-v3-send-audio', config, audioBase64, isLast),
   asrV3StopRecognition: async (config: any) => ipcRenderer.invoke('asr-v3-stop-recognition', config),
+  realtimeDialogConnect: async (config: any) => ipcRenderer.invoke('realtime-dialog-connect', config),
+  realtimeDialogSendAudio: async (audioBase64: string) => ipcRenderer.invoke('realtime-dialog-send-audio', audioBase64),
+  realtimeDialogDisconnect: async () => ipcRenderer.invoke('realtime-dialog-disconnect'),
   
   // 监听主进程消息（仅允许 TTS/ASR 事件）
   on: (channel: string, callback: (...args: any[]) => void) => {
@@ -228,6 +247,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'asr-result',
       'asr-complete',
       'asr-error',
+      'realtime-dialog-state',
+      'realtime-dialog-audio',
+      'realtime-dialog-event',
+      'realtime-dialog-error',
     ]);
     if (!allowedChannels.has(channel)) {
       throw new Error(`IPC channel is not allowed: ${channel}`);
@@ -271,6 +294,10 @@ declare global {
       knowledgeDeleteBySource: (source: string) => Promise<{ success: boolean; deletedCount?: number; error?: string }>;
       knowledgeImportFile: (filePath: string, category?: string) => Promise<{ success: boolean; count?: number; chunks?: number; info?: string; error?: string }>;
       knowledgeImportImage: (imagePath: string, category?: string) => Promise<{ success: boolean; count?: number; info?: string; error?: string }>;
+      knowledgeSearchStructured: (query: string, nResults?: number) => Promise<{ success: boolean; data?: Array<{ text: string; source: string; category: string; chunkId: string; distance: number }>; error?: string }>;
+      showOpenDialog: (options?: { filters?: string[] }) => Promise<{ success: boolean; data?: string[]; error?: string }>;
+      clipboardReadFiles: () => Promise<{ success: boolean; data?: string[]; error?: string }>;
+      getFilePaths: (files: any[]) => string[];
       memorySetPreference: (key: string, value: any) => Promise<void>;
       memoryGetPreference: (key: string) => Promise<any>;
       memoryGetAllPreferences: () => Promise<any>;
@@ -312,6 +339,9 @@ declare global {
       asrV3StartRecognition: (config: any) => Promise<any>;
       asrV3SendAudio: (config: any, audioBase64: string, isLast: boolean) => Promise<any>;
       asrV3StopRecognition: (config: any) => Promise<any>;
+      realtimeDialogConnect: (config: any) => Promise<{ success: boolean; error?: string }>;
+      realtimeDialogSendAudio: (audioBase64: string) => Promise<{ success: boolean; error?: string }>;
+      realtimeDialogDisconnect: () => Promise<{ success: boolean; error?: string }>;
       modelFetch: (request: { endpoint: string; headers?: Record<string, string>; body?: string }) => Promise<{
         ok: boolean;
         status: number;
