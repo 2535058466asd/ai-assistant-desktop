@@ -80,8 +80,8 @@ async function tryRegistryLookup(aliases: string[]): Promise<string | null> {
       });
       const appPath = stdout.trim();
       if (appPath) {
-        shell.openPath(appPath);
-        return `${alias}（路径: ${appPath}）`;
+        const opened = await shell.openPath(appPath);
+        if (opened === '') return `${alias}（路径: ${appPath}）`;
       }
     } catch { /* not found, continue */ }
   }
@@ -140,8 +140,13 @@ foreach ($target in $targets) {
     const result = JSON.parse(stdout.trim());
     if (result?.Name && result?.AppID) {
       const appUri = `shell:AppsFolder\\${result.AppID}`;
-      const opened = await shell.openPath(appUri);
-      if (opened === '') return `${result.Name}（AppID: ${result.AppID}）`;
+      // AppsFolder entries are Shell namespace identifiers, not filesystem
+      // paths. Let Explorer resolve them instead of passing them to openPath.
+      await execFileAsync('explorer.exe', [appUri], {
+        timeout: 10000,
+        windowsHide: true,
+      });
+      return `${result.Name}（AppID: ${result.AppID}）`;
     }
   } catch { /* not found */ }
   return null;

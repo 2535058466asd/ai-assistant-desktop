@@ -1,6 +1,6 @@
 // ==========================================
 // ASR 配置文件
-// 支持：豆包语音 ASR 2.0 WebSocket v3
+// 支持：豆包语音 ASR 2.0 WebSocket v3、小米 MiMo ASR
 // ==========================================
 
 import type { ASRType } from '../core/asr';
@@ -17,6 +17,15 @@ export interface ASRConfig {
     format?: string;          // 音频格式（pcm/wav/ogg/mp3）
     sampleRate?: number;      // 采样率（默认 16000）
     language?: string;        // 语言（zh-CN）
+  };
+
+  // 小米 MiMo ASR 配置（OpenAI-compatible chat/completions）
+  mimo?: {
+    baseUrl: string;
+    apiKey: string;
+    model?: string;
+    language?: 'auto' | 'zh' | 'en';
+    sampleRate?: number;
   };
 
   // 通用配置
@@ -38,7 +47,7 @@ function readEnvValue(key: string): string {
 
 function readASRType(): ASRConfig['type'] {
   const stored = readStoredValue('nova.asr.type');
-  return stored === 'volcengine' ? stored : 'volcengine';
+  return stored === 'volcengine' || stored === 'mimo' ? stored : 'volcengine';
 }
 
 // 默认 ASR 配置。
@@ -56,6 +65,13 @@ export const DEFAULT_ASR_CONFIG: ASRConfig = {
     sampleRate: 16000,  // 采样率
     language: 'zh-CN'  // 语言
   },
+  mimo: {
+    baseUrl: readEnvValue('VITE_MIMO_BASE_URL') || readStoredValue('nova.mimo.baseUrl') || 'https://api.xiaomimimo.com/v1',
+    apiKey: readEnvValue('VITE_MIMO_API_KEY') || readStoredValue('nova.mimo.apiKey'),
+    model: readStoredValue('nova.mimo.asrModel') || 'mimo-v2.5-asr',
+    language: 'auto',
+    sampleRate: 16000
+  },
   
   // 通用配置
   language: 'zh-CN'
@@ -72,6 +88,13 @@ export function loadASRConfig(): ASRConfig {
       format: 'pcm',
       sampleRate: 16000,
       language: 'zh-CN'
+    },
+    mimo: {
+      baseUrl: readEnvValue('VITE_MIMO_BASE_URL') || readStoredValue('nova.mimo.baseUrl') || 'https://api.xiaomimimo.com/v1',
+      apiKey: readEnvValue('VITE_MIMO_API_KEY') || readStoredValue('nova.mimo.apiKey'),
+      model: readStoredValue('nova.mimo.asrModel') || 'mimo-v2.5-asr',
+      language: 'auto',
+      sampleRate: 16000
     },
     language: 'zh-CN'
   };

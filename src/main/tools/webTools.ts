@@ -1,9 +1,79 @@
-import { ipcMain } from 'electron'
+import { ipcMain, BrowserWindow } from 'electron'
 import TurndownService from 'turndown'
 import * as cheerio from 'cheerio'
 import { createLogger } from '../../shared/logger'
 
 const logger = createLogger('tool')
+
+/**
+ * 用 Electron 内置 Chromium 渲染 SPA 页面
+ * 包含：反爬伪装、智能等待、自动重试
+ */
+const STEALTH_SCRIPT = `
+Object.defineProperty(navigator, 'webdriver', { get: () => false });
+Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN', 'zh', 'en'] });
+Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+window.chrome = { runtime: {} };
+`;
+
+// 等待 DOM 稳定：连续 300ms 无 MutationObserver 变化即返回
+const DOM_STABILITY_SCRIPT = `
+new Promise(resolve => {
+  let timer = null;
+  const obs = new MutationObserver(() => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { obs.disconnect(); resolve(undefined); }, 300);
+  });
+  obs.observe(document.body || document.documentElement, { childList: true, subtree: true });
+  timer = setTimeout(() => { obs.disconnect(); resolve(undefined); }, 300);
+});
+`;
+
+async function fetchWithElectron(url: string): Promise<string | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let win: BrowserWindow | null = null;
+    try {
+      win = new BrowserWindow({
+        show: false,
+        webPreferences: { offscreen: true, javascript: true, webSecurity: false },
+      });
+
+      // 反爬伪装：在页面加载前注入
+      win.webContents.on('dom-ready', () => {
+        win!.webContents.executeJavaScript(STEALTH_SCRIPT).catch(() => {});
+      });
+
+      win.loadURL(url);
+
+      // 等待页面加载完成（最多 15 秒）
+      await Promise.race([
+        new Promise<void>(resolve => win!.webContents.on('did-finish-load', () => resolve())),
+        new Promise<void>(resolve => setTimeout(resolve, 15000)),
+      ]);
+
+      // 智能等待：等 DOM 稳定后再取内容（最多再等 5 秒）
+      await Promise.race([
+        win.webContents.executeJavaScript(DOM_STABILITY_SCRIPT),
+        new Promise<void>(resolve => setTimeout(resolve, 5000)),
+      ]);
+
+      const html = await win.webContents.executeJavaScript('document.documentElement.outerHTML');
+      if (html && html.length > 500) return html;
+
+      // 内容太少，可能是空壳页，等一轮异步请求后再试
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const html2 = await win.webContents.executeJavaScript('document.documentElement.outerHTML');
+      if (html2 && html2.length > html!.length) return html2;
+      return html;
+    } catch (error: any) {
+      logger.warn('Electron 渲染抓取失败', { url, attempt, error: error.message });
+      if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 500));
+    } finally {
+      if (win && !win.isDestroyed()) win.destroy();
+    }
+  }
+  return null;
+}
 
 // 搜索配置（可通过 settings UI 动态修改）
 let searchConfig = {
@@ -427,6 +497,24 @@ export function registerWebFetch() {
 
       if (contentType.includes('html')) {
         text = htmlToMarkdown(text);
+      }
+
+      // 对 HTML 页面：内容太短说明可能是 SPA 空壳，尝试 Electron Chromium 渲染
+      const isLikelySPA = contentType.includes('html') && text.replace(/\s/g, '').length < 200;
+      if (isLikelySPA) {
+        logger.info('web_fetch 内容过短，尝试 Electron 渲染', { url, httpContentLength: text.length });
+        const renderedHtml = await fetchWithElectron(url);
+        if (renderedHtml) {
+          const { load } = await import('cheerio');
+          const $ = load(renderedHtml);
+          $('script, style, noscript, nav, header, footer, aside, [role="navigation"], [role="banner"]').remove();
+          const content = $('article, main, [role="main"]').first().length
+            ? $('article, main, [role="main"]').first()
+            : $('body');
+          const td = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' });
+          td.remove(['script', 'style', 'noscript', 'svg', 'nav', 'footer', 'header', 'aside', 'iframe']);
+          text = td.turndown($.html(content));
+        }
       }
 
       const MAX_LENGTH = 12000;

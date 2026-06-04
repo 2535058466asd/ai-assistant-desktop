@@ -371,71 +371,75 @@
 
 /* ===== 重命名输入框 ===== */
 .chatItemRename {
-  padding: 10px 12px;
+  padding: 6px 10px;
   border-radius: var(--radius-md);
   margin-bottom: 2px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  background: var(--bg-active);
-  border: 1px solid var(--accent-cyan);
+  gap: 6px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  max-width: calc(100% - 24px);
 }
 
 .renameInput {
-  flex: 1;
-  padding: 6px 10px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  width: 160px;
+  max-width: 100%;
+  padding: 5px 8px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
   color: var(--text-primary);
   font-size: 13px;
   outline: none;
   font-family: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .renameInput:focus {
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.15);
+  border-bottom-color: var(--accent-cyan);
 }
 
 .renameActions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   flex-shrink: 0;
 }
 
 .renameSave,
 .renameCancel {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  font-weight: bold;
-  transition: all var(--transition-normal) var(--ease-smooth);
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--text-muted);
+  transition: all 0.15s ease;
 }
 
 .renameSave {
-  background: var(--accent-cyan);
-  color: var(--bg-primary);
+  color: #22c55e;
 }
 
 .renameCancel {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .renameSave:hover {
-  background: #06b6d4;
-  transform: scale(1.05);
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
 }
 
 .renameCancel:hover {
-  background: var(--bg-hover);
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
 }
 
 /* ===== 删除确认弹窗 ===== */

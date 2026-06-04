@@ -5,5 +5,6 @@
 
 export type { ASRService, ASRRequest, ASRResult } from './asrInterface';
 export { VolcengineASRV3 } from './volcengineASRV3';
+export { MiMoASR } from './mimoASR';
 export { ASRManager, getASRManager } from './asrManager';
 export type { ASRType } from './asrManager';

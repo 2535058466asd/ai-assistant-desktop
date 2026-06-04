@@ -13,6 +13,12 @@ const logger = createLogger('tts')
 // 使用 Node.js 内置的 crypto 生成 UUID（避免 ESM 兼容性问题）
 const uuidv4 = () => crypto.randomUUID()
 
+function maskSecret(value?: string): string {
+  if (!value) return ''
+  if (value.length <= 8) return '***'
+  return `${value.slice(0, 4)}***${value.slice(-4)}`
+}
+
 // ==========================================
 // TTS 协议定义（根据官方 TypeScript 示例）
 // ==========================================
@@ -258,7 +264,11 @@ export class VolcengineTTSWebSocketService {
           voice: this.config.voice,
           apiUrl: this.config.apiUrl
         }, null, 2))
-        logger.debug('📋 [Main] 请求头:', JSON.stringify(headers, null, 2))
+        logger.debug('📋 [Main] TTS 连接请求头:', JSON.stringify({
+          ...headers,
+          'X-Api-App-Key': maskSecret(headers['X-Api-App-Key']),
+          'X-Api-Access-Key': maskSecret(headers['X-Api-Access-Key'])
+        }, null, 2))
 
         this.ws = new WebSocket(this.config.apiUrl, {
           headers,
@@ -385,6 +395,7 @@ export class VolcengineTTSWebSocketService {
         event: TTSEventType.StartSession
       }
 
+      logger.debug('📤 [Main] TTS StartSession 请求体:', JSON.stringify(startSessionPayload, null, 2))
       this.ws!.send(this.buildTTSMessage(TTSMsgType.FullClientRequest, TTSMsgTypeFlagBits.WithEvent, TTSEventType.StartSession, startSessionPayload, this.sessionId))
       logger.debug('📤 [Main] TTS 已发送 StartSession (event=100, sessionId=%s)', this.sessionId)
 
@@ -407,6 +418,22 @@ export class VolcengineTTSWebSocketService {
       })
 
       const sentences = text.split('。').filter(s => s.trim().length > 0)
+      const taskRequestPreview = {
+        user: { uid: '<runtime-uuid>' },
+        req_params: {
+          speaker: this.config.voice,
+          text,
+          audio_params: {
+            format: this.config.format,
+            sample_rate: this.config.sampleRate,
+            enable_timestamp: true
+          },
+          additions: JSON.stringify({ disable_markdown_filter: false })
+        },
+        event: TTSEventType.TaskRequest,
+        transport_note: '实际发送时会按字符分片，每个 TaskRequest 的 text 是单个字符。'
+      }
+      logger.debug('📤 [Main] TTS TaskRequest 请求体预览:', JSON.stringify(taskRequestPreview, null, 2))
 
       for (const sentence of sentences) {
         for (const char of sentence) {
@@ -437,15 +464,7 @@ export class VolcengineTTSWebSocketService {
       logger.debug('📤 [Main] TTS 已发送 FinishSession (event=102)')
 
       await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          logger.debug('⚠️ [Main] TTS 等待 SessionFinished 超时')
-          this.sessionFinishedResolver = null
-          this.sessionFinishedRejecter = null
-          resolve()
-        }, 30000)
-
         this.sessionFinishedResolver = () => {
-          clearTimeout(timeout)
           logger.debug('✅ [Main] TTS 收到 SessionFinished 响应，音频接收完成')
           this.sessionFinishedResolver = null
           this.sessionFinishedRejecter = null

@@ -99,7 +99,6 @@ export default function ModelApiPanel() {
             />
           </>
         )}
-        <p className={styles.note}>默认模型由顶部栏下拉切换；这里不再要求手动填写模型名称。</p>
       </div>
 
       <div className={styles.section}>
@@ -130,8 +129,6 @@ export default function ModelApiPanel() {
           />
         </div>
       </div>
-
-      <p className={styles.note}>保存后新的模型服务配置会在下一次对话请求中生效；日常临时切模型请使用聊天页顶部下拉。</p>
 
       <button className={styles.btnPrimary} onClick={handleSave}>
         {saved ? '已保存' : '保存配置'}

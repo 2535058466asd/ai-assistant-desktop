@@ -228,6 +228,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ttsV3Synthesize: async (config: any, text: string, options?: { sessionId?: string }) =>
     ipcRenderer.invoke('tts-v3-synthesize', config, text, options),
   ttsV3Disconnect: async () => ipcRenderer.invoke('tts-v3-disconnect'),
+  volcengineTTSListSpeakers: async (options?: { resourceId?: string; forceRefresh?: boolean }) =>
+    ipcRenderer.invoke('volcengine-tts-list-speakers', options),
   asrV3Connect: async (config: any) => ipcRenderer.invoke('asr-v3-connect', config),
   asrV3StartRecognition: async (config: any) => ipcRenderer.invoke('asr-v3-start-recognition', config),
   asrV3SendAudio: async (config: any, audioBase64: string, isLast: boolean) =>
@@ -335,6 +337,7 @@ declare global {
       ttsV3Connect: (config: any) => Promise<any>;
       ttsV3Synthesize: (config: any, text: string, options?: { sessionId?: string }) => Promise<any>;
       ttsV3Disconnect: () => Promise<any>;
+      volcengineTTSListSpeakers: (options?: { resourceId?: string; forceRefresh?: boolean }) => Promise<any>;
       asrV3Connect: (config: any) => Promise<any>;
       asrV3StartRecognition: (config: any) => Promise<any>;
       asrV3SendAudio: (config: any, audioBase64: string, isLast: boolean) => Promise<any>;

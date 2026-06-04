@@ -19,7 +19,7 @@ export class ContextCompactor {
 
   truncateToolResult(result: string): string {
     const estimatedTokens = Math.ceil(result.length / 4);
-    if (estimatedTokens <= ContextCompactor.MAX_TOOL_RESULT_TOKENS) return result;
+    if (estimatedTokens < ContextCompactor.MAX_TOOL_RESULT_TOKENS) return result;
     const maxChars = ContextCompactor.MAX_TOOL_RESULT_TOKENS * 4;
     const truncated = result.slice(0, maxChars);
     return `${truncated}\n\n[结果已截断，原文共 ${result.length} 字]`;

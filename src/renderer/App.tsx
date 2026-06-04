@@ -20,6 +20,8 @@ import { ToastProvider, useToast } from './components/Toast';
 import { getOrchestrator } from './core/orchestrator';
 import { getVoiceChatMode } from './core/voiceChat/VoiceChatMode';
 import type { VoiceChatState } from './core/voiceChat/VoiceChatMode';
+import { getRealtimeCallMode } from './core/realtimeCall/RealtimeCallMode';
+import type { RealtimeCallState } from './core/realtimeCall/RealtimeCallMode';
 import type { AgentProcessEvent, ImageAttachment, Message } from './types';
 import type { StreamCallbacks } from './core/orchestrator';
 import { createLogger, type LogMeta } from '../shared/logger';
@@ -27,6 +29,7 @@ import { createModelProvider, setModelProvider } from './core/model';
 import { syncProviderConfigForModel } from './core/model/modelRuntime';
 import { syncSearchConfig } from './config/searchConfig';
 import { upsertById } from './utils/storage';
+import { isVisibleChatMessage } from './core/conversation/messageVisibility';
 
 const logger = createLogger('ui');
 const THEME_KEY = 'nova.theme';
@@ -39,6 +42,8 @@ function AppContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [voiceChatState, setVoiceChatState] = useState<VoiceChatState>('idle');
   const [isVoiceChatEnabled, setIsVoiceChatEnabled] = useState(false);
+  const [realtimeCallState, setRealtimeCallState] = useState<RealtimeCallState>('idle');
+  const [isRealtimeCallEnabled, setIsRealtimeCallEnabled] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     try {
       const saved = localStorage.getItem(THEME_KEY) || localStorage.getItem(LEGACY_THEME_KEY);
@@ -50,6 +55,7 @@ function AppContent() {
   
   const orchestratorRef = useRef(getOrchestrator());
   const voiceChatModeRef = useRef(getVoiceChatMode());
+  const realtimeCallModeRef = useRef(getRealtimeCallMode());
   const isVoiceChatEnabledRef = useRef(false);
 
   // 流式内容缓存：onStreamChunk 存，onStreamEnd 读，避免在 setMessages updater 里触发副作用
@@ -86,6 +92,18 @@ function AppContent() {
       },
       onError: (error) => {
         showToast(error, 'error');
+      }
+    });
+
+    realtimeCallModeRef.current.setCallbacks({
+      onStateChange: (state) => {
+        setRealtimeCallState(state);
+      },
+      onError: (error) => {
+        showToast(error, 'error');
+      },
+      onEvent: (event) => {
+        logger.info('实时通话事件', { event });
       }
     });
 
@@ -184,6 +202,19 @@ function AppContent() {
     }
   }, [showToast]);
 
+  const handleToggleRealtimeCall = useCallback(async () => {
+    try {
+      logger.info('用户切换豆包实时通话');
+      const enabled = await realtimeCallModeRef.current.toggle();
+      setIsRealtimeCallEnabled(enabled);
+      showToast(enabled ? '豆包实时通话已开启' : '豆包实时通话已关闭', 'info');
+    } catch (error) {
+      logger.error('切换豆包实时通话失败', error);
+      setIsRealtimeCallEnabled(false);
+      showToast(error instanceof Error ? error.message : '切换豆包实时通话失败', 'error');
+    }
+  }, [showToast]);
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     try {
@@ -243,7 +274,7 @@ function AppContent() {
     const logMeta: LogMeta = { phase: 'history', reason: 'set_messages', ...meta };
     logger.info('用户切换对话消息', { ...logMeta, messageCount: newMessages.length });
     // SQLite 保存完整 Agent 上下文；聊天区只展示用户与助手消息。
-    setMessages(newMessages.filter((message) => message.role === 'user' || message.role === 'assistant'));
+    setMessages(newMessages.filter(isVisibleChatMessage));
     setProcessEventsByMessageId({});
     // 清理 spokenMessageIds，避免内存泄漏
     spokenMessageIds.current.clear();
@@ -268,6 +299,9 @@ function AppContent() {
       voiceChatState={voiceChatState}
       isVoiceChatEnabled={isVoiceChatEnabled}
       onToggleVoiceChat={handleToggleVoiceChat}
+      realtimeCallState={realtimeCallState}
+      isRealtimeCallEnabled={isRealtimeCallEnabled}
+      onToggleRealtimeCall={handleToggleRealtimeCall}
     />
   );
 }

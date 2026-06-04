@@ -5,15 +5,17 @@
 
 import type { ASRService, ASRRequest, ASRResult } from './asrInterface';
 import { VolcengineASRV3, type VolcengineASRV3Config } from './volcengineASRV3';
+import { MiMoASR, type MiMoASRConfig } from './mimoASR';
 import type { ASRConfig as GlobalASRConfig } from '../../config/asrConfig';
 import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('asr');
 
-export type ASRType = 'volcengine';
+export type ASRType = 'volcengine' | 'mimo';
 
-interface ASRConfig extends Omit<GlobalASRConfig, 'volcengine'> {
+interface ASRConfig extends Omit<GlobalASRConfig, 'volcengine' | 'mimo'> {
   volcengine?: VolcengineASRV3Config;
+  mimo?: MiMoASRConfig;
 }
 
 class UnsupportedASRService implements ASRService {
@@ -84,6 +86,17 @@ export class ASRManager {
         });
         this.activeType = 'volcengine';
         return new UnsupportedASRService('豆包 ASR 凭证未配置完整，请先填写 App ID 和 Access Token。');
+      case 'mimo':
+        if (this.config.mimo?.baseUrl && this.config.mimo?.apiKey) {
+          logger.info('正在初始化小米 MiMo ASR');
+          this.activeType = 'mimo';
+          return new MiMoASR(this.config.mimo);
+        }
+        logger.warn('小米 MiMo ASR 配置不完整，当前不启用 ASR', {
+          requestedType: 'mimo'
+        });
+        this.activeType = 'mimo';
+        return new UnsupportedASRService('小米 MiMo ASR 配置不完整，请先填写 Base URL 和 API Key。');
       default:
         logger.warn('未知 ASR 类型，当前不启用 ASR', { type });
         this.activeType = 'volcengine';
@@ -98,7 +111,8 @@ export class ASRManager {
     const nextConfig: ASRConfig = {
       type: globalConfig.type,
       language: globalConfig.language,
-      volcengine: globalConfig.volcengine
+      volcengine: globalConfig.volcengine,
+      mimo: globalConfig.mimo
     };
 
     const nextConfigKey = this.serializeConfig(nextConfig);
@@ -208,7 +222,7 @@ export class ASRManager {
     this.configKey = this.serializeConfig(this.config);
     if (config.type && config.type !== oldType) {
       this.switchType(config.type);
-    } else if (config.volcengine || config.language) {
+    } else if (config.volcengine || config.mimo || config.language) {
       this.currentService = this.createService(this.config.type);
       this.serviceInitialized = false;
       this.initializingService = null;

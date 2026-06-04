@@ -6,7 +6,7 @@
 
 import type { TTSService, TTSRequest, TTSResult } from './ttsInterface'
 import { createLogger } from '../../../shared/logger'
-import { OFFICIAL_VOLCENGINE_TTS_VOICES } from '../../config/volcengineVoices'
+import { DEFAULT_VOLCENGINE_TTS_VOICE, OFFICIAL_VOLCENGINE_TTS_VOICES } from '../../config/volcengineVoices'
 
 const logger = createLogger('tts')
 
@@ -188,6 +188,16 @@ export class VolcengineTTSV3 implements TTSService {
       this.currentSessionId = sessionId
       this.lastSessionStartedId = null
       logger.debug('🎯 [VolcengineTTSV3] 生成 sessionId:', sessionId)
+      logger.debug('📤 [VolcengineTTSV3] 即将发送 TTS 参数:', {
+        sessionId,
+        resourceId: this.config.resourceId,
+        voice_type: this.config.voice,
+        model: this.config.model,
+        format: this.config.format,
+        sampleRate: this.config.sampleRate,
+        textLength: request.text.length,
+        text: request.text
+      })
 
       const synthesisPromise = new Promise<TTSResult>((resolve) => {
         this.onCompleteCallback = (audioBuffer: ArrayBuffer) => {
@@ -231,20 +241,18 @@ export class VolcengineTTSV3 implements TTSService {
         logger.debug('✅ [VolcengineTTSV3] TTS 合成请求已发送，等待响应...')
       })
 
-      const timeoutPromise = new Promise<TTSResult>((resolve) => {
-        setTimeout(() => {
-          if (this.isSynthesizing) {
-            logger.warn('⏰ TTS 合成超时（30秒），强制释放锁')
-            this.onCompleteCallback = null
-            this.onErrorCallback = null
-            this.isSynthesizing = false
-            this.isConnected = false
-            resolve({ success: false, error: 'TTS 合成超时' })
-          }
-        }, 30000)
-      })
+      const result = await synthesisPromise
+      if (!result.success && this.shouldFallbackToDefaultVoice(result.error) && this.config.voice !== DEFAULT_VOLCENGINE_TTS_VOICE) {
+        logger.warn('⚠️ [VolcengineTTSV3] 当前音色与资源包不匹配，自动回退到默认音色重试', {
+          requestedVoice: this.config.voice,
+          fallbackVoice: DEFAULT_VOLCENGINE_TTS_VOICE,
+          error: result.error
+        })
+        this.setVoice(DEFAULT_VOLCENGINE_TTS_VOICE)
+        return this.synthesize(request)
+      }
 
-      return Promise.race([synthesisPromise, timeoutPromise])
+      return result
     } catch (error) {
       logger.error('❌ TTS 合成失败:', error)
       this.onCompleteCallback = null
@@ -252,6 +260,14 @@ export class VolcengineTTSV3 implements TTSService {
       this.isSynthesizing = false
       return { success: false, error: error instanceof Error ? error.message : 'TTS 合成失败' }
     }
+  }
+
+  private shouldFallbackToDefaultVoice(error?: string): boolean {
+    if (!error) return false
+    const text = error.toLowerCase()
+    return text.includes('resource id is mismatched with speaker related resource')
+      || text.includes('resource mismatched')
+      || text.includes('speaker related resource')
   }
 
   async synthesizeStream(

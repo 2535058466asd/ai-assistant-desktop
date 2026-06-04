@@ -43,6 +43,9 @@ interface InputAreaProps {
   isVoiceChatEnabled?: boolean;
   /** 切换语音对话模式回调 */
   onToggleVoiceChat?: () => void;
+  realtimeCallState?: 'idle' | 'connecting' | 'connected' | 'error';
+  isRealtimeCallEnabled?: boolean;
+  onToggleRealtimeCall?: () => void;
   /** 显示附件校验提示 */
   showToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
@@ -72,6 +75,9 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
   voiceChatState = 'idle',
   isVoiceChatEnabled = false,
   onToggleVoiceChat,
+  realtimeCallState = 'idle',
+  isRealtimeCallEnabled = false,
+  onToggleRealtimeCall,
   showToast,
 }, ref) => {
   
@@ -456,6 +462,28 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
             </button>
           )}
 
+          {onToggleRealtimeCall && (
+            <button
+              className={`${styles.extraBtn} ${isRealtimeCallEnabled ? styles.realtimeCallBtnActive : ''}`}
+              title={isRealtimeCallEnabled ? '关闭实时通话' : '开启豆包实时通话'}
+              onClick={onToggleRealtimeCall}
+              type="button"
+            >
+              <svg
+                className={styles.extraBtnSvg}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.11 4.2 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.32 1.78.6 2.63a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.45-1.17a2 2 0 0 1 2.11-.45c.85.28 1.73.48 2.63.6A2 2 0 0 1 22 16.92z" />
+                {isRealtimeCallEnabled && <circle cx="18" cy="6" r="3" fill="#22c55e" stroke="none" />}
+              </svg>
+            </button>
+          )}
+
           {/* 右侧：发送按钮 */}
           <button
             className={styles.sendBtn}
@@ -512,6 +540,16 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
                 <span style={{ color: 'var(--text-secondary)' }}>语音识别出错，请检查麦克风权限或网络后重试</span>
               </>
             )}
+          </div>
+        )}
+
+        {isRealtimeCallEnabled && (
+          <div className={styles.realtimeCallStatus}>
+            <span className={styles.voiceChatDot}></span>
+            {realtimeCallState === 'connecting' && '正在连接豆包实时通话...'}
+            {realtimeCallState === 'connected' && '豆包实时通话中'}
+            {realtimeCallState === 'error' && '实时通话出错，请检查 RTC 配置'}
+            {realtimeCallState === 'idle' && '实时通话准备中'}
           </div>
         )}
 

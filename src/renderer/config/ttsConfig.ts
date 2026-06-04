@@ -4,7 +4,7 @@
 // ==========================================
 
 import type { TTSType } from '../core/tts';
-import { DEFAULT_VOLCENGINE_TTS_VOICE, normalizeVolcengineVoice } from './volcengineVoices';
+import { DEFAULT_VOLCENGINE_TTS_VOICE } from './volcengineVoices';
 
 export interface TTSConfig {
   type: TTSType;
@@ -72,7 +72,7 @@ export function readMiMoTTSModel(): string {
 }
 
 function readVolcengineVoice(): string {
-  return normalizeVolcengineVoice(readStoredValue('nova.tts.voice'));
+  return readStoredValue('nova.tts.voice').trim() || DEFAULT_VOLCENGINE_TTS_VOICE;
 }
 
 // 默认 TTS 配置（支持豆包、小米）。

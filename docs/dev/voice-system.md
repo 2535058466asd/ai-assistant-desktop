@@ -58,9 +58,9 @@ TTS = 火山 TTS
 
 如果凭证缺失，Manager 现在会直接报配置错误，不再自动降级到浏览器 Web Speech。
 
-正式演示和主力使用建议优先选择火山 ASR + 火山 TTS，或火山 ASR + MiMo TTS。
+正式演示和主力使用可以按服务商分组选择：豆包 ASR + 豆包 TTS，或小米 MiMo ASR + MiMo TTS。
 
-## 为什么移除 MiMo ASR
+## MiMo ASR 状态
 
 MiMo ASR 之前不是正统实时 ASR，而是：
 
@@ -71,13 +71,13 @@ MiMo ASR 之前不是正统实时 ASR，而是：
   -> 返回文字
 ```
 
-这更像“音频理解转写模拟”，不是专门的实时语音识别。它需要录完再上传，延迟更高，也可能按多模态模型调用计费，不适合作为 Nova 的稳定语音输入能力。
+这更像“音频理解转写模拟”，不是专门的实时语音识别。
 
-因此当前策略是：
+2026-06-02 后，小米开放平台已经提供 `mimo-v2.5-asr` 云端 API。Nova 当前接入策略是：
 
-- MiMo ASR 移除。
-- MiMo TTS 保留。
-- 未来如果要接小米 ASR，应接入官方本地 `MiMo-V2.5-ASR` 或其他正统 ASR 引擎，而不是用多模态聊天接口模拟。
+- 豆包 ASR 保留 WebSocket 实时流式识别。
+- MiMo ASR 使用 `chat/completions` 一次性提交 WAV 音频，停止录音后返回文字。
+- MiMo TTS 保留，ASR/TTS 共用 MiMo Base URL 和 API Key。
 
 ## 后续优化方向
 
