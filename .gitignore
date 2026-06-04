@@ -43,6 +43,7 @@ skills-lock.json
 sample.mp4
 *.tmp
 tmp/
+.tmp-*/
 
 # Electron
 release/
