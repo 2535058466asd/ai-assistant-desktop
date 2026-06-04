@@ -10,7 +10,8 @@ export type LogModule =
   | 'ipc'
   | 'ui'
   | 'voice'
-  | 'history';
+  | 'history'
+  | (string & {});
 
 export interface LogMeta {
   traceId?: string;

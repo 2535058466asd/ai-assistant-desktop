@@ -167,7 +167,9 @@ export interface AgentProcessEvent {
   title: string;
   status: AgentProcessStatus;
   detail?: string;
+  error?: string;
   toolName?: string;
+  toolCallId?: string;
   argsPreview?: string;
   resultPreview?: string;
   durationMs?: number;

@@ -358,7 +358,7 @@ ${getToolPromptSummary(toolDefinitions)}`;
     } catch { /* ignore */ }
     try {
       const stats = await window.electronAPI?.knowledgeStats?.();
-      if (stats?.success && stats.data?.count > 0) {
+      if (stats?.success && stats.data?.count) {
         knowledgeInfo = `知识库中有 ${stats.data.count} 条文档片段，用户提问相关内容时可以主动检索。`;
       }
     } catch { /* ignore */ }

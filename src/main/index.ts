@@ -22,6 +22,8 @@ import { registerAllTools } from './tools'
 import { createLogger } from '../shared/logger'
 import { deleteAttachmentsByChat, readAttachmentDataUrl, saveImageAttachment } from './services/attachmentService'
 import { getConversationArchiveService } from './services/conversationArchiveService'
+import { getRealtimeDialogService } from './services/realtimeDialogService'
+import { getVolcengineTTSVoiceCatalogService } from './services/volcengineTTSVoiceCatalogService'
 
 let mainWindow: BrowserWindow | null = null
 const mainLogger = createLogger('ipc')
@@ -62,7 +64,7 @@ function createWindow() {
       const ports = [5173, 5174, 5175, 5176, 5177, 5178, 5179, 5180];
       for (const port of ports) {
         try {
-          await mainWindow.loadURL(`http://localhost:${port}`);
+          await mainWindow!.loadURL(`http://localhost:${port}`);
           mainLogger.info('Connected to Vite dev server', { url: `http://localhost:${port}` });
           return;
         } catch (error) {
@@ -418,6 +420,17 @@ ipcMain.handle('tts-v3-disconnect', async () => {
   }
 })
 
+ipcMain.handle('volcengine-tts-list-speakers', async (_event, options?: { resourceId?: string; forceRefresh?: boolean }) => {
+  try {
+    const service = getVolcengineTTSVoiceCatalogService()
+    const result = await service.listSpeakers(options?.resourceId, options?.forceRefresh)
+    return { success: true, data: result.data, raw: result.raw }
+  } catch (error) {
+    mainLogger.error('List speakers failed', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
 // ========== TTS 持久化缓存 IPC ==========
 // 使用 Node.js 内置的 crypto
 const crypto = require('crypto')
@@ -544,6 +557,43 @@ app.whenReady().then(() => {
   createWindow()
   registerDevelopmentShortcuts()
   registerAllTools()
+})
+
+// ========== 豆包端到端实时语音 WebSocket ==========
+ipcMain.handle('realtime-dialog-connect', async (_event, config: any) => {
+  try {
+    if (!mainWindow) throw new Error('mainWindow 不可用')
+    const service = getRealtimeDialogService(mainWindow)
+    await service.connect(config)
+    return { success: true }
+  } catch (error) {
+    mainLogger.error('Realtime dialog connect failed', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Realtime dialog connect failed' }
+  }
+})
+
+ipcMain.handle('realtime-dialog-send-audio', async (_event, audioBase64: string) => {
+  try {
+    if (!mainWindow) throw new Error('mainWindow 不可用')
+    const service = getRealtimeDialogService(mainWindow)
+    await service.sendAudio(audioBase64)
+    return { success: true }
+  } catch (error) {
+    mainLogger.error('Realtime dialog send audio failed', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Realtime dialog send audio failed' }
+  }
+})
+
+ipcMain.handle('realtime-dialog-disconnect', async () => {
+  try {
+    if (!mainWindow) throw new Error('mainWindow 不可用')
+    const service = getRealtimeDialogService(mainWindow)
+    await service.disconnect()
+    return { success: true }
+  } catch (error) {
+    mainLogger.error('Realtime dialog disconnect failed', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Realtime dialog disconnect failed' }
+  }
 })
 
 

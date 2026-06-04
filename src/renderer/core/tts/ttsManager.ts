@@ -173,7 +173,7 @@ export class TTSManager {
     // 第2步：检查本地持久化缓存（跨会话复用）
     try {
       logger.debug('正在检查 TTS 本地缓存');
-      const localCacheResult = await window.electronAPI!.ttsCacheCheck(mergedRequest.text, mergedRequest.voice);
+      const localCacheResult = await window.electronAPI!.ttsCacheCheck(mergedRequest.text, mergedRequest.voice ?? '');
       
       if (localCacheResult.exists && localCacheResult.audioData) {
         logger.info('TTS 命中本地缓存');

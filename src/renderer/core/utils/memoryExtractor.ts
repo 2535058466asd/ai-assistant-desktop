@@ -17,7 +17,7 @@ const SKIP_PATTERNS = /^(你好|hi|hello|早|早上好|晚上好|晚安|谢谢|t
  * 判断是否值得调用 LLM 提取记忆
  */
 export function shouldExtractMemory(userText: string, assistantText: string): boolean {
-  if (userText.trim().length < 8) return false;
+  if (userText.trim().length < 5) return false;
   if (SKIP_PATTERNS.test(userText.trim())) return false;
   if (assistantText.length < 10) return false;
   return true;
@@ -146,7 +146,7 @@ export async function tryExtractAndSaveMemory(userText: string, assistantText: s
         memoryKey: memory.memoryKey,
         sourceKind: memory.sourceKind,
         validUntil: memory.validUntil,
-        sourceConversation: meta.chatId,
+        sourceConversation: meta.chatId ?? undefined,
         sourceMessage: meta.messageId,
       });
       logger.info('候选记忆治理完成', { ...meta, phase: 'persist', ...memory, result });

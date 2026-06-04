@@ -91,7 +91,8 @@ export function getUsageStats(filter?: { chatId?: string; model?: string; since?
     records = records.filter(r => r.model === filter.model);
   }
   if (filter?.since) {
-    records = records.filter(r => r.timestamp >= filter.since);
+    const since = filter.since;
+    records = records.filter(r => r.timestamp >= since);
   }
 
   const byModel: Record<string, { tokens: number; cost: number; count: number }> = {};

@@ -44,6 +44,7 @@ import { createLogger, createTraceId, type LogMeta } from '../../../shared/logge
 import { getActiveModelConfig } from '../../config/modelConfig';
 import { normalizeModelSelection } from '../../core/model/modelRuntime';
 import { getModelsForProvider } from '../../config/modelCatalog';
+import { isVisibleChatMessage } from '../../core/conversation/messageVisibility';
 import {
   deleteArchivedConversation,
   getArchivedMessages,
@@ -69,6 +70,7 @@ import type { AgentProcessEvent, ImageAttachment, Message, PendingImageAttachmen
 
 /* 导入语音对话模式类型 */
 import type { VoiceChatState } from '../../core/voiceChat/VoiceChatMode';
+import type { RealtimeCallState } from '../../core/realtimeCall/RealtimeCallMode';
 
 /* ==========================================
    组件 Props 类型定义
@@ -100,6 +102,9 @@ interface AppLayoutProps {
   isVoiceChatEnabled?: boolean;
   /** 切换语音对话模式回调 */
   onToggleVoiceChat?: () => void;
+  realtimeCallState?: RealtimeCallState;
+  isRealtimeCallEnabled?: boolean;
+  onToggleRealtimeCall?: () => void;
   /** 切换模型回调 */
   onModelChange?: (modelId: string) => void;
 }
@@ -174,7 +179,7 @@ const settingsTabs: { id: SettingsPageTab; label: string; description: string }[
 
 const getInitialAppView = (): AppView => {
   const saved = (localStorage.getItem(STORAGE_KEY_ACTIVE_VIEW) || localStorage.getItem(LEGACY_STORAGE_KEY_ACTIVE_VIEW)) as AppView | null;
-  return appViews.some((view) => view.id === saved) ? saved : 'chat';
+  return appViews.some((view) => view.id === saved) ? (saved as AppView) : 'chat';
 };
 
 /* ==========================================
@@ -267,6 +272,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   voiceChatState = 'idle',
   isVoiceChatEnabled = false,
   onToggleVoiceChat,
+  realtimeCallState = 'idle',
+  isRealtimeCallEnabled = false,
+  onToggleRealtimeCall,
   onModelChange,
 }) => {
   /* ===== 状态管理 ===== */
@@ -448,7 +456,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       ) {
         const chat = chatList.find((item) => item.id === activeChatId);
         if (!chat) return;
-        const visibleMessages = messages.filter((msg) => msg.role === 'user' || msg.role === 'assistant');
+        const visibleMessages = messages.filter(isVisibleChatMessage);
         const lastVisibleMessage = visibleMessages[visibleMessages.length - 1];
         const updatedChat = {
           ...chat,
@@ -619,9 +627,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    */
   const handleRenameChat = useCallback((chatId: string, newTitle: string) => {
     logger.info('请求重命名对话', { chatId, newTitle });
-    void renameArchivedConversation(chatId, newTitle).then(() => {
-      setChatList((prev) => prev.map((chat) => chat.id === chatId ? { ...chat, title: newTitle } : chat));
-    }).catch((error) => {
+    setChatList((prev) => prev.map((chat) => chat.id === chatId ? { ...chat, title: newTitle } : chat));
+    void renameArchivedConversation(chatId, newTitle).catch((error) => {
       logger.error('重命名 SQLite 对话失败', { chatId, error });
       showToast('重命名对话失败，请重试。', 'error');
     });
@@ -791,7 +798,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
           </section>
         ) : (
           <ChatArea
-            messages={messages.map(convertToUIMessage)}
+            messages={messages.filter(isVisibleChatMessage).map(convertToUIMessage)}
             isLoading={isLoading}
             showToast={showToast}
           />
@@ -874,6 +881,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
             voiceChatState={voiceChatState}
             isVoiceChatEnabled={isVoiceChatEnabled}
             onToggleVoiceChat={onToggleVoiceChat}
+            realtimeCallState={realtimeCallState}
+            isRealtimeCallEnabled={isRealtimeCallEnabled}
+            onToggleRealtimeCall={onToggleRealtimeCall}
             showToast={showToast}
           />
         )}

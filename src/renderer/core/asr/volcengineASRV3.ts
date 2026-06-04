@@ -146,9 +146,9 @@ export class VolcengineASRV3 implements ASRService {
     try {
       logger.debug('🎤 开始录音并识别...')
       
-      this.onResultCallback = onResult
-      this.onErrorCallback = onError
-      this.onEndCallback = onEnd
+      this.onResultCallback = onResult ?? null
+      this.onErrorCallback = onError ?? null
+      this.onEndCallback = onEnd ?? null
       this.recognitionResult = ''
       this.isRecording = true
 

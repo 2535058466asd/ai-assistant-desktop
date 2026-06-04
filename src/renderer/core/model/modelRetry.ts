@@ -33,7 +33,7 @@ export async function withRetry<T>(
 
       const delay = opts.backoffMs * Math.pow(2, attempt);
       logger.warn(`请求失败，${delay}ms 后重试 (${attempt + 1}/${opts.maxRetries})`, {
-        error: error?.message,
+        error: (error as Error).message,
         delay,
       });
       await new Promise((resolve) => setTimeout(resolve, delay));
