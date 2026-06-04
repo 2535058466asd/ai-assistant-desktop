@@ -62,7 +62,7 @@ const CodeBlock: React.FC<{
   }, [children]);
 
   useEffect(() => {
-    if (codeRef.current) {
+    if (codeRef.current && language) {
       hljs.highlightElement(codeRef.current);
     }
   }, [children, language]);

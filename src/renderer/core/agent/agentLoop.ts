@@ -25,7 +25,7 @@ import { createLogger, type LogMeta } from '../../../shared/logger';
 
 const logger = createLogger('agent');
 
-const MAX_TOOL_ROUNDS = Number(import.meta.env.VITE_MAX_TOOL_ROUNDS) || 5;
+const MAX_TOOL_ROUNDS = Number(import.meta.env.VITE_MAX_TOOL_ROUNDS) || 10;
 
 /**
  * Agent 循环依赖接口
