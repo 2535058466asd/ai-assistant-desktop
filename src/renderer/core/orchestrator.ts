@@ -22,6 +22,7 @@ import { getMemoryService } from '../services/memoryServiceClient';
 import { tryExtractAndSaveMemory, shouldExtractMemory } from './utils/memoryExtractor';
 import { createLogger, createTraceId, type LogMeta } from '../../shared/logger';
 import { getResolvedRuntimeModel } from './model/modelRuntime';
+import { getModelProvider } from './model';
 import { getToolPromptSummary, getInitialToolDefinitions } from './tools/toolRegistry';
 import { getActiveModelConfig } from '../config/modelConfig';
 import { findModelOption } from '../config/modelCatalog';
@@ -37,33 +38,23 @@ function getDefaultModelId(): string {
   return getResolvedRuntimeModel().modelId;
 }
 
-// 开发环境默认输出完整请求/响应，生产环境不打印，避免泄露 prompt 和上下文。
-function isVerboseAgentLog(): boolean {
-  return process.env.NODE_ENV !== 'production' && import.meta.env.VITE_VERBOSE_AGENT_LOGS !== 'false';
-}
-
-const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
-  doubao: '豆包',
-  mimo: '小米 MiMo',
-  'openai-compatible': 'OpenAI 兼容',
-};
-
-function buildSelfAwarenessContext(): string {
+function buildSelfAwarenessContext(toolCount?: number): string {
   const parts: string[] = [];
 
   try {
     const modelConfig = getActiveModelConfig();
     const option = findModelOption(modelConfig.provider, modelConfig.model);
     const modelDisplayName = option?.name || modelConfig.model;
-    const providerLabel = PROVIDER_DISPLAY_NAMES[modelConfig.provider] || modelConfig.provider;
+    const providerLabel = getModelProvider().displayName;
     parts.push(`- 我当前使用的模型：${modelDisplayName}（${providerLabel}）`);
   } catch { /* ignore */ }
 
   try {
     const ttsConfig = loadTTSConfig();
     if (ttsConfig.type === 'volcengine') {
+      const model = ttsConfig.volcengine?.model || 'seed-tts-2.0';
       const voice = ttsConfig.volcengine?.voice || '';
-      parts.push(`- 我的语音合成（TTS）：火山引擎 seed-tts-2.0${voice ? `（音色: ${voice}）` : ''}`);
+      parts.push(`- 我的语音合成（TTS）：火山引擎 ${model}${voice ? `（音色: ${voice}）` : ''}`);
     } else if (ttsConfig.type === 'mimo') {
       const model = ttsConfig.mimo?.model || 'mimo-v2.5-tts';
       parts.push(`- 我的语音合成（TTS）：小米 ${model}`);
@@ -73,7 +64,8 @@ function buildSelfAwarenessContext(): string {
   try {
     const asrConfig = loadASRConfig();
     if (asrConfig.type === 'volcengine') {
-      parts.push('- 我的语音识别（ASR）：火山引擎 bigasr');
+      const resourceId = asrConfig.volcengine?.resourceId || 'volc.bigasr.sauc.duration';
+      parts.push(`- 我的语音识别（ASR）：火山引擎 ${resourceId}`);
     } else if (asrConfig.type === 'mimo') {
       const model = asrConfig.mimo?.model || 'mimo-v2.5-asr';
       parts.push(`- 我的语音识别（ASR）：小米 ${model}`);
@@ -85,12 +77,9 @@ function buildSelfAwarenessContext(): string {
     parts.push(`- 实时语音通话：${rtConfig.enabled ? '已开启' : '未启用'}`);
   } catch { /* ignore */ }
 
-  try {
-    const toolCount = getInitialToolDefinitions().length;
-    parts.push(`- 我有 ${toolCount} 个工具可用（文件读写、网络搜索、知识库、剪贴板、系统命令等）`);
-  } catch { /* ignore */ }
-
-  parts.push('- 用户问起我的代码或实现时，我可以用 read_file / grep_content 工具查看自己的源码');
+  if (toolCount != null) {
+    parts.push(`- 我有 ${toolCount} 个工具可用`);
+  }
 
   if (parts.length === 0) return '';
 
@@ -391,7 +380,7 @@ export class Orchestrator {
   ): Promise<string> {
     const [memoryPrompt, envContext] = await Promise.all([
       this.memoryService.getMemoryPrompt(userInput),
-      this.buildEnvironmentContext(),
+      this.buildEnvironmentContext(toolDefinitions.length),
     ]);
 
     return `${getNovaSystemPrompt()}
@@ -407,7 +396,7 @@ ${skillInstructions ? `【技能指令】\n${skillInstructions}\n` : ''}${getToo
 ${getToolPromptSummary(toolDefinitions)}`;
   }
 
-  private async buildEnvironmentContext(): Promise<string> {
+  private async buildEnvironmentContext(toolCount?: number): Promise<string> {
     const now = new Date();
     const timeStr = now.toLocaleString('zh-CN', { dateStyle: 'full', timeStyle: 'short' });
     const dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
@@ -430,7 +419,7 @@ ${getToolPromptSummary(toolDefinitions)}`;
       ? '这是一个新会话。'
       : `这是一个延续的会话，当前有 ${sessionHistory.length} 条历史消息。`;
 
-    const selfAwareness = buildSelfAwarenessContext();
+    const selfAwareness = buildSelfAwarenessContext(toolCount);
 
     return `【当前环境】
 - 时间：${timeStr}（星期${dayOfWeek}）
