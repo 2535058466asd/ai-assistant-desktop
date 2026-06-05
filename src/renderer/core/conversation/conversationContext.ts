@@ -40,6 +40,11 @@ interface ToolTrace {
   toolResults: Message[];
 }
 
+function isMimoProvider(provider?: string): boolean {
+  const normalized = (provider || '').toLowerCase();
+  return normalized.includes('mimo') || normalized.includes('xiaomi');
+}
+
 function previewValue(value: unknown, maxLength: number = 160): string {
   let text = '';
   if (typeof value === 'string') {
@@ -72,6 +77,10 @@ function getAttachmentFallbackText(attachments?: Attachment[]): string {
 
 function getToolCallIds(toolCalls?: ToolCall[]): string[] {
   return (toolCalls || []).map((toolCall) => toolCall.id).filter(Boolean);
+}
+
+function hasReasoningContent(message: Message | ModelContextMessage): boolean {
+  return typeof message.reasoning_content === 'string' && message.reasoning_content.trim().length > 0;
 }
 
 function collectLatestValidToolTrace(history: Message[]): ToolTrace | null {
@@ -151,6 +160,17 @@ export function summarizeToolTrace(toolMessages: Message[]): string {
   const summaries = deriveToolSummaries(toolMessages);
   if (summaries.length === 0) return '';
   return `调用了 ${summaries.length} 个工具：${summaries.map((item) => item.name).join('、')}`;
+}
+
+function summarizeToolTraceForModel(toolMessages: Message[]): string {
+  const summaries = deriveToolSummaries(toolMessages);
+  if (summaries.length === 0) return '';
+  return [
+    '此前工具调用摘要：',
+    ...summaries.map((item) =>
+      `- ${item.name}：参数 ${item.argsPreview || '{}'}；结果 ${item.resultPreview || '无返回内容'}`
+    ),
+  ].join('\n');
 }
 
 export function buildDisplayMessages(rawMessages: Message[]): DisplayMessage[] {
@@ -277,7 +297,7 @@ async function toModelMessage(message: Message, options: ContextBuildOptions): P
         const format = attachment.mimeType.split('/')[1];
         parts.push({ type: 'input_audio', input_audio: { data: base64, format } });
       } else if (attachment.type === 'video') {
-        parts.push({ type: 'image_url', image_url: { url: dataUrl } });
+        parts.push({ type: 'video_url', video_url: { url: dataUrl } });
       }
     }
   }
@@ -293,12 +313,28 @@ export async function buildModelContextWithDiagnostics(
   const maxMessages = options.maxMessages ?? DEFAULT_MODEL_CONTEXT_MESSAGES;
   const includeRecentTools = options.includeRecentTools ?? true;
   const normalized = normalizeArchivedHistory(rawMessages);
+  const requiresReasoningToolReplay = isMimoProvider(provider);
   const latestTrace = includeRecentTools ? collectLatestValidToolTrace(normalized) : null;
+  const toolIdsMissingReasoning = new Set<string>();
+  if (requiresReasoningToolReplay) {
+    for (const message of normalized) {
+      if (message.role === 'assistant' && message.tool_calls?.length && !hasReasoningContent(message)) {
+        for (const id of getToolCallIds(message.tool_calls as ToolCall[])) {
+          toolIdsMissingReasoning.add(id);
+        }
+      }
+    }
+  }
   const dropped: ContextDropInfo[] = [];
   const candidates: ModelContextMessage[] = [];
 
   for (const message of normalized) {
     if (message.role === 'tool') {
+      if (message.tool_call_id && toolIdsMissingReasoning.has(message.tool_call_id)) {
+        dropped.push({ id: message.id, role: message.role, reason: 'mimo_tool_result_without_reasoning_replay' });
+        continue;
+      }
+
       const latestToolIds = new Set(latestTrace?.toolResults.map((item) => item.tool_call_id).filter(Boolean));
       if (message.tool_call_id && latestToolIds.has(message.tool_call_id)) {
         const modelMessage = await toModelMessage(message, options);
@@ -309,9 +345,24 @@ export async function buildModelContextWithDiagnostics(
       continue;
     }
 
-    if (message.role === 'assistant' && message.tool_calls?.length && !isLatestToolAssistant(message, latestTrace)) {
-      dropped.push({ id: message.id, role: message.role, reason: 'old_tool_call_round' });
-      continue;
+    if (message.role === 'assistant' && message.tool_calls?.length) {
+      const isLatest = isLatestToolAssistant(message, latestTrace);
+
+      if (requiresReasoningToolReplay && !hasReasoningContent(message)) {
+        if (isLatest && latestTrace) {
+          const summary = summarizeToolTraceForModel([message, ...latestTrace.toolResults]);
+          if (summary) {
+            candidates.push({ role: 'assistant', content: summary });
+          }
+        }
+        dropped.push({ id: message.id, role: message.role, reason: 'mimo_tool_call_without_reasoning_summarized' });
+        continue;
+      }
+
+      if (!isLatest) {
+        dropped.push({ id: message.id, role: message.role, reason: 'old_tool_call_round' });
+        continue;
+      }
     }
 
     if (message.role === 'user' && !message.content.trim() && !hasUserAttachment(message)) {

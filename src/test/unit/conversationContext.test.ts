@@ -129,5 +129,35 @@ describe('conversationContext', () => {
     expect(result.diagnostics.dropped.some((item) => item.reason === 'empty_user_message')).toBe(true);
     expect(result.messages[0]).toEqual({ role: 'assistant', content: '有效回复' });
   });
-});
 
+  it('MiMo 遇到缺 reasoning_content 的历史工具调用时转成文本摘要', async () => {
+    const history: Message[] = [
+      message({ id: 'u1', role: 'user', content: '帮我查资料' }),
+      message({
+        id: 'a1-round1',
+        role: 'assistant',
+        isInternal: true,
+        content: '',
+        tool_calls: [{
+          id: 'call_search',
+          type: 'function',
+          function: { name: 'web_search', arguments: '{"q":"MiMo"}' },
+        }],
+      }),
+      message({
+        id: 't1',
+        role: 'tool',
+        isInternal: true,
+        tool_call_id: 'call_search',
+        content: JSON.stringify({ success: true, data: 'MiMo 是小米大模型。' }),
+      }),
+    ];
+
+    const result = await buildModelContextWithDiagnostics(history, { provider: 'mimo' });
+
+    expect(result.messages.some((item) => item.role === 'tool')).toBe(false);
+    expect(result.messages.some((item) => item.role === 'assistant' && item.tool_calls?.length)).toBe(false);
+    expect(result.messages.some((item) => item.role === 'assistant' && String(item.content).includes('此前工具调用摘要'))).toBe(true);
+    expect(result.diagnostics.dropped.some((item) => item.reason === 'mimo_tool_call_without_reasoning_summarized')).toBe(true);
+  });
+});

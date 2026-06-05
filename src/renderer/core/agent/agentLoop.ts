@@ -453,9 +453,11 @@ export class AgentLoop {
     activatedSkills: Set<string> = new Set()
   ): Promise<{ content: string; reasoningContent: string; toolCalls: any[]; error?: any; usage?: any; model?: string }> {
     const skillInstructions = getSkillInstructionsForActive(activatedSkills);
-    const currentToolDefs = getToolDefinitionsForActiveSkills(activatedSkills);
-    const systemPrompt = await this.deps.buildSystemPrompt(userInput, skillInstructions, currentToolDefs);
     const runtime = getResolvedRuntimeModel();
+    const currentToolDefs = this.shouldAttachTools(userInput, runtime.provider)
+      ? getToolDefinitionsForActiveSkills(activatedSkills)
+      : [];
+    const systemPrompt = await this.deps.buildSystemPrompt(userInput, skillInstructions, currentToolDefs);
     const history = this.deps.conversationRuntime.getHistory();
     const hasMultimodal = history.some((message) => message.attachments && message.attachments.length > 0);
     const requestModel = resolveModelForRequest(runtime, hasMultimodal);
@@ -467,6 +469,16 @@ export class AgentLoop {
         selectedModel: runtime.modelId,
         resolvedModel: requestModel,
         attachmentCount: history.reduce((count, message) => count + (message.attachments?.length || 0), 0),
+      });
+    }
+
+    if (currentToolDefs.length === 0) {
+      logger.info('本轮未附带工具定义', {
+        ...meta,
+        phase: 'model',
+        provider: runtime.provider,
+        reason: 'no_tool_intent',
+        textPreview: userInput.slice(0, 40),
       });
     }
 
@@ -578,6 +590,18 @@ export class AgentLoop {
       return null;
     }
     return result.data;
+  }
+
+  private shouldAttachTools(userInput: string, provider: string): boolean {
+    const trimmed = userInput.trim();
+    if (!trimmed) return false;
+
+    // MiMo 对工具 prefill 校验更严格。纯数字/纯符号短消息没有工具意图，避免无意义工具列表参与 prefill。
+    if (provider === 'mimo' && trimmed.length <= 12 && !/[A-Za-z\u4e00-\u9fa5]/.test(trimmed)) {
+      return false;
+    }
+
+    return true;
   }
 
   /**
