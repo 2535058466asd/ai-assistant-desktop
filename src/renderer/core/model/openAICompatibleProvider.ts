@@ -1,5 +1,5 @@
 import { createLogger } from '../../../shared/logger';
-import { getTextContent, type ChatWithToolsRequest, type ModelProvider, type ModelResponse, type StreamChunk } from './types';
+import { getTextContent, type ChatWithToolsRequest, type ModelMessage, type ModelProvider, type ModelResponse, type StreamChunk } from './types';
 import { modelFetch, modelFetchStream } from './modelTransport';
 import { normalizeError } from './modelErrorHandler';
 import { createSSEAccumulator, handleSSEChunk } from './sseParser';
@@ -44,7 +44,6 @@ export class OpenAICompatibleProvider implements ModelProvider {
   private apiKey: string;
   private temperature?: number;
   private maxTokens?: number;
-  private requiresReasoningContentRoundTrip: boolean;
 
   constructor(config: OpenAICompatibleProviderConfig) {
     this.id = config.id;
@@ -58,29 +57,71 @@ export class OpenAICompatibleProvider implements ModelProvider {
     this.compactModel = config.compactModel || config.defaultModel;
     this.temperature = config.temperature;
     this.maxTokens = config.maxTokens;
-    this.requiresReasoningContentRoundTrip =
-      config.id === 'mimo' ||
-      this.baseUrl.includes('xiaomimimo.com');
   }
 
   private normalizeMessages(request: ChatWithToolsRequest): ChatWithToolsRequest['messages'] {
-    if (!this.requiresReasoningContentRoundTrip) return request.messages;
-    return request.messages.map((message) => {
+    const normalized = request.messages.map((message) => {
       if (message.role !== 'assistant') return message;
-      return {
-        ...message,
-        reasoning_content: message.reasoning_content ?? '',
-      };
+      if (message.reasoning_content && message.reasoning_content.trim()) return message;
+
+      const { reasoning_content: _emptyReasoningContent, ...rest } = message;
+      return rest;
     });
+
+    return this.pruneInvalidOpenAIMessages(normalized);
+  }
+
+  private hasUsableContent(message: ModelMessage): boolean {
+    if (typeof message.content === 'string') return message.content.trim().length > 0;
+    if (Array.isArray(message.content)) return message.content.length > 0;
+    return false;
+  }
+
+  private pruneInvalidOpenAIMessages(messages: ModelMessage[]): ModelMessage[] {
+    const result: ModelMessage[] = [];
+    const pendingToolCallIds = new Set<string>();
+
+    for (const message of messages) {
+      if (message.role === 'tool') {
+        if (message.tool_call_id && pendingToolCallIds.has(message.tool_call_id)) {
+          result.push(message);
+          pendingToolCallIds.delete(message.tool_call_id);
+        }
+        continue;
+      }
+
+      if (message.role === 'assistant') {
+        const toolCalls = message.tool_calls || [];
+        const hasToolCalls = toolCalls.length > 0;
+        if (!hasToolCalls && !this.hasUsableContent(message)) {
+          continue;
+        }
+
+        if (hasToolCalls) {
+          for (const toolCall of toolCalls) {
+            if (toolCall.id) pendingToolCallIds.add(toolCall.id);
+          }
+        }
+      }
+
+      if (message.role === 'user' && !this.hasUsableContent(message)) {
+        continue;
+      }
+
+      result.push(message);
+    }
+
+    return result;
   }
 
   async chatWithTools(request: ChatWithToolsRequest): Promise<ModelResponse> {
     return withRetry(async () => {
       try {
         const endpoint = `${this.baseUrl}/chat/completions`;
+        const messages = this.normalizeMessages(request);
         const body = {
           model: request.model,
-          messages: this.normalizeMessages(request),
+          messages,
           tools: request.tools,
           stream: request.stream ?? false,
           temperature: request.temperature ?? this.temperature,
@@ -88,7 +129,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
         };
 
         logger.info(`${this.displayName} 即将发送 HTTP 请求摘要`, {
-          ...summarizeRequest(request),
+          ...summarizeRequest({ ...request, messages }),
           endpoint,
         });
         if (isVerboseModelLog()) {
@@ -104,11 +145,22 @@ export class OpenAICompatibleProvider implements ModelProvider {
           body: JSON.stringify(body),
         });
 
-        logger.debug(`${this.displayName} HTTP 状态`, { traceId: request.traceId, phase: 'model', status: response.status, ok: response.ok, statusText: response.statusText });
+        logger.debug(`${this.displayName} HTTP 状态`, {
+          traceId: request.traceId,
+          phase: 'model',
+          status: response.status,
+          ok: response.ok,
+          statusText: response.statusText,
+          responseBodyLength: response.body?.length || 0,
+        });
 
         if (!response.ok) {
           const errorText = response.body || '';
           throw new Error(`API请求失败 (${response.status}): ${errorText || response.statusText}`);
+        }
+
+        if (!response.body?.trim()) {
+          throw new Error(`API请求失败 (${response.status}): 响应体为空`);
         }
 
         const json = JSON.parse(response.body);
@@ -137,9 +189,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
   ): Promise<ModelResponse> {
     try {
       const endpoint = `${this.baseUrl}/chat/completions`;
+      const messages = this.normalizeMessages(request);
       const body = {
         model: request.model,
-        messages: this.normalizeMessages(request),
+        messages,
         tools: request.tools,
         stream: true,
         temperature: request.temperature ?? this.temperature,
@@ -147,7 +200,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
       };
 
       logger.info(`${this.displayName} 即将发送流式 HTTP 请求摘要`, {
-        ...summarizeRequest({ ...request, stream: true }),
+        ...summarizeRequest({ ...request, messages, stream: true }),
         endpoint,
       });
       if (isVerboseModelLog()) {
@@ -169,7 +222,14 @@ export class OpenAICompatibleProvider implements ModelProvider {
         handleSSEChunk(acc, chunkText, onChunk);
       });
 
-      logger.debug(`${this.displayName} 流式 HTTP 状态`, { traceId: request.traceId, phase: 'model', status: response.status, ok: response.ok, statusText: response.statusText });
+      logger.debug(`${this.displayName} 流式 HTTP 状态`, {
+        traceId: request.traceId,
+        phase: 'model',
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText,
+        responseBodyLength: response.body?.length || 0,
+      });
 
       if (!response.ok) {
         const errorText = response.body || '';

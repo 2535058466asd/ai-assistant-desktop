@@ -20,7 +20,7 @@ import { getTTSService } from './services/tts/volcengineTTSWebSocketService'
 import { getASRService } from './services/asr/volcengineASRWebSocketService'
 import { registerAllTools } from './tools'
 import { createLogger } from '../shared/logger'
-import { deleteAttachmentsByChat, readAttachmentDataUrl, saveImageAttachment } from './services/attachmentService'
+import { deleteAttachmentsByChat, readAttachmentDataUrl, saveAttachment } from './services/attachmentService'
 import { getConversationArchiveService } from './services/conversationArchiveService'
 import { getRealtimeDialogService } from './services/realtimeDialogService'
 import { getVolcengineTTSVoiceCatalogService } from './services/volcengineTTSVoiceCatalogService'
@@ -210,15 +210,15 @@ ipcMain.handle('model-fetch-stream', async (event, request: {
   }
 });
 
-// ========== 聊天图片附件 ==========
-ipcMain.handle('attachment-save-image', async (_event, input: {
+// ========== 聊天附件（图片/音频/视频） ==========
+ipcMain.handle('attachment-save', async (_event, input: {
   chatId: string;
   name: string;
   mimeType: string;
   dataUrl: string;
 }) => {
   try {
-    return { success: true, data: saveImageAttachment(input) };
+    return { success: true, data: saveAttachment(input) };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }

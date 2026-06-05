@@ -22,14 +22,14 @@ import { getVoiceChatMode } from './core/voiceChat/VoiceChatMode';
 import type { VoiceChatState } from './core/voiceChat/VoiceChatMode';
 import { getRealtimeCallMode } from './core/realtimeCall/RealtimeCallMode';
 import type { RealtimeCallState } from './core/realtimeCall/RealtimeCallMode';
-import type { AgentProcessEvent, ImageAttachment, Message } from './types';
+import type { AgentProcessEvent, Attachment, Message } from './types';
 import type { StreamCallbacks } from './core/orchestrator';
 import { createLogger, type LogMeta } from '../shared/logger';
 import { createModelProvider, setModelProvider } from './core/model';
 import { syncProviderConfigForModel } from './core/model/modelRuntime';
 import { syncSearchConfig } from './config/searchConfig';
 import { upsertById } from './utils/storage';
-import { isVisibleChatMessage } from './core/conversation/messageVisibility';
+import { buildDisplayMessages } from './core/conversation/conversationContext';
 
 const logger = createLogger('ui');
 const THEME_KEY = 'nova.theme';
@@ -230,14 +230,14 @@ function AppContent() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  const handleSendMessage = async (content: string, meta: LogMeta = {}, attachments: ImageAttachment[] = []) => {
+  const handleSendMessage = async (content: string, meta: LogMeta = {}, attachments: Attachment[] = []) => {
     if (!content.trim() && attachments.length === 0) return;
     logger.info('用户提交消息', {
       ...meta,
       phase: 'input',
       textPreview: content.slice(0, 120),
       length: content.length,
-      imageCount: attachments.length,
+      attachmentCount: attachments.length,
     });
     setIsLoading(true); // 显示加载动画
     try {
@@ -274,7 +274,7 @@ function AppContent() {
     const logMeta: LogMeta = { phase: 'history', reason: 'set_messages', ...meta };
     logger.info('用户切换对话消息', { ...logMeta, messageCount: newMessages.length });
     // SQLite 保存完整 Agent 上下文；聊天区只展示用户与助手消息。
-    setMessages(newMessages.filter(isVisibleChatMessage));
+    setMessages(buildDisplayMessages(newMessages));
     setProcessEventsByMessageId({});
     // 清理 spokenMessageIds，避免内存泄漏
     spokenMessageIds.current.clear();

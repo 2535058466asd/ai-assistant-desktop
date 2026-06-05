@@ -44,7 +44,7 @@ import { createLogger, createTraceId, type LogMeta } from '../../../shared/logge
 import { getActiveModelConfig } from '../../config/modelConfig';
 import { normalizeModelSelection } from '../../core/model/modelRuntime';
 import { getModelsForProvider } from '../../config/modelCatalog';
-import { isVisibleChatMessage } from '../../core/conversation/messageVisibility';
+import { buildDisplayMessages } from '../../core/conversation/conversationContext';
 import {
   deleteArchivedConversation,
   getArchivedMessages,
@@ -66,7 +66,7 @@ import type {
 } from '../../types/chat';
 
 /* 导入基础 Message 类型 */
-import type { AgentProcessEvent, ImageAttachment, Message, PendingImageAttachment } from '../../types';
+import type { AgentProcessEvent, Attachment, PendingAttachment, Message } from '../../types';
 
 /* 导入语音对话模式类型 */
 import type { VoiceChatState } from '../../core/voiceChat/VoiceChatMode';
@@ -83,7 +83,7 @@ interface AppLayoutProps {
   /** 是否正在加载（显示打字动画）*/
   isLoading: boolean;
   /** 发送消息回调（调用 Orchestrator）*/
-  onSendMessage: (content: string, meta?: LogMeta, attachments?: ImageAttachment[]) => Promise<void>;
+  onSendMessage: (content: string, meta?: LogMeta, attachments?: Attachment[]) => Promise<void>;
   /** 清空消息列表回调（新建对话时调用）*/
   onClearMessages: (meta?: LogMeta) => void;
   /** 设置消息列表回调（切换对话时调用）*/
@@ -456,7 +456,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       ) {
         const chat = chatList.find((item) => item.id === activeChatId);
         if (!chat) return;
-        const visibleMessages = messages.filter(isVisibleChatMessage);
+        const visibleMessages = buildDisplayMessages(messages);
         const lastVisibleMessage = visibleMessages[visibleMessages.length - 1];
         const updatedChat = {
           ...chat,
@@ -485,9 +485,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 包装父组件回调，添加加载状态控制和自动创建/更新对话
    * @param content - 用户输入的消息文本
    */
-  const handleSendMessage = async (content: string, _meta?: LogMeta, pendingImages: PendingImageAttachment[] = []) => {
+  const handleSendMessage = async (content: string, _meta?: LogMeta, pendingAttachments: PendingAttachment[] = []) => {
     /* 防止发送空消息 */
-    if (!content.trim() && pendingImages.length === 0) return;
+    if (!content.trim() && pendingAttachments.length === 0) return;
 
     let currentChatId = activeChatId;
     const traceId = createTraceId();
@@ -503,10 +503,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     if (!currentChatId) {
       /* 生成友好的标题：如果首条消息太短（<4 字）则用默认标题 */
       const trimmedContent = content.trim();
+      const hasImages = pendingAttachments.some(a => a.type === 'image');
+      const hasAudio = pendingAttachments.some(a => a.type === 'audio');
+      const hasVideo = pendingAttachments.some(a => a.type === 'video');
+      const attachmentLabel = hasAudio ? '音频分析' : hasVideo ? '视频分析' : hasImages ? '图片分析' : '新对话';
       const chatTitle = trimmedContent.length >= 4
         ? trimmedContent.slice(0, 30)
-        : pendingImages.length > 0
-          ? `图片分析 ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+        : pendingAttachments.length > 0
+          ? `${attachmentLabel} ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
           : `新对话 ${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
 
       const newChat: ChatItem = {
@@ -533,23 +537,26 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
     }
 
-    const savedAttachments: ImageAttachment[] = [];
-    for (const image of pendingImages) {
-      const result = await window.electronAPI?.attachmentSaveImage?.({
+    const savedAttachments: Attachment[] = [];
+    for (const attachment of pendingAttachments) {
+      const result = await window.electronAPI?.attachmentSave?.({
         chatId: currentChatId,
-        name: image.name,
-        mimeType: image.mimeType,
-        dataUrl: image.dataUrl,
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        dataUrl: attachment.dataUrl,
       });
       if (!result?.success || !result.data) {
-        logger.error('保存聊天图片附件失败', { traceId, chatId: currentChatId, name: image.name, error: result?.error });
-        showToast(result?.error || '图片保存失败，请重试。', 'error');
-        throw new Error(result?.error || '图片保存失败');
+        logger.error('保存聊天附件失败', { traceId, chatId: currentChatId, name: attachment.name, error: result?.error });
+        showToast(result?.error || '附件保存失败，请重试。', 'error');
+        throw new Error(result?.error || '附件保存失败');
       }
-      savedAttachments.push(result.data);
+      savedAttachments.push(result.data as Attachment);
     }
 
-    await onSendMessage(content || '请分析这些图片。', {
+    const fallbackText = pendingAttachments.some(a => a.type === 'audio') ? '请分析这段音频。'
+      : pendingAttachments.some(a => a.type === 'video') ? '请分析这个视频。'
+      : '请分析这些图片。';
+    await onSendMessage(content || fallbackText, {
       traceId,
       chatId: currentChatId,
       phase: 'input',
@@ -798,7 +805,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
           </section>
         ) : (
           <ChatArea
-            messages={messages.filter(isVisibleChatMessage).map(convertToUIMessage)}
+            messages={buildDisplayMessages(messages).map(convertToUIMessage)}
             isLoading={isLoading}
             showToast={showToast}
           />

@@ -175,9 +175,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ttsCacheSave: async (text: string, voice: string, audioBase64: string) => {
     return ipcRenderer.invoke('tts-cache-save', text, voice, audioBase64);
   },
-  // ========== 聊天图片附件 ==========
-  attachmentSaveImage: async (input: { chatId: string; name: string; mimeType: string; dataUrl: string }) => {
-    return ipcRenderer.invoke('attachment-save-image', input);
+  // ========== 聊天附件（图片/音频/视频） ==========
+  attachmentSave: async (input: { chatId: string; name: string; mimeType: string; dataUrl: string }) => {
+    return ipcRenderer.invoke('attachment-save', input);
   },
   attachmentReadDataUrl: async (relativePath: string, mimeType: string) => {
     return ipcRenderer.invoke('attachment-read-data-url', relativePath, mimeType);
@@ -321,8 +321,8 @@ declare global {
       // TTS 持久化缓存
       ttsCacheCheck: (text: string, voice: string) => Promise<{ exists: boolean; audioData?: string }>;
       ttsCacheSave: (text: string, voice: string, audioBase64: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
-      // 聊天图片附件
-      attachmentSaveImage: (input: { chatId: string; name: string; mimeType: string; dataUrl: string }) => Promise<{ success: boolean; data?: { id: string; type: 'image'; name: string; mimeType: 'image/png' | 'image/jpeg' | 'image/webp'; sizeBytes: number; relativePath: string }; error?: string }>;
+      // 聊天附件（图片/音频/视频）
+      attachmentSave: (input: { chatId: string; name: string; mimeType: string; dataUrl: string }) => Promise<{ success: boolean; data?: { id: string; type: string; name: string; mimeType: string; sizeBytes: number; relativePath: string }; error?: string }>;
       attachmentReadDataUrl: (relativePath: string, mimeType: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       attachmentDeleteByChat: (chatId: string) => Promise<{ success: boolean; error?: string }>;
       // SQLite 聊天存档

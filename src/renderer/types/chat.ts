@@ -3,7 +3,7 @@
  * 定义侧边栏、对话列表、模型选择等 UI 相关数据结构
  */
 
-import type { AgentProcessEvent, ImageAttachment, PendingImageAttachment, ToolProcessEvent, ToolCallSummary } from './index';
+import type { AgentProcessEvent, Attachment, PendingAttachment, ToolProcessEvent, ToolCallSummary } from './index';
 import type { LogMeta } from '../../shared/logger';
 
 // ==========================================
@@ -70,8 +70,8 @@ export interface UIMessage {
   role: 'user' | 'assistant' | 'system';
   /** 消息内容（支持 HTML 或纯文本） */
   content: string;
-  /** 用户消息关联的本地图片附件 */
-  attachments?: ImageAttachment[];
+  /** 用户消息关联的本地附件（图片/音频/视频） */
+  attachments?: Attachment[];
   /** 时间戳 */
   timestamp: number;
   /** 发送状态（用户消息专用） */
@@ -119,7 +119,7 @@ export interface UserInfo {
 // ==========================================
 
 /** 发送消息回调 */
-export type SendMessageHandler = (content: string, meta?: LogMeta, attachments?: PendingImageAttachment[]) => Promise<void>;
+export type SendMessageHandler = (content: string, meta?: LogMeta, attachments?: PendingAttachment[]) => Promise<void>;
 
 /** 新建对话回调 */
 export type NewChatHandler = () => void;

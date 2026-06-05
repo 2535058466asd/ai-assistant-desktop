@@ -1,4 +1,6 @@
 import type { Message, ConversationContext, SessionId } from '../../types';
+import type { ModelMessage } from '../model';
+import { sanitizeModelMessages } from '../conversation/conversationContext';
 
 export class ContextManager {
   private contexts: Map<SessionId, ConversationContext> = new Map();
@@ -90,13 +92,14 @@ export class ContextManager {
 
   formatHistoryForLLM(sessionId: SessionId): Array<{ role: string; content: string; reasoning_content?: string; tool_calls?: any[]; tool_call_id?: string }> {
     const history = this.getHistory(sessionId);
-    return history.map(msg => {
-      const llmMsg: any = { role: msg.role, content: msg.content };
+    const messages = history.map(msg => {
+      const llmMsg: ModelMessage = { role: msg.role, content: msg.content };
       if (msg.reasoning_content) llmMsg.reasoning_content = msg.reasoning_content;
       if (msg.tool_calls) llmMsg.tool_calls = msg.tool_calls;
       if (msg.tool_call_id) llmMsg.tool_call_id = msg.tool_call_id;
       return llmMsg;
     });
+    return sanitizeModelMessages(messages, 'context-compactor') as Array<{ role: string; content: string; reasoning_content?: string; tool_calls?: any[]; tool_call_id?: string }>;
   }
 
 }

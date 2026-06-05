@@ -8,7 +8,7 @@ import type {
   Message,
   AgentProcessEvent,
   ToolProcessEvent,
-  ImageAttachment,
+  Attachment,
 } from '../types';
 
 import { getVoiceGatewayManager } from './voice';
@@ -203,7 +203,7 @@ export class Orchestrator {
    * @param text 用户输入的文本
    * @param isTextInput 是否是文字输入（默认为true）
    */
-  async processTextInput(text: string, isTextInput: boolean = true, meta: LogMeta = {}, attachments: ImageAttachment[] = []): Promise<void> {
+  async processTextInput(text: string, isTextInput: boolean = true, meta: LogMeta = {}, attachments: Attachment[] = []): Promise<void> {
     if (!text.trim() && attachments.length === 0) return;
     const traceId = meta.traceId || createTraceId();
     const traceMeta: LogMeta = {
@@ -220,7 +220,7 @@ export class Orchestrator {
       ...traceMeta,
       sessionId: this.conversationRuntime.getSessionId(),
       textPreview: text.slice(0, 120),
-      imageCount: attachments.length,
+      attachmentCount: attachments.length,
     });
 
     // 1. 创建用户消息并通知 UI

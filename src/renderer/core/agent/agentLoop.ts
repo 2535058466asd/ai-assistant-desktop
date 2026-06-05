@@ -8,7 +8,7 @@ import type {
   AgentProcessEvent,
   ToolProcessEvent,
   ToolCallSummary,
-  ImageAttachment,
+  Attachment,
 } from '../../types';
 
 import type { HistoryManager } from '../history';
@@ -17,10 +17,11 @@ import type { ContextCompactor } from '../context/contextCompactor';
 import type { AgentEventBridge } from '../events/agentEventBridge';
 import { getToolDefinitionsForActiveSkills, getSkillInstructionsForActive, SKILLS } from '../tools/toolRegistry';
 import { executeTool, type ToolExecutionResult } from '../tools/toolExecutor';
-import { getModelProvider, type ModelContentPart, type ModelMessage, type StreamChunk, type ToolDefinition } from '../model';
+import { getModelProvider, type StreamChunk, type ToolDefinition } from '../model';
 import { getTextContent } from '../model/types';
 import { getResolvedRuntimeModel, resolveModelForRequest } from '../model/modelRuntime';
 import { getErrorMessage } from '../model/modelErrorHandler';
+import { DEFAULT_MODEL_CONTEXT_MESSAGES, buildModelContextWithDiagnostics } from '../conversation/conversationContext';
 import { createLogger, type LogMeta } from '../../../shared/logger';
 
 const logger = createLogger('agent');
@@ -454,31 +455,56 @@ export class AgentLoop {
     const skillInstructions = getSkillInstructionsForActive(activatedSkills);
     const currentToolDefs = getToolDefinitionsForActiveSkills(activatedSkills);
     const systemPrompt = await this.deps.buildSystemPrompt(userInput, skillInstructions, currentToolDefs);
-    const history = this.deps.conversationRuntime.getModelHistory();
-    const hasImages = history.some((message) => message.attachments && message.attachments.length > 0);
     const runtime = getResolvedRuntimeModel();
-    const requestModel = resolveModelForRequest(runtime, hasImages);
+    const history = this.deps.conversationRuntime.getHistory();
+    const hasMultimodal = history.some((message) => message.attachments && message.attachments.length > 0);
+    const requestModel = resolveModelForRequest(runtime, hasMultimodal);
     if (requestModel !== runtime.modelId) {
-      logger.info('图片任务自动路由', {
+      logger.info('多模态任务自动路由', {
         ...meta,
         phase: 'model',
         provider: runtime.provider,
         selectedModel: runtime.modelId,
         resolvedModel: requestModel,
-        imageCount: history.reduce((count, message) => count + (message.attachments?.length || 0), 0),
+        attachmentCount: history.reduce((count, message) => count + (message.attachments?.length || 0), 0),
       });
     }
+
+    const context = await buildModelContextWithDiagnostics(history, {
+      provider: runtime.provider,
+      maxMessages: DEFAULT_MODEL_CONTEXT_MESSAGES,
+      includeRecentTools: true,
+      summarizeOldTools: true,
+      readAttachmentDataUrl: this.readAttachmentDataUrl.bind(this),
+    });
 
     const requestBody = {
       model: requestModel,
       messages: [
         { role: 'system', content: systemPrompt },
-        ...await this.buildHistoryForLLM(history)
+        ...context.messages
       ],
       tools: currentToolDefs,
       stream: true,
       traceId: meta.traceId,
     };
+
+    logger.info('模型上下文已清洗', {
+      ...meta,
+      phase: 'model',
+      provider: runtime.provider,
+      rawCount: context.diagnostics.rawCount,
+      normalizedCount: context.diagnostics.normalizedCount,
+      sanitizedCount: context.diagnostics.sanitizedCount,
+      roles: context.diagnostics.roles,
+      hasToolCalls: context.diagnostics.hasToolCalls,
+      hasToolMessages: context.diagnostics.hasToolMessages,
+      dropped: context.diagnostics.dropped.map((item) => ({
+        id: item.id,
+        role: item.role,
+        reason: item.reason,
+      })),
+    });
 
     logger.info('发送给模型的流式请求摘要', {
       ...meta,
@@ -540,37 +566,13 @@ export class AgentLoop {
     return getResolvedRuntimeModel().modelId;
   }
 
-  private async buildHistoryForLLM(history: Message[]): Promise<ModelMessage[]> {
-    return Promise.all(history.map(async (message): Promise<ModelMessage> => {
-      const base: ModelMessage = {
-        role: message.role,
-        content: message.content,
-        ...(message.reasoning_content ? { reasoning_content: message.reasoning_content } : {}),
-        ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
-        ...(message.tool_call_id ? { tool_call_id: message.tool_call_id } : {}),
-      };
-
-      if (message.role !== 'user' || !message.attachments?.length) {
-        return base;
-      }
-
-      const parts: ModelContentPart[] = [{ type: 'text', text: message.content || '请分析这些图片。' }];
-      for (const attachment of message.attachments) {
-        const dataUrl = await this.readAttachmentDataUrl(attachment);
-        if (dataUrl) {
-          parts.push({ type: 'image_url', image_url: { url: dataUrl } });
-        }
-      }
-      return { ...base, content: parts };
-    }));
-  }
-
-  private async readAttachmentDataUrl(attachment: ImageAttachment): Promise<string | null> {
+  private async readAttachmentDataUrl(attachment: Attachment): Promise<string | null> {
     const result = await window.electronAPI?.attachmentReadDataUrl?.(attachment.relativePath, attachment.mimeType);
     if (!result?.success || !result.data) {
-      logger.warn('读取聊天图片附件失败，跳过该图片', {
+      logger.warn('读取聊天附件失败，跳过', {
         attachmentId: attachment.id,
         name: attachment.name,
+        type: attachment.type,
         error: result?.error,
       });
       return null;
