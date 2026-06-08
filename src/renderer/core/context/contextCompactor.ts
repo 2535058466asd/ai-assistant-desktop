@@ -1,7 +1,9 @@
 import type { Message, SessionId } from '../../types';
 import type { ModelMessage } from '../model';
 import { getModelProvider } from '../model';
+import { getTextContent } from '../model/types';
 import type { HistoryManager } from '../history';
+import { buildModelContextWithDiagnostics } from '../conversation/conversationContext';
 import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('agent');
@@ -30,11 +32,11 @@ export class ContextCompactor {
     await this.compactHistory();
   }
 
-  private estimateTokens(messages: Array<{ content?: string }>): number {
+  private estimateTokens(messages: Array<{ content?: ModelMessage['content'] }>): number {
     let totalTokens = 0;
     for (const message of messages) {
       if (!message.content) continue;
-      const content = message.content.toString();
+      const content = getTextContent(message.content);
       const chineseChars = (content.match(/[\u4e00-\u9fa5]/g) || []).length;
       const otherChars = content.length - chineseChars;
       totalTokens += chineseChars * 2 + otherChars * 0.4;
@@ -43,13 +45,13 @@ export class ContextCompactor {
   }
 
   private async shouldCompact(): Promise<boolean> {
-    const history = this.historyManager.getHistoryForLLM(this.sessionId);
+    const history = await this.getCleanHistoryForCompaction();
     const estimatedTokens = this.estimateTokens(history);
     return estimatedTokens > ContextCompactor.MAX_CONTEXT_TOKENS * ContextCompactor.COMPACT_THRESHOLD;
   }
 
   private async compactHistory(): Promise<void> {
-    const fullHistory = this.historyManager.getHistoryForLLM(this.sessionId);
+    const fullHistory = await this.getCleanHistoryForCompaction();
     const toCompact = fullHistory.slice(0, fullHistory.length - ContextCompactor.KEEP_RECENT_MESSAGES);
     const toKeep = fullHistory.slice(-ContextCompactor.KEEP_RECENT_MESSAGES);
 
@@ -62,7 +64,7 @@ export class ContextCompactor {
       ...toKeep.map((msg, i) => ({
         id: `kept-${now}-${i}`,
         role: msg.role as Message['role'],
-        content: msg.content,
+        content: getTextContent(msg.content),
         timestamp: now + i + 1,
         sessionId: this.sessionId,
         ...(msg.reasoning_content ? { reasoning_content: msg.reasoning_content } : {}),
@@ -75,13 +77,35 @@ export class ContextCompactor {
     logger.info('对话历史已压缩', { kept: ContextCompactor.KEEP_RECENT_MESSAGES });
   }
 
-  private async callLLMForCompaction(messages: Array<{ role: string; content: string; reasoning_content?: string; tool_calls?: any[]; tool_call_id?: string }>): Promise<string> {
+  private async getCleanHistoryForCompaction(): Promise<ModelMessage[]> {
+    const provider = getModelProvider();
+    const result = await buildModelContextWithDiagnostics(this.historyManager.getHistory(this.sessionId), {
+      provider: provider.id,
+      maxMessages: Number.MAX_SAFE_INTEGER,
+      includeRecentTools: true,
+      summarizeOldTools: true,
+    });
+
+    logger.debug('压缩前上下文已清洗', {
+      provider: provider.id,
+      rawCount: result.diagnostics.rawCount,
+      sanitizedCount: result.diagnostics.sanitizedCount,
+      dropped: result.diagnostics.dropped.map((item) => ({
+        id: item.id,
+        role: item.role,
+        reason: item.reason,
+      })),
+    });
+
+    return result.messages;
+  }
+
+  private async callLLMForCompaction(messages: ModelMessage[]): Promise<string> {
     try {
-      return await getModelProvider().compact(messages as ModelMessage[]);
+      return await getModelProvider().compact(messages);
     } catch (error) {
       logger.error('对话历史压缩失败', error);
       return '无重要信息';
     }
   }
 }
-

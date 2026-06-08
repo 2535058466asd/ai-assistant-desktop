@@ -160,4 +160,35 @@ describe('conversationContext', () => {
     expect(result.messages.some((item) => item.role === 'assistant' && String(item.content).includes('此前工具调用摘要'))).toBe(true);
     expect(result.diagnostics.dropped.some((item) => item.reason === 'mimo_tool_call_without_reasoning_summarized')).toBe(true);
   });
+
+  it('坏掉的 tool_call arguments JSON 不会原样回放给模型', async () => {
+    const history: Message[] = [
+      message({ id: 'u1', role: 'user', content: '继续处理' }),
+      message({
+        id: 'a1-round1',
+        role: 'assistant',
+        isInternal: true,
+        content: '',
+        tool_calls: [{
+          id: 'call_bad',
+          type: 'function',
+          function: { name: 'run_command', arguments: '{"command":"findstr /s /i "prompt""' },
+        }],
+      }),
+      message({
+        id: 't1',
+        role: 'tool',
+        isInternal: true,
+        tool_call_id: 'call_bad',
+        content: JSON.stringify({ success: false, error: '工具参数解析失败' }),
+      }),
+    ];
+
+    const result = await buildModelContextWithDiagnostics(history, { provider: 'mimo' });
+
+    expect(result.messages.some((item) => item.role === 'tool')).toBe(false);
+    expect(result.messages.some((item) => item.role === 'assistant' && item.tool_calls?.length)).toBe(false);
+    expect(result.messages.some((item) => item.role === 'assistant' && String(item.content).includes('此前工具调用摘要'))).toBe(true);
+    expect(result.diagnostics.dropped.some((item) => item.reason === 'invalid_tool_call_arguments_summarized')).toBe(true);
+  });
 });

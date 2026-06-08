@@ -18,22 +18,16 @@
 import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import styles from './InputArea.module.css';
 import type { SendMessageHandler } from '../../types/chat';
-import type { PendingAttachment, PendingImageAttachment, PendingAudioAttachment, PendingVideoAttachment } from '../../types';
+import type { PendingAttachment, PendingImageAttachment } from '../../types';
 import { getASRManager } from '../../core/asr/asrManager';
 import type { ASRResult } from '../../core/asr/asrInterface';
 import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('ui');
 const MAX_IMAGE_COUNT = 4;
-const MAX_AUDIO_COUNT = 3;
-const MAX_VIDEO_COUNT = 2;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_BYTES = 20 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
-const ALLOWED_AUDIO_TYPES = new Set(['audio/mp3', 'audio/wav', 'audio/m4a', 'audio/ogg', 'audio/mpeg', 'audio/x-m4a']);
-const ALLOWED_VIDEO_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
 
 /* ==========================================
    组件 Props 类型定义
@@ -161,8 +155,6 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
     const accepted: PendingAttachment[] = [];
     let totalImageBytes = pendingAttachments.filter(a => a.type === 'image').reduce((sum, a) => sum + a.sizeBytes, 0);
     const imageCount = pendingAttachments.filter(a => a.type === 'image').length;
-    const audioCount = pendingAttachments.filter(a => a.type === 'audio').length;
-    const videoCount = pendingAttachments.filter(a => a.type === 'video').length;
 
     for (const file of files) {
       const mimeType = file.type;
@@ -186,49 +178,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
           dataUrl,
         });
         totalImageBytes += file.size;
-      } else if (ALLOWED_AUDIO_TYPES.has(mimeType)) {
-        if (audioCount + accepted.filter(a => a.type === 'audio').length >= MAX_AUDIO_COUNT) {
-          showToast?.(`单条消息最多添加 ${MAX_AUDIO_COUNT} 个音频。`, 'info');
-          continue;
-        }
-        if (file.size > MAX_AUDIO_BYTES) {
-          showToast?.('单个音频不能超过 25 MB。', 'error');
-          continue;
-        }
-        const dataUrl = await readFileAsDataUrl(file);
-        const normalizedMime = mimeType === 'audio/mpeg' ? 'audio/mp3'
-          : mimeType === 'audio/x-m4a' ? 'audio/m4a'
-          : mimeType as PendingAudioAttachment['mimeType'];
-        accepted.push({
-          id: `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          type: 'audio',
-          name: file.name,
-          mimeType: normalizedMime,
-          sizeBytes: file.size,
-          dataUrl,
-        });
-      } else if (ALLOWED_VIDEO_TYPES.has(mimeType)) {
-        if (videoCount + accepted.filter(a => a.type === 'video').length >= MAX_VIDEO_COUNT) {
-          showToast?.(`单条消息最多添加 ${MAX_VIDEO_COUNT} 个视频。`, 'info');
-          continue;
-        }
-        if (file.size > MAX_VIDEO_BYTES) {
-          showToast?.('单个视频不能超过 100 MB。', 'error');
-          continue;
-        }
-        const dataUrl = await readFileAsDataUrl(file);
-        const normalizedMime = mimeType === 'video/quicktime' ? 'video/mov'
-          : mimeType as PendingVideoAttachment['mimeType'];
-        accepted.push({
-          id: `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          type: 'video',
-          name: file.name,
-          mimeType: normalizedMime,
-          sizeBytes: file.size,
-          dataUrl,
-        });
       } else {
-        showToast?.('仅支持图片、音频和视频文件。', 'error');
+        showToast?.('仅支持 PNG、JPG、WebP 图片。', 'error');
       }
     }
 
@@ -364,7 +315,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
     >
       <div className={styles.inputWrapper}>
         {isDragging && (
-          <div className={styles.dropOverlay}>释放鼠标，将文件添加到当前对话</div>
+          <div className={styles.dropOverlay}>释放鼠标，将图片添加到当前对话</div>
         )}
         
         {/* 快捷建议芯片组 */}
@@ -392,29 +343,11 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
             <div className={styles.pendingImages}>
               {pendingAttachments.map((attachment) => (
                 <div className={styles.pendingImageCard} key={attachment.id}>
-                  {attachment.type === 'image' && (
-                    <img src={attachment.dataUrl} alt={attachment.name} />
-                  )}
-                  {attachment.type === 'audio' && (
-                    <div className={styles.pendingAudioCard}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
-                        <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-                      </svg>
-                      <span className={styles.pendingFileName}>{attachment.name}</span>
-                    </div>
-                  )}
-                  {attachment.type === 'video' && (
-                    <div className={styles.pendingVideoCard}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
-                        <polygon points="5 3 19 12 5 21 5 3" />
-                      </svg>
-                      <span className={styles.pendingFileName}>{attachment.name}</span>
-                    </div>
-                  )}
+                  <img src={attachment.dataUrl} alt={attachment.name} />
                   <button
                     type="button"
                     className={styles.removeImageBtn}
-                    title="移除附件"
+                    title="移除图片"
                     onClick={() => setPendingAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}
                   >
                     ×
@@ -425,10 +358,10 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
           )}
           {/* 左侧：附件/功能按钮组 */}
           <div className={styles.inputExtras}>
-            {/* 上传文件按钮 */}
+            {/* 上传图片按钮 */}
             <button
               className={styles.extraBtn}
-              title="上传文件"
+              title="上传图片"
               onClick={() => fileInputRef.current?.click()}
             >
               <svg
@@ -448,7 +381,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
               className={styles.hiddenFileInput}
               type="file"
               multiple
-              accept="image/png,image/jpeg,image/webp,audio/mp3,audio/wav,audio/m4a,audio/ogg,audio/mpeg,video/mp4,video/webm,video/quicktime"
+              accept="image/png,image/jpeg,image/webp"
               onChange={handleFileInputChange}
             />
 

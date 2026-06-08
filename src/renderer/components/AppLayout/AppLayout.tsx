@@ -504,9 +504,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       /* 生成友好的标题：如果首条消息太短（<4 字）则用默认标题 */
       const trimmedContent = content.trim();
       const hasImages = pendingAttachments.some(a => a.type === 'image');
-      const hasAudio = pendingAttachments.some(a => a.type === 'audio');
-      const hasVideo = pendingAttachments.some(a => a.type === 'video');
-      const attachmentLabel = hasAudio ? '音频分析' : hasVideo ? '视频分析' : hasImages ? '图片分析' : '新对话';
+      const attachmentLabel = hasImages ? '图片分析' : '新对话';
       const chatTitle = trimmedContent.length >= 4
         ? trimmedContent.slice(0, 30)
         : pendingAttachments.length > 0
@@ -553,9 +551,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       savedAttachments.push(result.data as Attachment);
     }
 
-    const fallbackText = pendingAttachments.some(a => a.type === 'audio') ? '请分析这段音频。'
-      : pendingAttachments.some(a => a.type === 'video') ? '请分析这个视频。'
-      : '请分析这些图片。';
+    const fallbackText = '请分析这些图片。';
     await onSendMessage(content || fallbackText, {
       traceId,
       chatId: currentChatId,

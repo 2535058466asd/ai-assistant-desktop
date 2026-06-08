@@ -138,65 +138,6 @@
   margin-bottom: 8px;
 }
 
-.attachmentAudioCard {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  min-width: 200px;
-  max-width: 320px;
-}
-
-.attachmentAudioIcon {
-  flex-shrink: 0;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
-  padding-top: 2px;
-}
-
-.attachmentAudioInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  flex: 1;
-}
-
-.attachmentFileName {
-  font-size: 12px;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.attachmentAudioPlayer {
-  width: 100%;
-  max-width: 260px;
-  height: 32px;
-}
-
-.attachmentVideoCard {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-width: 360px;
-}
-
-.attachmentVideoPlayer {
-  width: 100%;
-  max-width: 360px;
-  border-radius: 8px;
-  background: #000;
-}
-
-.attachmentLoading {
-  font-size: 12px;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.45));
-}
-
 .imagePreviewOverlay {
   position: fixed;
   inset: 0;

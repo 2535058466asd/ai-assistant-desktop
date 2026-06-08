@@ -17,11 +17,11 @@ import type { ContextCompactor } from '../context/contextCompactor';
 import type { AgentEventBridge } from '../events/agentEventBridge';
 import { getToolDefinitionsForActiveSkills, getSkillInstructionsForActive, SKILLS } from '../tools/toolRegistry';
 import { executeTool, type ToolExecutionResult } from '../tools/toolExecutor';
-import { getModelProvider, type StreamChunk, type ToolDefinition } from '../model';
+import { getModelProvider, type StreamChunk, type ToolCall, type ToolDefinition } from '../model';
 import { getTextContent } from '../model/types';
 import { getResolvedRuntimeModel, resolveModelForRequest } from '../model/modelRuntime';
 import { getErrorMessage } from '../model/modelErrorHandler';
-import { DEFAULT_MODEL_CONTEXT_MESSAGES, buildModelContextWithDiagnostics } from '../conversation/conversationContext';
+import { DEFAULT_MODEL_CONTEXT_MESSAGES, buildModelContextWithDiagnostics, hasValidToolCallArguments } from '../conversation/conversationContext';
 import { createLogger, type LogMeta } from '../../../shared/logger';
 
 const logger = createLogger('agent');
@@ -170,13 +170,22 @@ export class AgentLoop {
         break;
       }
 
+      const { validToolCalls, invalidSummaries } = this.validateToolCallsBeforeHistoryWrite(
+        messageId,
+        round,
+        toolCalls,
+        meta
+      );
+      allToolCallSummaries.push(...invalidSummaries);
+      const activeToolCalls = validToolCalls;
+
       this.deps.eventBridge.emitProcessEvent(messageId, {
         id: modelEventId,
         kind: 'model',
-        title: toolCalls.length > 0 ? '模型决定调用工具' : '模型直接生成回复',
+        title: activeToolCalls.length > 0 ? '模型决定调用工具' : '模型直接生成回复',
         status: 'success',
-        detail: toolCalls.length > 0
-          ? toolCalls.map((tc: any) => tc.function?.name).filter(Boolean).join('、')
+        detail: activeToolCalls.length > 0
+          ? activeToolCalls.map((tc: any) => tc.function?.name).filter(Boolean).join('、')
           : this.previewValue(content || finalResponse, 120),
         durationMs: Math.round(performance.now() - modelStartedAt),
         createdAt: modelEventCreatedAt,
@@ -188,8 +197,9 @@ export class AgentLoop {
         phase: 'model',
         messageId,
         round,
-        hasToolCalls: toolCalls.length > 0,
-        toolNames: toolCalls.map((tc: any) => tc.function?.name).filter(Boolean),
+        hasToolCalls: activeToolCalls.length > 0,
+        toolNames: activeToolCalls.map((tc: any) => tc.function?.name).filter(Boolean),
+        invalidToolCallCount: invalidSummaries.length,
         durationMs: Math.round(performance.now() - modelStartedAt),
         model,
       });
@@ -200,9 +210,9 @@ export class AgentLoop {
         this.deps.eventBridge.emitProcessEvent(messageId, {
           id: `${modelEventId}-content`,
           kind: 'analysis',
-          title: toolCalls.length > 0 ? '模型中间回复' : '模型返回内容',
+          title: activeToolCalls.length > 0 ? '模型中间回复' : '模型返回内容',
           status: 'success',
-          detail: toolCalls.length > 0
+          detail: activeToolCalls.length > 0
             ? '模型在调用工具前返回的 content，已放入思考过程，不直接作为最终回复。'
             : '模型 API 返回的 content。',
           resultPreview: content,
@@ -218,7 +228,7 @@ export class AgentLoop {
         this.deps.eventBridge.emitProcessEvent(messageId, {
           id: `${modelEventId}-reasoning`,
           kind: 'analysis',
-          title: toolCalls.length > 0 ? '模型思考并决定调用工具' : '模型思考过程',
+          title: activeToolCalls.length > 0 ? '模型思考并决定调用工具' : '模型思考过程',
           status: 'success',
           detail: `第 ${round} 轮模型返回的 reasoning_content`,
           resultPreview: reasoningContent,
@@ -229,7 +239,7 @@ export class AgentLoop {
 
       // 只有带工具调用的中间轮次需要回填模型上下文。
       // 最终回复由 Orchestrator 在循环结束后统一写入，避免同一回答保存两次。
-      if (toolCalls.length > 0) {
+      if (activeToolCalls.length > 0) {
         this.deps.conversationRuntime.addMessage({
           id: `${messageId}-round${round}`,
           role: 'assistant',
@@ -238,19 +248,22 @@ export class AgentLoop {
           sessionId: this.deps.conversationRuntime.getSessionId(),
           isInternal: true,
           ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
-          tool_calls: toolCalls,
+          tool_calls: activeToolCalls,
         });
       }
 
       // 处理 content 的累积
-      if (content && toolCalls.length === 0) {
+      if (content && activeToolCalls.length === 0) {
         finalResponse += content;
-      } else if (content && toolCalls.length > 0) {
+      } else if (content && activeToolCalls.length > 0) {
         streamCallbacks.onStreamChunk(messageId, previousContent);
       }
 
       // 没有工具调用 → 最终文本回复
-      if (toolCalls.length === 0) {
+      if (activeToolCalls.length === 0) {
+        if (!content && invalidSummaries.length > 0) {
+          finalResponse += '工具调用参数不是合法 JSON，已停止本轮工具执行。';
+        }
         logger.info('智能体循环结束：无需继续调用工具', {
           ...meta,
           phase: 'output',
@@ -266,7 +279,7 @@ export class AgentLoop {
         phase: 'tool',
         messageId,
         round,
-        toolCalls: toolCalls.map((tc: any) => ({
+        toolCalls: activeToolCalls.map((tc: any) => ({
           id: tc.id,
           name: tc.function?.name,
           arguments: tc.function?.arguments,
@@ -274,11 +287,11 @@ export class AgentLoop {
       });
 
       // 执行所有工具调用，收集摘要
-      const roundSummaries = await this.executeToolCalls(messageId, round, toolCalls, meta);
+      const roundSummaries = await this.executeToolCalls(messageId, round, activeToolCalls, meta);
       allToolCallSummaries.push(...roundSummaries);
 
       // 检测技能入口工具调用，激活对应技能
-      for (const tc of toolCalls) {
+      for (const tc of activeToolCalls) {
         const name = tc.function?.name;
         if (name && name.startsWith('open_')) {
           const skillName = name.replace('open_', '');
@@ -308,6 +321,67 @@ export class AgentLoop {
       usage: accumulatedUsage.total_tokens > 0 ? accumulatedUsage : undefined,
       model: usedModel || undefined,
     };
+  }
+
+  private validateToolCallsBeforeHistoryWrite(
+    messageId: string,
+    round: number,
+    toolCalls: ToolCall[],
+    meta: LogMeta = {}
+  ): { validToolCalls: ToolCall[]; invalidSummaries: ToolCallSummary[] } {
+    const validToolCalls: ToolCall[] = [];
+    const invalidSummaries: ToolCallSummary[] = [];
+
+    for (const toolCall of toolCalls) {
+      if (hasValidToolCallArguments(toolCall)) {
+        validToolCalls.push(toolCall);
+        continue;
+      }
+
+      const toolName = toolCall.function?.name || 'unknown_tool';
+      const rawArguments = toolCall.function?.arguments || '';
+      let error = '参数不是合法 JSON';
+      try {
+        JSON.parse(rawArguments);
+      } catch (parseError: any) {
+        error = parseError?.message || error;
+      }
+
+      logger.error('模型返回非法工具调用，已阻止写入历史', {
+        ...meta,
+        phase: 'tool',
+        messageId,
+        round,
+        toolCallId: toolCall.id,
+        toolName,
+        rawArguments,
+        error,
+      });
+
+      this.deps.eventBridge.emitToolEvent(messageId, {
+        id: toolCall.id || `${messageId}-${round}-${toolName}-invalid`,
+        kind: 'tool',
+        title: `${toolName} 参数解析失败`,
+        toolName,
+        argsPreview: this.previewValue(rawArguments),
+        status: 'error',
+        detail: rawArguments,
+        resultPreview: `工具参数解析失败：${error}`,
+        durationMs: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      invalidSummaries.push({
+        name: toolName,
+        argsPreview: this.previewValue(rawArguments, 100),
+        resultPreview: `工具参数解析失败：${error}`,
+        durationMs: 0,
+        status: 'error',
+      });
+    }
+
+    return { validToolCalls, invalidSummaries };
   }
 
   /**
@@ -459,16 +533,17 @@ export class AgentLoop {
       : [];
     const systemPrompt = await this.deps.buildSystemPrompt(userInput, skillInstructions, currentToolDefs);
     const history = this.deps.conversationRuntime.getHistory();
-    const hasMultimodal = history.some((message) => message.attachments && message.attachments.length > 0);
-    const requestModel = resolveModelForRequest(runtime, hasMultimodal);
+    const latestUserMessage = [...history].reverse().find((message) => message.role === 'user');
+    const hasImageAttachment = Boolean(latestUserMessage?.attachments?.some((attachment) => attachment.type === 'image'));
+    const requestModel = resolveModelForRequest(runtime, hasImageAttachment);
     if (requestModel !== runtime.modelId) {
-      logger.info('多模态任务自动路由', {
+      logger.info('图片任务自动路由', {
         ...meta,
         phase: 'model',
         provider: runtime.provider,
         selectedModel: runtime.modelId,
         resolvedModel: requestModel,
-        attachmentCount: history.reduce((count, message) => count + (message.attachments?.length || 0), 0),
+        latestUserAttachmentCount: latestUserMessage?.attachments?.length || 0,
       });
     }
 
@@ -489,6 +564,10 @@ export class AgentLoop {
       summarizeOldTools: true,
       readAttachmentDataUrl: this.readAttachmentDataUrl.bind(this),
     });
+    const droppedReasonCounts = context.diagnostics.dropped.reduce<Record<string, number>>((counts, item) => {
+      counts[item.reason] = (counts[item.reason] || 0) + 1;
+      return counts;
+    }, {});
 
     const requestBody = {
       model: requestModel,
@@ -511,11 +590,8 @@ export class AgentLoop {
       roles: context.diagnostics.roles,
       hasToolCalls: context.diagnostics.hasToolCalls,
       hasToolMessages: context.diagnostics.hasToolMessages,
-      dropped: context.diagnostics.dropped.map((item) => ({
-        id: item.id,
-        role: item.role,
-        reason: item.reason,
-      })),
+      droppedCount: context.diagnostics.dropped.length,
+      droppedReasonCounts,
     });
 
     logger.info('发送给模型的流式请求摘要', {
@@ -529,6 +605,15 @@ export class AgentLoop {
     });
 
     if (isVerboseAgentLog()) {
+      logger.debug('模型上下文清洗详情', {
+        ...meta,
+        phase: 'model',
+        dropped: context.diagnostics.dropped.map((item) => ({
+          id: item.id,
+          role: item.role,
+          reason: item.reason,
+        })),
+      });
       logger.info('发送给模型的流式请求', {
         ...meta,
         phase: 'model',

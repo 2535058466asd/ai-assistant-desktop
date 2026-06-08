@@ -189,88 +189,6 @@ const ChatImage: React.FC<{
   );
 };
 
-const ChatAudio: React.FC<{
-  attachment: Attachment & { type: 'audio' };
-}> = ({ attachment }) => {
-  const [src, setSrc] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    window.electronAPI?.attachmentReadDataUrl?.(attachment.relativePath, attachment.mimeType)
-      .then((result) => {
-        if (!active) return;
-        if (result?.success && result.data) {
-          setSrc(result.data);
-        } else {
-          setFailed(true);
-        }
-      })
-      .catch(() => {
-        if (active) setFailed(true);
-      });
-    return () => { active = false; };
-  }, [attachment.mimeType, attachment.relativePath]);
-
-  if (failed) {
-    return <div className={styles.messageImageFallback}>音频无法读取<br />{attachment.name}</div>;
-  }
-
-  return (
-    <div className={styles.attachmentAudioCard}>
-      <div className={styles.attachmentAudioIcon}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
-          <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-        </svg>
-      </div>
-      <div className={styles.attachmentAudioInfo}>
-        <span className={styles.attachmentFileName}>{attachment.name}</span>
-        {src && <audio controls src={src} className={styles.attachmentAudioPlayer} />}
-        {!src && <span className={styles.attachmentLoading}>正在加载音频...</span>}
-      </div>
-    </div>
-  );
-};
-
-const ChatVideo: React.FC<{
-  attachment: Attachment & { type: 'video' };
-}> = ({ attachment }) => {
-  const [src, setSrc] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    window.electronAPI?.attachmentReadDataUrl?.(attachment.relativePath, attachment.mimeType)
-      .then((result) => {
-        if (!active) return;
-        if (result?.success && result.data) {
-          setSrc(result.data);
-        } else {
-          setFailed(true);
-        }
-      })
-      .catch(() => {
-        if (active) setFailed(true);
-      });
-    return () => { active = false; };
-  }, [attachment.mimeType, attachment.relativePath]);
-
-  if (failed) {
-    return <div className={styles.messageImageFallback}>视频无法读取<br />{attachment.name}</div>;
-  }
-
-  return (
-    <div className={styles.attachmentVideoCard}>
-      {src ? (
-        <video controls src={src} className={styles.attachmentVideoPlayer} />
-      ) : (
-        <div className={styles.attachmentLoading}>正在加载视频...</div>
-      )}
-      <span className={styles.attachmentFileName}>{attachment.name}</span>
-    </div>
-  );
-};
-
 /**
  * ChatArea 聊天区域组件
  * @param props - 组件属性
@@ -600,12 +518,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
                                   ))}
                                 </div>
                               )}
-                              {message.attachments.filter(a => a.type === 'audio').map((attachment) => (
-                                <ChatAudio key={attachment.id} attachment={attachment as Attachment & { type: 'audio' }} />
-                              ))}
-                              {message.attachments.filter(a => a.type === 'video').map((attachment) => (
-                                <ChatVideo key={attachment.id} attachment={attachment as Attachment & { type: 'video' }} />
-                              ))}
                             </div>
                           )}
                           {renderMessageContent(message.content, message.role)}

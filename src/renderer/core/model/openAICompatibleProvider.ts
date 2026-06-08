@@ -12,7 +12,24 @@ function isVerboseModelLog(): boolean {
   return process.env.NODE_ENV !== 'production' && import.meta.env.VITE_VERBOSE_AGENT_LOGS !== 'false';
 }
 
-function summarizeRequest(request: ChatWithToolsRequest) {
+function getMessageStructure(messages: ChatWithToolsRequest['messages']) {
+  return messages.map((message, index) => ({
+    index,
+    role: message.role,
+    contentType: Array.isArray(message.content) ? 'array' : typeof message.content,
+    contentLength: typeof message.content === 'string'
+      ? message.content.length
+      : Array.isArray(message.content)
+        ? message.content.length
+        : 0,
+    hasToolCalls: Boolean(message.tool_calls?.length),
+    toolCallCount: message.tool_calls?.length || 0,
+    hasReasoningContent: Boolean(message.reasoning_content?.trim()),
+    toolCallId: message.tool_call_id,
+  }));
+}
+
+function summarizeRequest(request: ChatWithToolsRequest, includeStructure = false) {
   return {
     traceId: request.traceId,
     phase: 'model',
@@ -21,7 +38,19 @@ function summarizeRequest(request: ChatWithToolsRequest) {
     roles: request.messages.map((message) => message.role),
     messageCount: request.messages.length,
     toolCount: request.tools?.length || 0,
+    ...(includeStructure ? { messageStructure: getMessageStructure(request.messages) } : {}),
   };
+}
+
+function hasValidToolCallArguments(toolCall: NonNullable<ModelMessage['tool_calls']>[number]): boolean {
+  const rawArguments = toolCall.function?.arguments;
+  if (typeof rawArguments !== 'string' || rawArguments.trim().length === 0) return false;
+  try {
+    JSON.parse(rawArguments);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export interface OpenAICompatibleProviderConfig {
@@ -91,16 +120,19 @@ export class OpenAICompatibleProvider implements ModelProvider {
       }
 
       if (message.role === 'assistant') {
-        const toolCalls = message.tool_calls || [];
+        const toolCalls = (message.tool_calls || []).filter(hasValidToolCallArguments);
         const hasToolCalls = toolCalls.length > 0;
         if (!hasToolCalls && !this.hasUsableContent(message)) {
           continue;
         }
 
         if (hasToolCalls) {
+          message.tool_calls = toolCalls;
           for (const toolCall of toolCalls) {
             if (toolCall.id) pendingToolCallIds.add(toolCall.id);
           }
+        } else {
+          delete message.tool_calls;
         }
       }
 
@@ -133,6 +165,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
           endpoint,
         });
         if (isVerboseModelLog()) {
+          logger.debug(`${this.displayName} HTTP 请求结构`, {
+            ...summarizeRequest({ ...request, messages }, true),
+            endpoint,
+          });
           logger.info(`${this.displayName} 即将发送 HTTP 请求`, { traceId: request.traceId, phase: 'model', endpoint, body });
         }
 
@@ -204,6 +240,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
         endpoint,
       });
       if (isVerboseModelLog()) {
+        logger.debug(`${this.displayName} 流式 HTTP 请求结构`, {
+          ...summarizeRequest({ ...request, messages, stream: true }, true),
+          endpoint,
+        });
         logger.info(`${this.displayName} 即将发送流式 HTTP 请求`, { traceId: request.traceId, phase: 'model', endpoint, body });
       }
 

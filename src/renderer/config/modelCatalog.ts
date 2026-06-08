@@ -9,19 +9,17 @@ export interface ProviderModelCatalog {
 export interface ModelCapabilities {
   text: boolean;
   image: boolean;
-  audio: boolean;
-  video: boolean;
   tools: boolean;
 }
 
-const DEFAULT_CAPABILITIES: ModelCapabilities = { text: true, image: false, audio: false, video: false, tools: true };
+const DEFAULT_CAPABILITIES: ModelCapabilities = { text: true, image: false, tools: true };
 
 const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
-  'doubao-seed-2-0-pro-260215': { text: true, image: true, audio: true, video: true, tools: true },
-  'doubao-seed-2-0-lite-260215': { text: true, image: true, audio: true, video: true, tools: true },
-  'doubao-seed-2-0-mini-260215': { text: true, image: true, audio: true, video: true, tools: true },
-  'mimo-v2.5': { text: true, image: true, audio: true, video: true, tools: true },
-  'mimo-v2.5-pro': { text: true, image: false, audio: false, video: false, tools: true },
+  'doubao-seed-2-0-pro-260215': { text: true, image: true, tools: true },
+  'doubao-seed-2-0-lite-260215': { text: true, image: true, tools: true },
+  'doubao-seed-2-0-mini-260215': { text: true, image: true, tools: true },
+  'mimo-v2.5': { text: true, image: true, tools: true },
+  'mimo-v2.5-pro': { text: true, image: false, tools: true },
 };
 
 const MODEL_CATALOG: Record<ModelProviderId, ProviderModelCatalog> = {

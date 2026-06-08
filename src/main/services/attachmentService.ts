@@ -7,18 +7,11 @@ const ALLOWED_TYPES: Record<string, { ext: string; maxSize: number; prefix: stri
   'image/png':  { ext: '.png',  maxSize: 10 * 1024 * 1024,  prefix: 'img' },
   'image/jpeg': { ext: '.jpg',  maxSize: 10 * 1024 * 1024,  prefix: 'img' },
   'image/webp': { ext: '.webp', maxSize: 10 * 1024 * 1024,  prefix: 'img' },
-  'audio/mp3':  { ext: '.mp3',  maxSize: 25 * 1024 * 1024,  prefix: 'aud' },
-  'audio/wav':  { ext: '.wav',  maxSize: 25 * 1024 * 1024,  prefix: 'aud' },
-  'audio/m4a':  { ext: '.m4a',  maxSize: 25 * 1024 * 1024,  prefix: 'aud' },
-  'audio/ogg':  { ext: '.ogg',  maxSize: 25 * 1024 * 1024,  prefix: 'aud' },
-  'video/mp4':  { ext: '.mp4',  maxSize: 100 * 1024 * 1024, prefix: 'vid' },
-  'video/webm': { ext: '.webm', maxSize: 100 * 1024 * 1024, prefix: 'vid' },
-  'video/mov':  { ext: '.mov',  maxSize: 100 * 1024 * 1024, prefix: 'vid' },
 };
 
 export interface StoredAttachment {
   id: string;
-  type: 'image' | 'audio' | 'video';
+  type: 'image';
   name: string;
   mimeType: string;
   sizeBytes: number;
@@ -26,8 +19,6 @@ export interface StoredAttachment {
 }
 
 export type StoredImageAttachment = StoredAttachment & { type: 'image' };
-export type StoredAudioAttachment = StoredAttachment & { type: 'audio' };
-export type StoredVideoAttachment = StoredAttachment & { type: 'video' };
 
 function getAttachmentRoot(): string {
   return path.join(app.getPath('userData'), 'attachments');
@@ -78,11 +69,9 @@ export function saveAttachment(input: {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, buffer);
 
-  const attachmentType = input.mimeType.split('/')[0] as 'image' | 'audio' | 'video';
-
   return {
     id,
-    type: attachmentType,
+    type: 'image',
     name: path.basename(input.name || `${id}${typeConfig.ext}`),
     mimeType: input.mimeType,
     sizeBytes: buffer.length,

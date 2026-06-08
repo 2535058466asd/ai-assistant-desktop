@@ -113,51 +113,11 @@ export interface PendingImageAttachment {
   dataUrl: string;
 }
 
-/** 已保存到 Nova 本地目录的音频附件。 */
-export interface AudioAttachment {
-  id: string;
-  type: 'audio';
-  name: string;
-  mimeType: 'audio/mp3' | 'audio/wav' | 'audio/m4a' | 'audio/ogg';
-  sizeBytes: number;
-  relativePath: string;
-}
-
-/** 输入框中的临时音频。发送成功后会转换为 AudioAttachment。 */
-export interface PendingAudioAttachment {
-  id: string;
-  type: 'audio';
-  name: string;
-  mimeType: AudioAttachment['mimeType'];
-  sizeBytes: number;
-  dataUrl: string;
-}
-
-/** 已保存到 Nova 本地目录的视频附件。 */
-export interface VideoAttachment {
-  id: string;
-  type: 'video';
-  name: string;
-  mimeType: 'video/mp4' | 'video/webm' | 'video/mov';
-  sizeBytes: number;
-  relativePath: string;
-}
-
-/** 输入框中的临时视频。发送成功后会转换为 VideoAttachment。 */
-export interface PendingVideoAttachment {
-  id: string;
-  type: 'video';
-  name: string;
-  mimeType: VideoAttachment['mimeType'];
-  sizeBytes: number;
-  dataUrl: string;
-}
-
 /** 所有已保存附件的联合类型 */
-export type Attachment = ImageAttachment | AudioAttachment | VideoAttachment;
+export type Attachment = ImageAttachment;
 
 /** 所有待发送附件的联合类型 */
-export type PendingAttachment = PendingImageAttachment | PendingAudioAttachment | PendingVideoAttachment;
+export type PendingAttachment = PendingImageAttachment;
 
 /** 工具调用摘要（给 UI 展示用） */
 export interface ToolCallSummary {

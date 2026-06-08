@@ -70,13 +70,29 @@ function hasUserAttachment(message: Message): boolean {
 }
 
 function getAttachmentFallbackText(attachments?: Attachment[]): string {
-  if (attachments?.some((attachment) => attachment.type === 'audio')) return '请分析这段音频。';
-  if (attachments?.some((attachment) => attachment.type === 'video')) return '请分析这个视频。';
   return '请分析这些图片。';
 }
 
 function getToolCallIds(toolCalls?: ToolCall[]): string[] {
   return (toolCalls || []).map((toolCall) => toolCall.id).filter(Boolean);
+}
+
+export function hasValidToolCallArguments(toolCall: ToolCall): boolean {
+  const rawArguments = toolCall.function?.arguments;
+  if (typeof rawArguments !== 'string' || rawArguments.trim().length === 0) {
+    return false;
+  }
+
+  try {
+    JSON.parse(rawArguments);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function hasValidToolCallPayload(toolCalls?: ToolCall[]): boolean {
+  return Boolean(toolCalls?.length) && toolCalls!.every(hasValidToolCallArguments);
 }
 
 function hasReasoningContent(message: Message | ModelContextMessage): boolean {
@@ -239,8 +255,12 @@ function sanitizeModelMessagesWithDiagnostics(
       if (toolCalls.length !== next.tool_calls.length) {
         dropped.push({ role: next.role, reason: 'unmatched_tool_calls' });
       }
-      next.tool_calls = toolCalls;
-      for (const toolCall of toolCalls) {
+      const validToolCalls = toolCalls.filter(hasValidToolCallArguments);
+      if (validToolCalls.length !== toolCalls.length) {
+        dropped.push({ role: next.role, reason: 'invalid_tool_call_arguments' });
+      }
+      next.tool_calls = validToolCalls;
+      for (const toolCall of validToolCalls) {
         allowedToolResultIds.add(toolCall.id);
       }
       if (next.tool_calls.length === 0) {
@@ -282,7 +302,7 @@ async function toModelMessage(message: Message, options: ContextBuildOptions): P
   }
 
   const supportedAttachments = message.attachments.filter((attachment) =>
-    attachment.type === 'image' || attachment.type === 'audio' || attachment.type === 'video'
+    attachment.type === 'image'
   );
   if (supportedAttachments.length === 0) return base;
 
@@ -290,15 +310,7 @@ async function toModelMessage(message: Message, options: ContextBuildOptions): P
   for (const attachment of supportedAttachments) {
     const dataUrl = await options.readAttachmentDataUrl(attachment);
     if (dataUrl) {
-      if (attachment.type === 'image') {
-        parts.push({ type: 'image_url', image_url: { url: dataUrl } });
-      } else if (attachment.type === 'audio') {
-        const base64 = dataUrl.split(',')[1] || '';
-        const format = attachment.mimeType.split('/')[1];
-        parts.push({ type: 'input_audio', input_audio: { data: base64, format } });
-      } else if (attachment.type === 'video') {
-        parts.push({ type: 'video_url', video_url: { url: dataUrl } });
-      }
+      parts.push({ type: 'image_url', image_url: { url: dataUrl } });
     }
   }
 
@@ -347,6 +359,22 @@ export async function buildModelContextWithDiagnostics(
 
     if (message.role === 'assistant' && message.tool_calls?.length) {
       const isLatest = isLatestToolAssistant(message, latestTrace);
+      const hasInvalidToolArguments = !hasValidToolCallPayload(message.tool_calls as ToolCall[]);
+
+      if (hasInvalidToolArguments) {
+        if (isLatest && latestTrace) {
+          const summary = summarizeToolTraceForModel([message, ...latestTrace.toolResults]);
+          if (summary) {
+            candidates.push({ role: 'assistant', content: summary });
+          }
+        }
+        dropped.push({
+          id: message.id,
+          role: message.role,
+          reason: isLatest ? 'invalid_tool_call_arguments_summarized' : 'invalid_tool_call_arguments',
+        });
+        continue;
+      }
 
       if (requiresReasoningToolReplay && !hasReasoningContent(message)) {
         if (isLatest && latestTrace) {
