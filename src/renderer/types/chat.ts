@@ -70,7 +70,7 @@ export interface UIMessage {
   role: 'user' | 'assistant' | 'system';
   /** 消息内容（支持 HTML 或纯文本） */
   content: string;
-  /** 用户消息关联的本地附件（图片/音频/视频） */
+  /** 用户消息关联的本地图片附件 */
   attachments?: Attachment[];
   /** 时间戳 */
   timestamp: number;

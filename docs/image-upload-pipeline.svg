@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2200" height="1400" viewBox="0 0 2200 1400">
+  <defs>
+    <style>
+      .bg { fill: #f7fafc; }
+      .title { font: 700 48px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 24px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #475569; }
+      .lane-title { font: 700 30px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #111827; }
+      .box-title { font: 700 26px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #0f172a; }
+      .box-text { font: 400 22px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #334155; }
+      .code { font: 500 21px "Consolas", "Microsoft YaHei", monospace; fill: #1e293b; }
+      .note { font: 400 21px "Microsoft YaHei", "Segoe UI", Arial, sans-serif; fill: #64748b; }
+      .lane { fill: #ffffff; stroke: #dbe3ee; stroke-width: 2; }
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 18; }
+      .blue { fill: #eef6ff; stroke: #60a5fa; }
+      .green { fill: #ecfdf5; stroke: #34d399; }
+      .orange { fill: #fff7ed; stroke: #fb923c; }
+      .purple { fill: #f5f3ff; stroke: #a78bfa; }
+      .gray { fill: #f8fafc; stroke: #cbd5e1; }
+      .arrow { stroke: #64748b; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+      .thin-arrow { stroke: #94a3b8; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="2200" height="1400"/>
+  <text class="title" x="90" y="92">Nova 图片上传与视觉模型链路</text>
+  <text class="subtitle" x="90" y="135">核心思想：用户输入格式和模型 API 格式隔离，中间用 Nova 自己的图片附件对象做转换和治理。</text>
+
+  <rect class="lane" x="70" y="190" width="450" height="1090" rx="28"/>
+  <rect class="lane" x="560" y="190" width="560" height="1090" rx="28"/>
+  <rect class="lane" x="1160" y="190" width="430" height="1090" rx="28"/>
+  <rect class="lane" x="1630" y="190" width="500" height="1090" rx="28"/>
+
+  <text class="lane-title" x="110" y="250">1. 用户图片来源</text>
+  <text class="lane-title" x="600" y="250">2. 前端转换 + 校验层</text>
+  <text class="lane-title" x="1200" y="250">3. 本地附件层</text>
+  <text class="lane-title" x="1670" y="250">4. 模型适配层</text>
+
+  <rect class="box blue" x="105" y="310" width="380" height="150" rx="18"/>
+  <text class="box-title" x="135" y="360">上传按钮</text>
+  <text class="box-text" x="135" y="402">选择本地图片文件</text>
+  <text class="code" x="135" y="435">File</text>
+
+  <rect class="box blue" x="105" y="500" width="380" height="150" rx="18"/>
+  <text class="box-title" x="135" y="550">拖拽图片</text>
+  <text class="box-text" x="135" y="592">桌面 / 文件夹 / 浏览器拖入</text>
+  <text class="code" x="135" y="625">File / DataTransferItem</text>
+
+  <rect class="box blue" x="105" y="690" width="380" height="170" rx="18"/>
+  <text class="box-title" x="135" y="740">粘贴图片</text>
+  <text class="box-text" x="135" y="782">Win+Shift+S 截图后 Ctrl+V</text>
+  <text class="box-text" x="135" y="815">复制图片后 Ctrl+V</text>
+  <text class="code" x="135" y="848">Clipboard File / Blob</text>
+
+  <rect class="box gray" x="105" y="900" width="380" height="190" rx="18"/>
+  <text class="box-title" x="135" y="950">常见图片格式</text>
+  <text class="box-text" x="135" y="992">PNG：截图最常见</text>
+  <text class="box-text" x="135" y="1030">JPG / JPEG：照片常见</text>
+  <text class="box-text" x="135" y="1068">WebP：网页图片常见</text>
+
+  <rect class="box green" x="600" y="310" width="480" height="180" rx="18"/>
+  <text class="box-title" x="635" y="360">统一接收图片</text>
+  <text class="box-text" x="635" y="402">按钮、拖拽、粘贴最终都转成</text>
+  <text class="code" x="635" y="440">File / Blob</text>
+  <text class="note" x="635" y="470">前端通常拿不到真实磁盘完整路径</text>
+
+  <rect class="box green" x="600" y="535" width="480" height="220" rx="18"/>
+  <text class="box-title" x="635" y="585">校验规则</text>
+  <text class="box-text" x="635" y="627">格式：PNG / JPG / JPEG / WebP</text>
+  <text class="box-text" x="635" y="665">单张：最大 10MB</text>
+  <text class="box-text" x="635" y="703">单条消息：最多 4 张</text>
+  <text class="box-text" x="635" y="741">总大小：最大 20MB</text>
+
+  <rect class="box green" x="600" y="800" width="480" height="235" rx="18"/>
+  <text class="box-title" x="635" y="850">转换成 Nova 临时附件</text>
+  <text class="code" x="635" y="895">PendingImageAttachment</text>
+  <text class="box-text" x="635" y="935">id / name / mimeType</text>
+  <text class="box-text" x="635" y="973">sizeBytes / dataUrl</text>
+  <text class="note" x="635" y="1012">dataUrl 用于输入框预览</text>
+
+  <rect class="box orange" x="1200" y="310" width="350" height="190" rx="18"/>
+  <text class="box-title" x="1230" y="360">发送时保存图片</text>
+  <text class="box-text" x="1230" y="402">Renderer 调用 preload</text>
+  <text class="code" x="1230" y="440">attachmentSave()</text>
+  <text class="box-text" x="1230" y="475">Main Process 落盘</text>
+
+  <rect class="box orange" x="1200" y="545" width="350" height="205" rx="18"/>
+  <text class="box-title" x="1230" y="595">本地附件目录</text>
+  <text class="box-text" x="1230" y="637">保存真实图片文件</text>
+  <text class="code" x="1230" y="675">attachments/chat-xxx/</text>
+  <text class="code" x="1230" y="710">img-xxx.png</text>
+
+  <rect class="box orange" x="1200" y="795" width="350" height="235" rx="18"/>
+  <text class="box-title" x="1230" y="845">聊天历史只存引用</text>
+  <text class="code" x="1230" y="890">ImageAttachment</text>
+  <text class="box-text" x="1230" y="930">id / name / mimeType</text>
+  <text class="box-text" x="1230" y="968">sizeBytes / relativePath</text>
+  <text class="note" x="1230" y="1008">SQLite 不直接存大 Base64</text>
+
+  <rect class="box purple" x="1670" y="310" width="420" height="195" rx="18"/>
+  <text class="box-title" x="1705" y="360">构建模型上下文</text>
+  <text class="box-text" x="1705" y="402">根据 relativePath 读取图片</text>
+  <text class="box-text" x="1705" y="440">重新转成 dataUrl</text>
+  <text class="code" x="1705" y="475">data:image/png;base64,...</text>
+
+  <rect class="box purple" x="1670" y="550" width="420" height="260" rx="18"/>
+  <text class="box-title" x="1705" y="600">OpenAI-compatible 图片消息</text>
+  <text class="code" x="1705" y="645">content: [</text>
+  <text class="code" x="1735" y="680">{ type: "text", text: "..." },</text>
+  <text class="code" x="1735" y="715">{ type: "image_url",</text>
+  <text class="code" x="1765" y="750">image_url: { url: dataUrl } }</text>
+  <text class="code" x="1705" y="785">]</text>
+
+  <rect class="box purple" x="1670" y="855" width="420" height="175" rx="18"/>
+  <text class="box-title" x="1705" y="905">发送给视觉模型</text>
+  <text class="box-text" x="1705" y="947">豆包 / MiMo 图片理解模型</text>
+  <text class="note" x="1705" y="987">语音能力仍走 ASR/TTS/实时通话</text>
+
+  <path class="arrow" d="M 485 385 C 535 385 550 385 600 385"/>
+  <path class="arrow" d="M 485 575 C 535 575 550 415 600 415"/>
+  <path class="arrow" d="M 485 775 C 535 775 550 445 600 445"/>
+  <path class="arrow" d="M 840 490 L 840 535"/>
+  <path class="arrow" d="M 840 755 L 840 800"/>
+  <path class="arrow" d="M 1080 920 C 1135 920 1145 405 1200 405"/>
+  <path class="arrow" d="M 1375 500 L 1375 545"/>
+  <path class="arrow" d="M 1375 750 L 1375 795"/>
+  <path class="arrow" d="M 1550 910 C 1605 910 1615 405 1670 405"/>
+  <path class="arrow" d="M 1880 505 L 1880 550"/>
+  <path class="arrow" d="M 1880 810 L 1880 855"/>
+
+  <rect class="box gray" x="600" y="1110" width="1490" height="130" rx="18"/>
+  <text class="box-title" x="635" y="1160">一句话总结</text>
+  <text class="box-text" x="635" y="1203">用户输入层负责接住各种图片来源；Nova 附件层负责校验、预览和本地保存；模型适配层只在调用前把本地图片转成 image_url dataUrl。</text>
+</svg>

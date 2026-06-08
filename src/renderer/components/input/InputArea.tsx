@@ -28,6 +28,12 @@ const MAX_IMAGE_COUNT = 4;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_BYTES = 20 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const IMAGE_TYPE_BY_EXTENSION: Record<string, PendingImageAttachment['mimeType']> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+};
 
 /* ==========================================
    组件 Props 类型定义
@@ -151,15 +157,35 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
     reader.readAsDataURL(file);
   });
 
+  const getImageMimeType = (file: File): PendingImageAttachment['mimeType'] | null => {
+    if (ALLOWED_IMAGE_TYPES.has(file.type)) {
+      return file.type as PendingImageAttachment['mimeType'];
+    }
+
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    return IMAGE_TYPE_BY_EXTENSION[extension] || null;
+  };
+
+  const createClipboardImageFile = (item: DataTransferItem, index: number): File | null => {
+    if (!item.type.startsWith('image/')) return null;
+    const blob = item.getAsFile();
+    if (!blob) return null;
+    const extension = item.type.split('/')[1] === 'jpeg' ? 'jpg' : item.type.split('/')[1] || 'png';
+    return new File([blob], `clipboard-image-${Date.now()}-${index}.${extension}`, {
+      type: item.type,
+      lastModified: Date.now(),
+    });
+  };
+
   const addFiles = async (files: File[]) => {
     const accepted: PendingAttachment[] = [];
     let totalImageBytes = pendingAttachments.filter(a => a.type === 'image').reduce((sum, a) => sum + a.sizeBytes, 0);
     const imageCount = pendingAttachments.filter(a => a.type === 'image').length;
 
     for (const file of files) {
-      const mimeType = file.type;
+      const mimeType = getImageMimeType(file);
 
-      if (ALLOWED_IMAGE_TYPES.has(mimeType)) {
+      if (mimeType) {
         if (imageCount + accepted.filter(a => a.type === 'image').length >= MAX_IMAGE_COUNT) {
           showToast?.(`单条消息最多添加 ${MAX_IMAGE_COUNT} 张图片。`, 'info');
           continue;
@@ -173,7 +199,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
           id: `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           type: 'image',
           name: file.name,
-          mimeType: mimeType as PendingImageAttachment['mimeType'],
+          mimeType,
           sizeBytes: file.size,
           dataUrl,
         });
@@ -201,6 +227,17 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
     event.preventDefault();
     setIsDragging(false);
     await addFiles(Array.from(event.dataTransfer.files || []));
+  };
+
+  const handlePaste = async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const fileImages = Array.from(event.clipboardData.files || []).filter((file) => getImageMimeType(file));
+    const itemImages = Array.from(event.clipboardData.items || [])
+      .map((item, index) => createClipboardImageFile(item, index))
+      .filter((file): file is File => Boolean(file));
+    const imageFiles = fileImages.length > 0 ? fileImages : itemImages;
+    if (imageFiles.length === 0) return;
+    event.preventDefault();
+    await addFiles(imageFiles);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -431,6 +468,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
             value={isRecording ? recognitionText : inputText}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             disabled={isLoading || isRecording}

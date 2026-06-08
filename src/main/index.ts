@@ -210,7 +210,7 @@ ipcMain.handle('model-fetch-stream', async (event, request: {
   }
 });
 
-// ========== 聊天附件（图片/音频/视频） ==========
+// ========== 聊天图片附件 ==========
 ipcMain.handle('attachment-save', async (_event, input: {
   chatId: string;
   name: string;
