@@ -534,7 +534,7 @@ export class AgentLoop {
     const systemPrompt = await this.deps.buildSystemPrompt(userInput, skillInstructions, currentToolDefs);
     const history = this.deps.conversationRuntime.getHistory();
     const latestUserMessage = [...history].reverse().find((message) => message.role === 'user');
-    const hasImageAttachment = Boolean(latestUserMessage?.attachments?.some((attachment) => attachment.type === 'image'));
+    const hasImageAttachment = history.some((message) => message.role === 'user' && message.attachments?.some((attachment) => attachment.type === 'image'));
     const requestModel = resolveModelForRequest(runtime, hasImageAttachment);
     if (requestModel !== runtime.modelId) {
       logger.info('图片任务自动路由', {
@@ -646,10 +646,24 @@ export class AgentLoop {
     if (response.error) return { content: '', reasoningContent: '', toolCalls: [], error: response.error };
 
     const msg = response.choices[0]?.message;
+    const content = getTextContent(msg?.content) || accumulated;
+    const reasoningContent = msg?.reasoning_content || '';
+    const toolCalls = msg?.tool_calls || [];
+    logger.info('模型流式响应完成', {
+      ...meta,
+      phase: 'model',
+      model: response.model,
+      finishReason: response.choices[0]?.finish_reason ?? null,
+      contentLength: content.length,
+      accumulatedTextLength: accumulated.length,
+      reasoningContentLength: reasoningContent.length,
+      toolCallCount: toolCalls.length,
+      hasContentMismatch: content.length !== accumulated.length,
+    });
     return {
-      content: getTextContent(msg?.content) || accumulated,
-      reasoningContent: msg?.reasoning_content || '',
-      toolCalls: msg?.tool_calls || [],
+      content,
+      reasoningContent,
+      toolCalls,
       usage: response.usage,
       model: response.model,
     };
