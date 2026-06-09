@@ -47,13 +47,13 @@ const KnowledgePanel: React.FC = () => {
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [sources, setSources] = useState<KnowledgeSource[]>([]);
   const [importQueue, setImportQueue] = useState<ImportItem[]>([]);
-  const [category, setCategory] = useState('');
   const [dragging, setDragging] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchError, setSearchError] = useState('');
   const [searching, setSearching] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [hasSearched, setHasSearched] = useState(false);
 
   const api = (window as any).electronAPI;
   const dropRef = useRef<HTMLDivElement>(null);
@@ -74,13 +74,12 @@ const KnowledgePanel: React.FC = () => {
     const name = filePath.split(/[/\\]/).pop() || filePath;
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     setImportQueue(prev => [...prev, { id, name, status: 'pending' }]);
-
     setImportQueue(prev => prev.map(item => item.id === id ? { ...item, status: 'importing' } : item));
 
     try {
       const result = isImageFile(name)
-        ? await api.knowledgeImportImage(filePath, category || undefined)
-        : await api.knowledgeImportFile(filePath, category || undefined);
+        ? await api.knowledgeImportImage(filePath)
+        : await api.knowledgeImportFile(filePath);
 
       setImportQueue(prev => prev.map(item => item.id === id ? {
         ...item,
@@ -89,26 +88,6 @@ const KnowledgePanel: React.FC = () => {
         error: result.error,
       } : item));
 
-      if (result.success) loadStats();
-    } catch (e: any) {
-      setImportQueue(prev => prev.map(item => item.id === id ? { ...item, status: 'error', error: e.message } : item));
-    }
-  };
-
-  const importContent = async (content: string, name: string) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    setImportQueue(prev => [...prev, { id, name, status: 'pending' }]);
-    setImportQueue(prev => prev.map(item => item.id === id ? { ...item, status: 'importing' } : item));
-
-    try {
-      const meta = { source: name, category: category || 'clipboard', chunkId: `${name}#1`, created_at: new Date().toISOString() };
-      const result = await api.knowledgeAdd([content], [meta]);
-      setImportQueue(prev => prev.map(item => item.id === id ? {
-        ...item,
-        status: result.success ? 'success' : 'error',
-        chunks: result.count,
-        error: result.error,
-      } : item));
       if (result.success) loadStats();
     } catch (e: any) {
       setImportQueue(prev => prev.map(item => item.id === id ? { ...item, status: 'error', error: e.message } : item));
@@ -147,39 +126,12 @@ const KnowledgePanel: React.FC = () => {
     if (files.length) handleFiles(files);
   };
 
-  const handlePaste = async (e: React.ClipboardEvent) => {
-    const htmlData = e.clipboardData.getData('text/html');
-    if (htmlData) {
-      e.preventDefault();
-      try {
-        const TurndownService = (await import('turndown')).default;
-        const md = new TurndownService().turndown(htmlData);
-        if (md.trim()) {
-          importContent(md, `粘贴内容 ${new Date().toLocaleTimeString('zh-CN')}`);
-          return;
-        }
-      } catch { /* turndown 不可用，降级到纯文本 */ }
-    }
-
-    const textData = e.clipboardData.getData('text/plain');
-    if (textData) {
-      e.preventDefault();
-      importContent(textData, `粘贴内容 ${new Date().toLocaleTimeString('zh-CN')}`);
-      return;
-    }
-
-    const fileResult = await api.clipboardReadFiles();
-    if (fileResult.success && fileResult.data?.length) {
-      e.preventDefault();
-      handleFiles(fileResult.data);
-    }
-  };
-
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
     setSearchResults([]);
     setSearchError('');
+    setHasSearched(true);
     try {
       const result = await api.knowledgeSearchStructured(searchQuery, 8);
       if (result.success && result.data) {
@@ -193,6 +145,13 @@ const KnowledgePanel: React.FC = () => {
     setSearching(false);
   };
 
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearchError('');
+    setHasSearched(false);
+  };
+
   const handleDeleteSource = async (source: string) => {
     if (!window.confirm(`确定删除来源「${source}」的所有知识片段吗？`)) return;
     const result = await api.knowledgeDeleteBySource(source);
@@ -203,81 +162,84 @@ const KnowledgePanel: React.FC = () => {
   const filteredSources = selectedCategory === 'all' ? sources : sources.filter(s => s.category === selectedCategory);
 
   return (
-    <div className={styles.panel}>
-      <div className={styles.overviewBar}>
-        <div className={styles.overviewItem}>
-          <span className={styles.overviewValue}>{stats?.count ?? '—'}</span>
-          <span className={styles.overviewLabel}>总片段</span>
+    <div
+      ref={dropRef}
+      className={styles.panel}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {dragging && (
+        <div className={styles.dragOverlay}>
+          <div className={styles.dragOverlayIcon}>+</div>
+          <div className={styles.dragOverlayText}>释放文件，导入知识库</div>
         </div>
-        <div className={styles.overviewItem}>
-          <span className={styles.overviewValue}>{sources.length}</span>
-          <span className={styles.overviewLabel}>来源文件</span>
+      )}
+      <div className={styles.header}>
+        <div className={styles.headerLeft}>
+          <h2 className={styles.title}>知识库</h2>
+          <span className={styles.stat}>{stats?.count ?? '—'} 片段</span>
+          <span className={styles.statDivider} />
+          <span className={styles.stat}>{sources.length} 来源</span>
         </div>
-        <div className={styles.overviewItem}>
-          <span className={styles.overviewValue}>{categories.length}</span>
-          <span className={styles.overviewLabel}>分类</span>
-        </div>
-        <div className={styles.overviewItem}>
-          <span className={styles.overviewStatus}>●</span>
-          <span className={styles.overviewLabel}>ChromaDB</span>
+        <div className={styles.headerRight}>
+          <button type="button" className={styles.btnUpload} onClick={handleOpenFilePicker}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            上传文件
+          </button>
         </div>
       </div>
 
-      <div className={styles.topGrid}>
-        <div
-          ref={dropRef}
-          className={`${styles.dropZone} ${dragging ? styles.dropZoneActive : ''}`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onPaste={handlePaste}
-          tabIndex={0}
-        >
-          <div className={styles.dropIcon}>📥</div>
-          <p className={styles.dropTitle}>拖拽文件到这里</p>
-          <p className={styles.dropHint}>或 Ctrl+V 粘贴内容 · 从 Word、网页复制直接入库</p>
-          <button type="button" className={styles.btnPrimary} onClick={handleOpenFilePicker}>选择文件</button>
+      <div className={styles.toolbar}>
+        <div className={styles.searchBar}>
+          <svg className={styles.searchIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input
             type="text"
-            className={styles.categoryInput}
-            placeholder="分类标签（可选）"
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-            onClick={e => e.stopPropagation()}
+            className={styles.searchInput}
+            placeholder="搜索知识库..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
           />
-          {importQueue.length > 0 && (
-            <div className={styles.importQueue}>
-              {importQueue.slice(-6).map(item => (
-                <div key={item.id} className={styles.queueItem}>
-                  <span className={`${styles.queueDot} ${item.status === 'success' ? styles.queueDotSuccess : item.status === 'error' ? styles.queueDotError : item.status === 'importing' ? styles.queueDotLoading : ''}`} />
-                  <span className={styles.queueName}>{item.name}</span>
-                  <span className={styles.queueInfo}>
-                    {item.status === 'success' ? `${item.chunks} 片段` : item.status === 'error' ? item.error : item.status === 'importing' ? '处理中...' : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className={styles.searchPanel}>
-          <div className={styles.searchForm}>
-            <input
-              type="text"
-              className={styles.input}
-              placeholder="搜索知识库..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            />
-            <button type="button" className={styles.btnSecondary} onClick={handleSearch} disabled={searching || !searchQuery.trim()}>
-              {searching ? '搜索中...' : '搜索'}
+          {hasSearched && (
+            <button type="button" className={styles.searchClear} onClick={handleClearSearch}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
+          )}
+          <button type="button" className={styles.btnSearch} onClick={handleSearch} disabled={searching || !searchQuery.trim()}>
+            {searching ? '...' : '搜索'}
+          </button>
+        </div>
+        <div className={styles.categoryChips}>
+          <button type="button" className={`${styles.chip} ${selectedCategory === 'all' ? styles.chipActive : ''}`} onClick={() => setSelectedCategory('all')}>全部</button>
+          {categories.map(cat => (
+            <button key={cat} type="button" className={`${styles.chip} ${selectedCategory === cat ? styles.chipActive : ''}`} onClick={() => setSelectedCategory(cat)}>{cat}</button>
+          ))}
+        </div>
+      </div>
+
+      {importQueue.length > 0 && (
+        <div className={styles.importQueueBar}>
+          <div className={styles.importQueue}>
+            {importQueue.slice(-6).map(item => (
+              <div key={item.id} className={styles.queueItem}>
+                <span className={`${styles.queueDot} ${item.status === 'success' ? styles.queueDotSuccess : item.status === 'error' ? styles.queueDotError : item.status === 'importing' ? styles.queueDotLoading : ''}`} />
+                <span className={styles.queueName}>{item.name}</span>
+                <span className={styles.queueInfo}>
+                  {item.status === 'success' ? `${item.chunks} 片段` : item.status === 'error' ? item.error : item.status === 'importing' ? '处理中...' : ''}
+                </span>
+              </div>
+            ))}
           </div>
-          <div className={styles.resultsArea}>
+        </div>
+      )}
+
+      <div className={styles.mainContent}>
+        {hasSearched ? (
+          <>
             {searchError && <div className={styles.emptyState}>{searchError}</div>}
-            {!searchError && searchResults.length === 0 && (
-              <div className={styles.emptyState}>输入问题后，这里会显示带来源和相似度的检索结果。</div>
+            {!searchError && searchResults.length === 0 && !searching && (
+              <div className={styles.emptyState}>没有找到相关结果，试试换个关键词？</div>
             )}
             {searchResults.map((item, i) => (
               <div key={i} className={styles.resultCard}>
@@ -289,37 +251,34 @@ const KnowledgePanel: React.FC = () => {
                 <div className={styles.resultText}>{item.text}</div>
               </div>
             ))}
-          </div>
-        </div>
-      </div>
-
-      <div className={styles.manageSection}>
-        <div className={styles.manageHeader}>
-          <div>
-            <span className={styles.sectionEyebrow}>管理</span>
-            <h4 className={styles.manageTitle}>文档管理</h4>
-          </div>
-        </div>
-        <div className={styles.categoryChips}>
-          <button type="button" className={`${styles.chip} ${selectedCategory === 'all' ? styles.chipActive : ''}`} onClick={() => setSelectedCategory('all')}>全部</button>
-          {categories.map(cat => (
-            <button key={cat} type="button" className={`${styles.chip} ${selectedCategory === cat ? styles.chipActive : ''}`} onClick={() => setSelectedCategory(cat)}>{cat}</button>
-          ))}
-        </div>
-        {filteredSources.length === 0 ? (
-          <div className={styles.emptyState}>暂无来源文件。导入文档后这里会显示来源、分类和片段数。</div>
+          </>
         ) : (
-          <div className={styles.sourceList}>
-            {filteredSources.map(source => (
-              <article key={`${source.source}-${source.category}`} className={styles.sourceItem}>
-                <div className={styles.sourceInfo}>
-                  <strong>{source.source}</strong>
-                  <p>{source.category} · {source.count} 个片段 · {formatTime(source.createdAt)}</p>
-                </div>
-                <button type="button" className={styles.btnDanger} onClick={() => handleDeleteSource(source.source)}>删除</button>
-              </article>
-            ))}
-          </div>
+          <>
+            {filteredSources.length === 0 ? (
+              <div className={styles.emptyDropZone} onClick={handleOpenFilePicker}>
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.35"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <p className={styles.emptyDropTitle}>拖拽文件到这里，或点击选择文件</p>
+                <p className={styles.emptyDropHint}>支持 PDF、Word、Excel、TXT、MD 和图片</p>
+              </div>
+            ) : (
+              <div className={styles.sourceList}>
+                {filteredSources.map(source => (
+                  <article key={`${source.source}-${source.category}`} className={styles.sourceItem}>
+                    <div className={styles.sourceIcon}>
+                      {/\.(xlsx|xls)$/i.test(source.source) ? '📊' : /\.(pdf)$/i.test(source.source) ? '📄' : /\.(docx|doc)$/i.test(source.source) ? '📝' : /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(source.source) ? '🖼️' : '📋'}
+                    </div>
+                    <div className={styles.sourceInfo}>
+                      <strong>{source.source}</strong>
+                      <p>{source.category} · {source.count} 个片段 · {formatTime(source.createdAt)}</p>
+                    </div>
+                    <button type="button" className={styles.btnDelete} onClick={() => handleDeleteSource(source.source)} title="删除">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
