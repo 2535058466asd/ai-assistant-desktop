@@ -126,6 +126,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showOpenDialog: async (options?: { filters?: string[] }) => {
     return ipcRenderer.invoke('show-open-dialog', options);
   },
+  // 解析文件为纯文本（用于对话框附件，不入库）
+  parseFileToText: async (filePath: string) => {
+    return ipcRenderer.invoke('parse-file-to-text', filePath);
+  },
   // 记忆服务 - 设置偏好
   memorySetPreference: async (key: string, value: any) => {
     return ipcRenderer.invoke('memory-set-preference', key, value);
@@ -298,6 +302,7 @@ declare global {
       knowledgeImportImage: (imagePath: string, category?: string) => Promise<{ success: boolean; count?: number; info?: string; error?: string }>;
       knowledgeSearchStructured: (query: string, nResults?: number) => Promise<{ success: boolean; data?: Array<{ text: string; source: string; category: string; chunkId: string; distance: number }>; error?: string }>;
       showOpenDialog: (options?: { filters?: string[] }) => Promise<{ success: boolean; data?: string[]; error?: string }>;
+      parseFileToText: (filePath: string) => Promise<{ success: boolean; text?: string; fileName?: string; error?: string }>;
       clipboardReadFiles: () => Promise<{ success: boolean; data?: string[]; error?: string }>;
       getFilePaths: (files: any[]) => string[];
       memorySetPreference: (key: string, value: any) => Promise<void>;

@@ -94,6 +94,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
   const [isRecording, setIsRecording] = useState(false);
   const [recognitionText, setRecognitionText] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const [pendingDocuments, setPendingDocuments] = useState<{ id: string; name: string; text: string }[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -128,16 +129,25 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
 
   const handleSend = async () => {
     const trimmedText = inputText.trim();
-    if ((!trimmedText && pendingAttachments.length === 0) || isLoading) return;
+    if ((!trimmedText && pendingAttachments.length === 0 && pendingDocuments.length === 0) || isLoading) return;
+
+    const docsToSend = pendingDocuments;
+    let messageText = trimmedText;
+    if (docsToSend.length > 0) {
+      const docSection = docsToSend.map(d => `【${d.name}】\n${d.text}`).join('\n\n---\n\n');
+      messageText = docSection + (trimmedText ? `\n\n${trimmedText}` : '');
+    }
+
     logger.info('发送按钮或回车提交输入', {
-      textPreview: trimmedText.slice(0, 120),
-      length: trimmedText.length,
+      textPreview: messageText.slice(0, 120),
+      length: messageText.length,
       attachmentCount: pendingAttachments.length,
+      documentCount: docsToSend.length,
       via: 'input-area',
     });
 
-    // 先清空输入框，再发送消息（避免等待回复期间输入框残留文字）
     setInputText('');
+    setPendingDocuments([]);
     const attachmentsToSend = pendingAttachments;
     setPendingAttachments([]);
     if (textareaRef.current) {
@@ -145,7 +155,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
     }
 
     try {
-      await onSendMessage(trimmedText, undefined, attachmentsToSend);
+      await onSendMessage(messageText, undefined, attachmentsToSend);
     } catch (error) {
       logger.error('输入区发送失败', error);
       setPendingAttachments(attachmentsToSend);
@@ -210,22 +220,19 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
       } else if (isDocumentFile(file.name)) {
         const filePath = (file as any).path;
         if (!filePath) {
-          showToast?.('无法获取文件路径，请通过知识库面板上传。', 'error');
+          showToast?.('无法获取文件路径。', 'error');
           continue;
         }
-        showToast?.(`正在导入「${file.name}」到知识库…`, 'info');
         try {
-          const result = await api.knowledgeImportFile(filePath);
-          if (result.success) {
-            showToast?.(`「${file.name}」已导入知识库（${result.chunks} 个片段）`, 'success');
-            if (result.embeddingReady === false) {
-              showToast?.('向量模型加载失败，语义搜索不可用，重启可重试', 'error');
-            }
+          const result = await api.parseFileToText(filePath);
+          if (result.success && result.text) {
+            const docId = `doc-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            setPendingDocuments(prev => [...prev, { id: docId, name: result.fileName || file.name, text: result.text }]);
           } else {
-            showToast?.(`导入失败：${result.error}`, 'error');
+            showToast?.(`文件解析失败：${result.error}`, 'error');
           }
         } catch (e: any) {
-          showToast?.(`导入失败：${e.message}`, 'error');
+          showToast?.(`文件解析失败：${e.message}`, 'error');
         }
       } else {
         showToast?.('支持图片（PNG/JPG/WebP）和文档（PDF/Word/Excel/TXT/MD）。', 'error');
@@ -375,7 +382,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
     >
       <div className={styles.inputWrapper}>
         {isDragging && (
-          <div className={styles.dropOverlay}>释放鼠标，图片添加到对话，文档导入知识库</div>
+          <div className={styles.dropOverlay}>释放鼠标，图片添加到对话，文档解析后发送</div>
         )}
         
         {/* 快捷建议芯片组 */}
@@ -409,6 +416,23 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
                     className={styles.removeImageBtn}
                     title="移除图片"
                     onClick={() => setPendingAttachments((prev) => prev.filter((item) => item.id !== attachment.id))}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {pendingDocuments.length > 0 && (
+            <div className={styles.pendingImages}>
+              {pendingDocuments.map((doc) => (
+                <div className={styles.pendingImageCard} key={doc.id} style={{ width: 'auto', maxWidth: 200 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '4px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📄 {doc.name}</span>
+                  <button
+                    type="button"
+                    className={styles.removeImageBtn}
+                    title="移除文档"
+                    onClick={() => setPendingDocuments((prev) => prev.filter((item) => item.id !== doc.id))}
                   >
                     ×
                   </button>

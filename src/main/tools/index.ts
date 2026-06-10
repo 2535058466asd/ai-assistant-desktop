@@ -9,7 +9,7 @@ import { registerReadFile, registerWriteFile, registerCreateDir, registerCopyFil
 import { registerWebSearch, registerWebFetch, registerSearchSetConfig } from './webTools'
 import { registerClipboardRead, registerClipboardWrite, registerClipboardReadFiles } from './clipboard'
 import { registerOpenApp } from './openApp'
-import { registerKnowledgeSearch, registerKnowledgeAdd, registerKnowledgeStats, registerKnowledgeImportFile, registerKnowledgeImportImage, registerKnowledgeSources, registerKnowledgeDeleteBySource, registerKnowledgeSearchStructured, registerShowOpenDialog } from './ragTools'
+import { registerKnowledgeSearch, registerKnowledgeAdd, registerKnowledgeStats, registerKnowledgeImportFile, registerKnowledgeImportImage, registerKnowledgeSources, registerKnowledgeDeleteBySource, registerKnowledgeSearchStructured, registerShowOpenDialog, registerParseFileToText } from './ragTools'
 import { registerSystemTools } from './systemTools'
 import { createLogger } from '../../shared/logger'
 
@@ -53,6 +53,7 @@ export function registerAllTools() {
   registerKnowledgeImportFile()
   registerKnowledgeImportImage()
   registerShowOpenDialog()
+  registerParseFileToText()
 
   // 系统工具（时间/系统信息/通知）
   registerSystemTools()

@@ -166,6 +166,20 @@ export function registerKnowledgeImportImage() {
   });
 }
 
+export function registerParseFileToText() {
+  ipcMain.handle('parse-file-to-text', async (_event, filePath: string) => {
+    try {
+      const result = await parseFile(filePath);
+      if (!result.success || !result.text) {
+        return { success: false, error: result.error || '文件解析失败' };
+      }
+      return { success: true, text: cleanText(result.text), fileName: filePath.split(/[/\\]/).pop() || filePath };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+}
+
 export function registerKnowledgeSearchStructured() {
   ipcMain.handle('knowledge-search-structured', async (_event, query: string, nResults: number = 5) => {
     try {
