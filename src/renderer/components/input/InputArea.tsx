@@ -34,6 +34,8 @@ const IMAGE_TYPE_BY_EXTENSION: Record<string, PendingImageAttachment['mimeType']
   jpeg: 'image/jpeg',
   webp: 'image/webp',
 };
+const DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv']);
+const isDocumentFile = (name: string) => DOCUMENT_EXTENSIONS.has(name.split('.').pop()?.toLowerCase() || '');
 
 /* ==========================================
    组件 Props 类型定义
@@ -178,6 +180,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
   };
 
   const addFiles = async (files: File[]) => {
+    const api = (window as any).electronAPI;
     const accepted: PendingAttachment[] = [];
     let totalImageBytes = pendingAttachments.filter(a => a.type === 'image').reduce((sum, a) => sum + a.sizeBytes, 0);
     const imageCount = pendingAttachments.filter(a => a.type === 'image').length;
@@ -204,8 +207,25 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
           dataUrl,
         });
         totalImageBytes += file.size;
+      } else if (isDocumentFile(file.name)) {
+        const filePath = (file as any).path;
+        if (!filePath) {
+          showToast?.('无法获取文件路径，请通过知识库面板上传。', 'error');
+          continue;
+        }
+        showToast?.(`正在导入「${file.name}」到知识库…`, 'info');
+        try {
+          const result = await api.knowledgeImportFile(filePath);
+          if (result.success) {
+            showToast?.(`「${file.name}」已导入知识库（${result.chunks} 个片段）`, 'success');
+          } else {
+            showToast?.(`导入失败：${result.error}`, 'error');
+          }
+        } catch (e: any) {
+          showToast?.(`导入失败：${e.message}`, 'error');
+        }
       } else {
-        showToast?.('仅支持 PNG、JPG、WebP 图片。', 'error');
+        showToast?.('支持图片（PNG/JPG/WebP）和文档（PDF/Word/Excel/TXT/MD）。', 'error');
       }
     }
 
@@ -352,7 +372,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
     >
       <div className={styles.inputWrapper}>
         {isDragging && (
-          <div className={styles.dropOverlay}>释放鼠标，将图片添加到当前对话</div>
+          <div className={styles.dropOverlay}>释放鼠标，图片添加到对话，文档导入知识库</div>
         )}
         
         {/* 快捷建议芯片组 */}

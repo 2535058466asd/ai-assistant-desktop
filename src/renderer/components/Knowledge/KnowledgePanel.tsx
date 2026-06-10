@@ -261,22 +261,28 @@ const KnowledgePanel: React.FC = () => {
                 <p className={styles.emptyDropHint}>支持 PDF、Word、Excel、TXT、MD 和图片</p>
               </div>
             ) : (
-              <div className={styles.sourceList}>
-                {filteredSources.map(source => (
-                  <article key={`${source.source}-${source.category}`} className={styles.sourceItem}>
-                    <div className={styles.sourceIcon}>
-                      {/\.(xlsx|xls)$/i.test(source.source) ? '📊' : /\.(pdf)$/i.test(source.source) ? '📄' : /\.(docx|doc)$/i.test(source.source) ? '📝' : /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(source.source) ? '🖼️' : '📋'}
-                    </div>
-                    <div className={styles.sourceInfo}>
-                      <strong>{source.source}</strong>
-                      <p>{source.category} · {source.count} 个片段 · {formatTime(source.createdAt)}</p>
-                    </div>
-                    <button type="button" className={styles.btnDelete} onClick={() => handleDeleteSource(source.source)} title="删除">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
-                    </button>
-                  </article>
-                ))}
-              </div>
+              <>
+                <div className={styles.sourceList}>
+                  {filteredSources.map(source => (
+                    <article key={`${source.source}-${source.category}`} className={styles.sourceItem}>
+                      <div className={styles.sourceIcon}>
+                        {/\.(xlsx|xls)$/i.test(source.source) ? '📊' : /\.(pdf)$/i.test(source.source) ? '📄' : /\.(docx|doc)$/i.test(source.source) ? '📝' : /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(source.source) ? '🖼️' : '📋'}
+                      </div>
+                      <div className={styles.sourceInfo}>
+                        <strong>{source.source}</strong>
+                        <p>{source.category} · {source.count} 个片段 · {formatTime(source.createdAt)}</p>
+                      </div>
+                      <button type="button" className={styles.btnDelete} onClick={() => handleDeleteSource(source.source)} title="删除">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                      </button>
+                    </article>
+                  ))}
+                </div>
+                <div className={styles.inlineDropZone} onClick={handleOpenFilePicker}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <span>拖拽文件到这里继续导入，或点击选择</span>
+                </div>
+              </>
             )}
           </>
         )}
