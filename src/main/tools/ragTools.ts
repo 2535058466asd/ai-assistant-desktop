@@ -6,6 +6,8 @@ import {
   getKnowledgeStats,
   listKnowledgeSources,
   deleteDocumentsBySource,
+  cleanText,
+  isEmbeddingReady,
 } from '../services/ragService';
 import { parseFile, chunkText } from '../services/documentParser';
 import { recognizeImage } from '../services/imageRecognizer';
@@ -97,12 +99,14 @@ export function registerKnowledgeImportFile() {
         return { success: false, error: parseResult.error || '文件解析失败' };
       }
 
-      const chunks = chunkText(parseResult.text);
+      const chunks = chunkText(cleanText(parseResult.text));
       if (chunks.length === 0) {
         return { success: false, error: '文件内容为空' };
       }
 
       const fileName = filePath.split(/[/\\]/).pop() || 'unknown';
+      await deleteDocumentsBySource(fileName);
+
       const importedAt = new Date().toISOString();
       const metadatas = chunks.map((_, index) => ({
         source: fileName,
@@ -118,6 +122,7 @@ export function registerKnowledgeImportFile() {
         data: `文件 "${fileName}" 已导入知识库，切分为 ${chunks.length} 个片段`,
         count: result.count,
         chunks: chunks.length,
+        embeddingReady: isEmbeddingReady(),
       };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -133,8 +138,10 @@ export function registerKnowledgeImportImage() {
         return { success: false, error: recognizeResult.error || '图片识别失败' };
       }
 
-      const chunks = chunkText(recognizeResult.text);
+      const chunks = chunkText(cleanText(recognizeResult.text));
       const fileName = imagePath.split(/[/\\]/).pop() || 'unknown';
+
+      await deleteDocumentsBySource(fileName);
 
       const importedAt = new Date().toISOString();
       const metadatas = chunks.map((_, index) => ({
@@ -151,6 +158,7 @@ export function registerKnowledgeImportImage() {
         success: true,
         data: `图片 "${fileName}" 已识别并导入知识库`,
         count: result.count,
+        embeddingReady: isEmbeddingReady(),
       };
     } catch (error: any) {
       return { success: false, error: error.message };

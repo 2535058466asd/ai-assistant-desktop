@@ -22,7 +22,7 @@ env.cacheDir = path.join(app.getPath('userData'), 'models');
 
 const KB_DB_PATH = path.join(app.getPath('userData'), 'nova-knowledge', 'knowledge.db');
 const OLD_JSON_PATH = path.join(app.getPath('userData'), 'knowledge_store.json');
-const DEFAULT_MODEL = 'Xenova/all-MiniLM-L6-v2';
+const DEFAULT_MODEL = 'Xenova/paraphrase-multilingual-MiniLM-L12-v2';
 const VECTOR_DIM = 384;
 
 // ========== 类型 ==========
@@ -44,7 +44,7 @@ async function getExtractor(): Promise<any> {
   if (extractorFailed) return null;
   if (extractor) return extractor;
   try {
-    logger.info('正在加载 Embedding 模型（首次需下载，约 20MB）...');
+    logger.info('正在加载 Embedding 模型（首次需下载，约 120MB）...');
     extractor = await pipeline('feature-extraction', DEFAULT_MODEL, { dtype: 'fp32' });
     logger.info('Embedding 模型就绪');
     return extractor;
@@ -53,6 +53,10 @@ async function getExtractor(): Promise<any> {
     logger.error('Embedding 模型加载失败，降级为关键词搜索', { error: error.message });
     return null;
   }
+}
+
+export function isEmbeddingReady(): boolean {
+  return !extractorFailed;
 }
 
 async function embedText(text: string): Promise<number[] | null> {
@@ -151,40 +155,7 @@ function cleanText(text: string): string {
     .trim();
 }
 
-function chunkText(text: string, maxChars = 800, overlap = 150): string[] {
-  if (text.length <= maxChars) return [text];
-  const chunks: string[] = [];
-  const separators = [
-    /(?:^|\n)(#{1,3}\s.+)/,
-    /[。！？]/,
-    /[；;]/,
-    /[,，]/,
-    /\n\n/,
-    /\n/,
-  ];
-  for (const sep of separators) {
-    const parts = text.split(sep);
-    if (parts.length > 1) {
-      let buffer = '';
-      for (const part of parts) {
-        if (buffer.length + part.length > maxChars && buffer.length > 0) {
-          chunks.push(buffer.trim());
-          buffer = buffer.slice(-overlap);
-        }
-        buffer += part;
-      }
-      if (buffer.trim()) chunks.push(buffer.trim());
-      if (chunks.length > 1) break;
-    }
-  }
-  if (chunks.length <= 1) {
-    chunks.length = 0;
-    for (let i = 0; i < text.length; i += maxChars - overlap) {
-      chunks.push(text.slice(i, i + maxChars).trim());
-    }
-  }
-  return chunks.filter(c => c.length > 20);
-}
+export { cleanText };
 
 // ========== 核心 API ==========
 
@@ -201,21 +172,20 @@ export async function addDocuments(
     let added = 0;
     for (let i = 0; i < documents.length; i++) {
       const meta = metadatas?.[i] || { source: 'manual', chunkId: `${i}` };
-      const chunks = chunkText(cleanText(documents[i]));
+      const chunk = documents[i];
+      if (!chunk.trim()) continue;
 
-      for (const chunk of chunks) {
-        const vector = await embedText(chunk);
-        await stmt.run(
-          `doc_${Date.now()}_${added}`,
-          vector ? vectorToBuffer(vector) : null,
-          chunk,
-          meta.source || 'unknown',
-          meta.category || 'imported',
-          meta.chunkId || `${i}`,
-          meta.created_at || new Date().toISOString(),
-        );
-        added++;
-      }
+      const vector = await embedText(chunk);
+      await stmt.run(
+        `doc_${Date.now()}_${added}`,
+        vector ? vectorToBuffer(vector) : null,
+        chunk,
+        meta.source || 'unknown',
+        meta.category || 'imported',
+        meta.chunkId || `${i}`,
+        meta.created_at || new Date().toISOString(),
+      );
+      added++;
     }
 
     await stmt.finalize();

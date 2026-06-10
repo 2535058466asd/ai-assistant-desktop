@@ -218,6 +218,9 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
           const result = await api.knowledgeImportFile(filePath);
           if (result.success) {
             showToast?.(`「${file.name}」已导入知识库（${result.chunks} 个片段）`, 'success');
+            if (result.embeddingReady === false) {
+              showToast?.('向量模型加载失败，语义搜索不可用，重启可重试', 'error');
+            }
           } else {
             showToast?.(`导入失败：${result.error}`, 'error');
           }

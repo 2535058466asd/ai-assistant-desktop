@@ -54,6 +54,7 @@ const KnowledgePanel: React.FC = () => {
   const [searching, setSearching] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [hasSearched, setHasSearched] = useState(false);
+  const [embeddingWarning, setEmbeddingWarning] = useState(false);
 
   const api = (window as any).electronAPI;
   const dropRef = useRef<HTMLDivElement>(null);
@@ -89,6 +90,7 @@ const KnowledgePanel: React.FC = () => {
       } : item));
 
       if (result.success) loadStats();
+      if (result.embeddingReady === false) setEmbeddingWarning(true);
     } catch (e: any) {
       setImportQueue(prev => prev.map(item => item.id === id ? { ...item, status: 'error', error: e.message } : item));
     }
@@ -189,6 +191,13 @@ const KnowledgePanel: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {embeddingWarning && (
+        <div className={styles.embeddingWarning}>
+          <span>⚠️ 向量模型加载失败，当前仅支持关键词搜索，语义检索不可用。重启应用可重试。</span>
+          <button type="button" className={styles.warningDismiss} onClick={() => setEmbeddingWarning(false)}>×</button>
+        </div>
+      )}
 
       <div className={styles.toolbar}>
         <div className={styles.searchBar}>
