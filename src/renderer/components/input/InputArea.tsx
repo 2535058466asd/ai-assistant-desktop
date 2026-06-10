@@ -415,10 +415,10 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
           )}
           {/* 左侧：附件/功能按钮组 */}
           <div className={styles.inputExtras}>
-            {/* 上传图片按钮 */}
+            {/* 上传文件按钮 */}
             <button
               className={styles.extraBtn}
-              title="上传图片"
+              title="上传文件"
               onClick={() => fileInputRef.current?.click()}
             >
               <svg
@@ -438,7 +438,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
               className={styles.hiddenFileInput}
               type="file"
               multiple
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/png,image/jpeg,image/webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv"
               onChange={handleFileInputChange}
             />
 
