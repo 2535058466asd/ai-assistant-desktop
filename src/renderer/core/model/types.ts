@@ -68,6 +68,7 @@ export interface ChatWithToolsRequest {
   temperature?: number;
   maxTokens?: number;
   traceId?: string;
+  caller?: 'mainAgent' | 'memoryAgent' | 'contextCompactor' | 'tts' | 'asr' | string;
 }
 
 export interface StreamChunk {

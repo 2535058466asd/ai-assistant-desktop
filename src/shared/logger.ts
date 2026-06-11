@@ -1,10 +1,15 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type LogModule =
   | 'agent'
+  | 'mainAgent'
   | 'model'
+  | 'modelProvider'
   | 'tool'
   | 'rag'
   | 'memory'
+  | 'memoryAgent'
+  | 'memoryStore'
+  | 'memoryRetrieve'
   | 'asr'
   | 'tts'
   | 'ipc'
@@ -32,10 +37,15 @@ const levelWeight: Record<LogLevel, number> = {
 
 const moduleLabel: Record<LogModule, string> = {
   agent: '智能体',
+  mainAgent: '主Agent',
   model: '模型',
+  modelProvider: '模型Provider',
   tool: '工具',
   rag: '知识库',
   memory: '记忆',
+  memoryAgent: '记忆Agent',
+  memoryStore: '记忆Store',
+  memoryRetrieve: '记忆召回',
   asr: '语音识别',
   tts: '语音合成',
   ipc: '进程通信',
@@ -46,10 +56,15 @@ const moduleLabel: Record<LogModule, string> = {
 
 const moduleColor: Record<LogModule, string> = {
   agent: '#8b5cf6',
+  mainAgent: '#7c3aed',
   model: '#10b981',
+  modelProvider: '#059669',
   tool: '#f59e0b',
   rag: '#06b6d4',
   memory: '#ec4899',
+  memoryAgent: '#db2777',
+  memoryStore: '#be185d',
+  memoryRetrieve: '#f472b6',
   asr: '#eab308',
   tts: '#f97316',
   ipc: '#64748b',

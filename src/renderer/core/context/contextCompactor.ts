@@ -6,7 +6,7 @@ import type { HistoryManager } from '../history';
 import { buildModelContextWithDiagnostics } from '../conversation/conversationContext';
 import { createLogger } from '../../../shared/logger';
 
-const logger = createLogger('agent');
+const logger = createLogger('mainAgent');
 
 export class ContextCompactor {
   private static readonly MAX_TOOL_RESULT_TOKENS = 1500;

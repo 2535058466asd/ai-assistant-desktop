@@ -8,6 +8,12 @@ export interface SSEAccumulator {
   finishReason: string | null;
   responseId: string;
   responseModel: string;
+  receivedDone: boolean;
+  chunkCount: number;
+  dataLineCount: number;
+  parseErrorCount: number;
+  ignoredLineCount: number;
+  lastParseError?: string;
 }
 
 export function createSSEAccumulator(): SSEAccumulator {
@@ -19,6 +25,11 @@ export function createSSEAccumulator(): SSEAccumulator {
     finishReason: null,
     responseId: '',
     responseModel: '',
+    receivedDone: false,
+    chunkCount: 0,
+    dataLineCount: 0,
+    parseErrorCount: 0,
+    ignoredLineCount: 0,
   };
 }
 
@@ -27,15 +38,22 @@ export function handleSSEChunk(
   chunkText: string,
   onChunk: (chunk: StreamChunk) => void,
 ): void {
+  acc.chunkCount++;
   acc.buffer += chunkText;
   const lines = acc.buffer.split('\n');
   acc.buffer = lines.pop() || '';
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed || !trimmed.startsWith('data: ')) continue;
+    if (!trimmed) continue;
+    if (!trimmed.startsWith('data: ')) {
+      acc.ignoredLineCount++;
+      continue;
+    }
+    acc.dataLineCount++;
     const data = trimmed.slice(6);
     if (data === '[DONE]') {
+      acc.receivedDone = true;
       onChunk({ type: 'done' });
       continue;
     }
@@ -80,8 +98,28 @@ export function handleSSEChunk(
           });
         }
       }
-    } catch {
-      // 忽略解析错误的行（网络碎片、编码问题）
+    } catch (error: any) {
+      acc.parseErrorCount++;
+      acc.lastParseError = error?.message || String(error);
     }
   }
+}
+
+export function getSSEDiagnostics(acc: SSEAccumulator) {
+  return {
+    contentLength: acc.accumulatedContent.length,
+    reasoningLength: acc.accumulatedReasoningContent.length,
+    toolCallCount: acc.toolCalls.length,
+    finishReason: acc.finishReason,
+    receivedDone: acc.receivedDone,
+    chunkCount: acc.chunkCount,
+    dataLineCount: acc.dataLineCount,
+    parseErrorCount: acc.parseErrorCount,
+    ignoredLineCount: acc.ignoredLineCount,
+    leftoverBufferLength: acc.buffer.length,
+    hasLeftoverBuffer: acc.buffer.trim().length > 0,
+    lastParseError: acc.lastParseError,
+    responseId: acc.responseId,
+    responseModel: acc.responseModel,
+  };
 }

@@ -8,8 +8,9 @@ import { getModelProvider } from '../model';
 import { getActiveModelConfig } from '../../config/modelConfig';
 import { createLogger, type LogMeta } from '../../../shared/logger';
 import { getTextContent } from '../model/types';
+import { processTurnMemory } from '../memory/memoryPipeline';
 
-const logger = createLogger('memory');
+const logger = createLogger('memoryAgent');
 
 const SKIP_PATTERNS = /^(你好|hi|hello|早|早上好|晚上好|晚安|谢谢|thanks|ok|好的|嗯|哦|行|对|不是|再见|拜拜)/i;
 
@@ -134,25 +135,16 @@ export async function extractMemoriesWithLLM(
  */
 export async function tryExtractAndSaveMemory(userText: string, assistantText: string, meta: LogMeta = {}): Promise<void> {
   try {
-    const memoryService = getMemoryService();
-    
-    // 使用LLM提取记忆
-    const extractedMemories = await extractMemoriesWithLLM(userText, assistantText, meta);
-    
-    // 保存提取的记忆
-    for (const memory of extractedMemories) {
-      const result = await memoryService.addMemory(memory.content, memory.category, memory.importance, {
-        confidence: memory.confidence,
-        memoryKey: memory.memoryKey,
-        sourceKind: memory.sourceKind,
-        validUntil: memory.validUntil,
-        sourceConversation: meta.chatId ?? undefined,
-        sourceMessage: meta.messageId,
-      });
-      logger.info('候选记忆治理完成', { ...meta, phase: 'persist', ...memory, result });
-    }
+    await processTurnMemory({
+      userText,
+      assistantText,
+      chatId: meta.chatId ?? undefined,
+      messageId: meta.messageId ?? undefined,
+      meta,
+    });
 
     // 提取用户名字（保留原有逻辑作为备份）
+    const memoryService = getMemoryService();
     const nameMatch = userText.match(/(?:我叫|我的名字是)\s*([\u4e00-\u9fa5A-Za-z0-9_-]{1,20})(?:[，。！？,.!\s]|$)/);
     if (nameMatch) {
       const userName = nameMatch[1].trim();

@@ -11,7 +11,7 @@ import { open, Database } from 'sqlite';
 import crypto from 'crypto';
 import { createLogger } from '../../shared/logger';
 
-const logger = createLogger('memory');
+const logger = createLogger('memoryStore');
 
 /**
  * 用户偏好类型
@@ -46,10 +46,15 @@ export interface Memory {
   valid_from?: number;
   valid_until?: number;
   superseded_by?: string;
+  scope?: MemoryScope;
+  reason?: string;
+  last_injected_at?: number;
+  inject_count?: number;
 }
 
 export type MemoryStatus = 'active' | 'superseded' | 'archived';
 export type MemorySourceKind = 'explicit' | 'inferred' | 'manual';
+export type MemoryScope = 'core' | 'long_term';
 
 export interface MemoryWriteOptions {
   sourceConversation?: string;
@@ -59,6 +64,8 @@ export interface MemoryWriteOptions {
   confidence?: number;
   validFrom?: number;
   validUntil?: number;
+  scope?: MemoryScope;
+  reason?: string;
 }
 
 export interface MemoryWriteResult {
@@ -181,7 +188,11 @@ export class MemoryService {
           status TEXT DEFAULT 'active',
           valid_from INTEGER,
           valid_until INTEGER,
-          superseded_by TEXT
+          superseded_by TEXT,
+          scope TEXT DEFAULT 'long_term',
+          reason TEXT,
+          last_injected_at INTEGER,
+          inject_count INTEGER DEFAULT 0
         );
 
         CREATE INDEX IF NOT EXISTS idx_category ON memories(category);
@@ -232,6 +243,10 @@ export class MemoryService {
       ['valid_from', 'INTEGER'],
       ['valid_until', 'INTEGER'],
       ['superseded_by', 'TEXT'],
+      ['scope', "TEXT DEFAULT 'long_term'"],
+      ['reason', 'TEXT'],
+      ['last_injected_at', 'INTEGER'],
+      ['inject_count', 'INTEGER DEFAULT 0'],
     ];
 
     for (const [name, definition] of additions) {
@@ -244,6 +259,7 @@ export class MemoryService {
     await this.db.run("UPDATE memories SET status = 'active' WHERE status IS NULL OR status = ''");
     await this.db.run("UPDATE memories SET confidence = 0.7 WHERE confidence IS NULL");
     await this.db.run("UPDATE memories SET source_kind = 'inferred' WHERE source_kind IS NULL OR source_kind = ''");
+    await this.db.run("UPDATE memories SET scope = 'long_term' WHERE scope IS NULL OR scope = ''");
   }
 
   // ========== 公开方法 ==========
@@ -306,6 +322,8 @@ export class MemoryService {
     const memoryKey = this.normalizeMemoryKey(options.memoryKey);
     const validUntil = this.normalizeTimestamp(options.validUntil);
     const validFrom = this.normalizeTimestamp(options.validFrom);
+    const scope = this.normalizeScope(options.scope, normalizedCategory, memoryKey, normalizedImportance);
+    const reason = this.normalizeReason(options.reason);
 
     if (sourceKind === 'inferred' && confidence < 0.78) {
       logger.info('忽略低可信度候选记忆', { content: trimmedContent, confidence });
@@ -334,6 +352,8 @@ export class MemoryService {
             memoryKey,
             validFrom,
             validUntil,
+            scope,
+            reason,
             ...options,
           });
           return { action: 'merged', id: existingByKey.id, reason: 'same_memory_key_similar_content' };
@@ -346,6 +366,8 @@ export class MemoryService {
           confidence,
           validFrom,
           validUntil,
+          scope,
+          reason,
         });
         await this.db.run(
           "UPDATE memories SET status = 'superseded', superseded_by = ?, updated_at = ? WHERE id = ?",
@@ -368,6 +390,8 @@ export class MemoryService {
         memoryKey,
         validFrom,
         validUntil,
+        scope,
+        reason,
         ...options,
       });
       return { action: 'merged', id: duplicate.id, reason: 'similar_content' };
@@ -381,6 +405,8 @@ export class MemoryService {
       confidence,
       validFrom,
       validUntil,
+      scope,
+      reason,
     });
     
     // 3. 容量检查，超限则自动淘汰
@@ -405,8 +431,8 @@ export class MemoryService {
       `INSERT INTO memories (
         id, content, category, importance, created_at, updated_at, access_count,
         source_conversation, source_message, source_kind, memory_key, confidence,
-        status, valid_from, valid_until
-      ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+        status, valid_from, valid_until, scope, reason, inject_count
+      ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 0)`,
       [
         id, content, category, importance, now, now,
         options.sourceConversation || null,
@@ -416,6 +442,8 @@ export class MemoryService {
         options.confidence ?? 0.7,
         options.validFrom || null,
         options.validUntil || null,
+        options.scope || 'long_term',
+        options.reason || null,
       ]
     );
     await this.syncFtsForMemory(id);
@@ -434,7 +462,8 @@ export class MemoryService {
            updated_at = ?, source_conversation = COALESCE(?, source_conversation),
            source_message = COALESCE(?, source_message), source_kind = ?,
            memory_key = COALESCE(?, memory_key), valid_from = COALESCE(?, valid_from),
-           valid_until = COALESCE(?, valid_until)
+           valid_until = COALESCE(?, valid_until), scope = COALESCE(?, scope),
+           reason = COALESCE(?, reason)
        WHERE id = ?`,
       [
         content,
@@ -448,6 +477,8 @@ export class MemoryService {
         candidate.memoryKey || null,
         candidate.validFrom || null,
         candidate.validUntil || null,
+        candidate.scope || null,
+        candidate.reason || null,
         existing.id,
       ]
     );
@@ -577,6 +608,21 @@ export class MemoryService {
   private normalizeMemoryKey(memoryKey?: string): string | undefined {
     if (!memoryKey) return undefined;
     const normalized = memoryKey.trim().toLowerCase().replace(/\s+/g, '_').slice(0, 100);
+    if (!/^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/.test(normalized)) return undefined;
+    return normalized || undefined;
+  }
+
+  private normalizeScope(scope: unknown, category: Memory['category'], memoryKey?: string, importance: number = 5): MemoryScope {
+    if (scope === 'core' || scope === 'long_term') return scope;
+    if (memoryKey?.startsWith('profile.')) return 'core';
+    if (memoryKey === 'preference.reply_style' || memoryKey === 'preference.language') return 'core';
+    if (category === 'preference' && importance >= 7) return 'core';
+    if (category === 'project' && importance >= 8) return 'core';
+    return 'long_term';
+  }
+
+  private normalizeReason(reason?: string): string | undefined {
+    const normalized = reason?.trim().slice(0, 300);
     return normalized || undefined;
   }
 
@@ -852,8 +898,19 @@ export class MemoryService {
       }
     }
     
-    // 2. 记忆：根据用户当前输入检索相关记忆
-    const relevantMemories = await this.searchMemories(userInput, 10);
+    // 2. 常驻记忆：身份、回复偏好、长期项目等基础上下文
+    const coreMemories = await this.getCoreMemories(8);
+    if (coreMemories.length > 0) {
+      parts.push('\n【常驻记忆】');
+      for (const mem of coreMemories) {
+        parts.push(`- [${mem.category}] ${mem.content}`);
+      }
+    }
+
+    // 3. 相关记忆：根据用户当前输入检索，排除已经常驻注入的内容
+    const coreIds = new Set(coreMemories.map(memory => memory.id));
+    const relevantMemories = (await this.searchMemories(userInput, 10))
+      .filter(memory => !coreIds.has(memory.id));
     
     if (relevantMemories.length > 0) {
       parts.push('\n【相关记忆】');
@@ -861,20 +918,50 @@ export class MemoryService {
         parts.push(`- [${mem.category}] ${mem.content}`);
       }
 
-      // 批量更新 access_count（只在实际消费记忆时计数）
-      try {
-        const ids = relevantMemories.map(m => m.id);
-        const placeholders = ids.map(() => '?').join(',');
-        await this.db!.run(
-          `UPDATE memories SET access_count = access_count + 1, updated_at = ? WHERE id IN (${placeholders})`,
-          [Date.now(), ...ids]
-        );
-      } catch (e) {
-        logger.error('Failed to update access_count', e);
-      }
     }
+
+    await this.markMemoriesInjected([...coreMemories, ...relevantMemories]);
     
     return parts.length > 0 ? parts.join('\n') : '';
+  }
+
+  private async getCoreMemories(limit: number): Promise<Memory[]> {
+    await this.ensureDbReady();
+    if (!this.db) return [];
+    try {
+      await this.runMaintenance();
+      return await this.db.all(
+        `SELECT * FROM memories
+         WHERE status = 'active'
+           AND scope = 'core'
+           AND (valid_until IS NULL OR valid_until > ?)
+         ORDER BY importance DESC, confidence DESC, updated_at DESC
+         LIMIT ?`,
+        [Date.now(), limit]
+      ) as Memory[];
+    } catch (error) {
+      logger.error('Get core memories failed', error);
+      return [];
+    }
+  }
+
+  private async markMemoriesInjected(memories: Memory[]): Promise<void> {
+    if (!this.db || memories.length === 0) return;
+    try {
+      const ids = Array.from(new Set(memories.map(memory => memory.id)));
+      const placeholders = ids.map(() => '?').join(',');
+      await this.db.run(
+        `UPDATE memories
+         SET access_count = access_count + 1,
+             inject_count = COALESCE(inject_count, 0) + 1,
+             last_injected_at = ?,
+             updated_at = ?
+         WHERE id IN (${placeholders})`,
+        [Date.now(), Date.now(), ...ids]
+      );
+    } catch (error) {
+      logger.error('Failed to update memory injection counters', error);
+    }
   }
 }
 

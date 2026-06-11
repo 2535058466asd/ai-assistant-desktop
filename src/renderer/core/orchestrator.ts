@@ -31,7 +31,7 @@ import { loadASRConfig } from '../config/asrConfig';
 import { loadRealtimeCallConfig } from '../config/realtimeCallConfig';
 import type { ToolDefinition } from './model';
 
-const logger = createLogger('agent');
+const logger = createLogger('mainAgent');
 
 // 默认模型来自统一运行时配置。
 function getDefaultModelId(): string {
@@ -343,6 +343,9 @@ export class Orchestrator {
         phase: 'history',
         sessionId: assistantMessage.sessionId,
         messageId,
+        contentLength: accumulatedContent.length,
+        reasoningContentLength: finalReasoningContent?.length || 0,
+        hasToolCallSummary: Boolean(toolCallSummary?.length),
         messageCount: this.conversationRuntime.getHistory().length,
       });
 

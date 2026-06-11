@@ -59,6 +59,8 @@ export class MemoryService {
       confidence?: number;
       validFrom?: number;
       validUntil?: number;
+      scope?: 'core' | 'long_term';
+      reason?: string;
     }
   ): Promise<any> {
     if (window.electronAPI?.memoryAddMemory) {

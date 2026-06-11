@@ -24,7 +24,7 @@ import { getErrorMessage } from '../model/modelErrorHandler';
 import { DEFAULT_MODEL_CONTEXT_MESSAGES, buildModelContextWithDiagnostics, hasValidToolCallArguments } from '../conversation/conversationContext';
 import { createLogger, type LogMeta } from '../../../shared/logger';
 
-const logger = createLogger('agent');
+const logger = createLogger('mainAgent');
 
 const MAX_TOOL_ROUNDS = Number(import.meta.env.VITE_MAX_TOOL_ROUNDS) || 10;
 
@@ -578,9 +578,10 @@ export class AgentLoop {
       tools: currentToolDefs,
       stream: true,
       traceId: meta.traceId,
+      caller: 'mainAgent',
     };
 
-    logger.info('模型上下文已清洗', {
+    logger.info('模型上下文构建完成', {
       ...meta,
       phase: 'model',
       provider: runtime.provider,
@@ -594,16 +595,6 @@ export class AgentLoop {
       droppedReasonCounts,
     });
 
-    logger.info('发送给模型的流式请求摘要', {
-      ...meta,
-      phase: 'model',
-      model: requestBody.model,
-      stream: requestBody.stream,
-      roles: requestBody.messages.map((message) => message.role),
-      messageCount: requestBody.messages.length,
-      toolCount: requestBody.tools.length,
-    });
-
     if (isVerboseAgentLog()) {
       logger.debug('模型上下文清洗详情', {
         ...meta,
@@ -614,7 +605,7 @@ export class AgentLoop {
           reason: item.reason,
         })),
       });
-      logger.info('发送给模型的流式请求', {
+      logger.debug('主Agent 流式请求完整载荷', {
         ...meta,
         phase: 'model',
         requestBody,
@@ -649,7 +640,7 @@ export class AgentLoop {
     const content = getTextContent(msg?.content) || accumulated;
     const reasoningContent = msg?.reasoning_content || '';
     const toolCalls = msg?.tool_calls || [];
-    logger.info('模型流式响应完成', {
+    logger.info('本轮模型响应完成', {
       ...meta,
       phase: 'model',
       model: response.model,
@@ -727,5 +718,11 @@ export class AgentLoop {
  * 开发环境是否输出完整请求/响应
  */
 function isVerboseAgentLog(): boolean {
-  return process.env.NODE_ENV !== 'production' && import.meta.env.VITE_VERBOSE_AGENT_LOGS !== 'false';
+  if (process.env.NODE_ENV === 'production') return false;
+  if (import.meta.env.VITE_VERBOSE_AGENT_LOGS === 'true') return true;
+  try {
+    return localStorage.getItem('nova.log.verboseAgentPayload') === 'true';
+  } catch {
+    return false;
+  }
 }

@@ -1,6 +1,6 @@
 import { createLogger } from '../../../shared/logger';
 
-const logger = createLogger('model');
+const logger = createLogger('modelProvider');
 
 export interface RetryOptions {
   maxRetries?: number;

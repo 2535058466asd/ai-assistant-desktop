@@ -1,7 +1,7 @@
 import type { ModelError } from './types';
 import { createLogger, type LogMeta } from '../../../shared/logger';
 
-const logger = createLogger('model');
+const logger = createLogger('modelProvider');
 
 const ERROR_USER_MESSAGES: Record<string, string> = {
   'AccountOverdueError': '哎呀，API账号余额不足了，需要充值才能继续使用哦～',

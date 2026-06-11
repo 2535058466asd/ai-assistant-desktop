@@ -316,6 +316,8 @@ declare global {
         confidence?: number;
         validFrom?: number;
         validUntil?: number;
+        scope?: 'core' | 'long_term';
+        reason?: string;
       }) => Promise<any>;
       memoryGetAllMemories: () => Promise<any[]>;
       memoryGetPrompt: (userInput?: string) => Promise<string>;

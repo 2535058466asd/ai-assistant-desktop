@@ -3,7 +3,7 @@ import type { HistoryManager } from '../history';
 import { createLogger } from '../../../shared/logger';
 import { normalizeArchivedHistory } from './messageVisibility';
 
-const logger = createLogger('agent');
+const logger = createLogger('mainAgent');
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);

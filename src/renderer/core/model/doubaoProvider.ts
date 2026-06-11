@@ -3,26 +3,95 @@ import { createLogger } from '../../../shared/logger';
 import { getTextContent, type ChatWithToolsRequest, type ModelError, type ModelProvider, type ModelResponse, type StreamChunk } from './types';
 import { modelFetch, modelFetchStream } from './modelTransport';
 import { normalizeError } from './modelErrorHandler';
-import { createSSEAccumulator, handleSSEChunk } from './sseParser';
+import { createSSEAccumulator, getSSEDiagnostics, handleSSEChunk } from './sseParser';
 
-const logger = createLogger('model');
+const logger = createLogger('modelProvider');
 const DEFAULT_ARK_API_URL = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
 type DoubaoProviderConfig = typeof apiConfig & { compactModel?: string };
 
 // 开发时打印完整请求和响应，方便你在 Electron 控制台看 API 到底返回了什么。
 function isVerboseModelLog(): boolean {
-  return process.env.NODE_ENV !== 'production' && import.meta.env.VITE_VERBOSE_MODEL_LOGS !== 'false';
+  if (process.env.NODE_ENV === 'production') return false;
+  if (import.meta.env.VITE_VERBOSE_MODEL_LOGS === 'true') return true;
+  try {
+    return localStorage.getItem('nova.log.verboseModelPayload') === 'true';
+  } catch {
+    return false;
+  }
 }
 
-function summarizeRequest(request: ChatWithToolsRequest) {
+function previewText(value: unknown, maxLength = 300): string {
+  const text = getTextContent(value as any) || (typeof value === 'string' ? value : '');
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function summarizeMessages(messages: ChatWithToolsRequest['messages']) {
+  return messages.map((message, index) => ({
+    index,
+    role: message.role,
+    contentType: Array.isArray(message.content) ? 'array' : typeof message.content,
+    contentLength: typeof message.content === 'string'
+      ? message.content.length
+      : Array.isArray(message.content)
+        ? message.content.length
+        : 0,
+    contentPreview: previewText(message.content),
+    hasToolCalls: Boolean(message.tool_calls?.length),
+    toolCallCount: message.tool_calls?.length || 0,
+    hasReasoningContent: Boolean(message.reasoning_content?.trim()),
+    reasoningPreview: previewText(message.reasoning_content),
+    toolCallId: message.tool_call_id,
+  }));
+}
+
+function summarizeRequest(request: ChatWithToolsRequest, endpoint: string) {
   return {
     traceId: request.traceId,
     phase: 'model',
+    provider: 'doubao',
+    caller: request.caller,
     model: request.model,
+    endpoint,
     stream: request.stream ?? false,
     roles: request.messages.map((message) => message.role),
     messageCount: request.messages.length,
     toolCount: request.tools?.length || 0,
+    request: {
+      messages: summarizeMessages(request.messages),
+      tools: (request.tools || []).map((tool) => tool.function.name),
+      temperature: request.temperature,
+      maxTokens: request.maxTokens,
+    },
+  };
+}
+
+function summarizeResponse(response: ModelResponse, request: ChatWithToolsRequest, status?: { status: number; ok: boolean; statusText: string }) {
+  const message = response.choices[0]?.message;
+  const content = getTextContent(message?.content);
+  const reasoning = message?.reasoning_content || '';
+  const toolCalls = message?.tool_calls || [];
+  return {
+    traceId: request.traceId,
+    phase: 'model',
+    provider: 'doubao',
+    caller: request.caller,
+    model: response.model || request.model,
+    status: status?.status,
+    ok: status?.ok,
+    statusText: status?.statusText,
+    finishReason: response.choices[0]?.finish_reason ?? null,
+    response: {
+      contentPreview: previewText(content),
+      contentLength: content.length,
+      reasoningPreview: previewText(reasoning),
+      reasoningLength: reasoning.length,
+      toolCallCount: toolCalls.length,
+      toolCalls: toolCalls.map((toolCall) => ({
+        id: toolCall.id,
+        name: toolCall.function?.name,
+        argumentsPreview: previewText(toolCall.function?.arguments, 180),
+      })),
+    },
   };
 }
 
@@ -60,12 +129,9 @@ export class DoubaoProvider implements ModelProvider {
         max_tokens: request.maxTokens ?? this.maxTokens,
       };
 
-      logger.info('即将向豆包发送 HTTP 请求摘要', {
-        ...summarizeRequest(request),
-        endpoint,
-      });
+      logger.info('豆包 HTTP 请求开始', summarizeRequest(request, endpoint));
       if (isVerboseModelLog()) {
-        logger.info('即将向豆包发送 HTTP 请求', {
+        logger.debug('豆包 HTTP 完整请求', {
           traceId: request.traceId,
           phase: 'model',
           endpoint,
@@ -82,22 +148,15 @@ export class DoubaoProvider implements ModelProvider {
         body: JSON.stringify(requestBody),
       });
 
-      logger.debug('豆包 HTTP 响应状态', {
-        traceId: request.traceId,
-        phase: 'model',
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText,
-      });
-
       if (!response.ok) {
         const errorText = response.body || '';
         throw new Error(`API请求失败 (${response.status}): ${errorText || response.statusText}`);
       }
 
       const responseJson = JSON.parse(response.body);
+      logger.info('豆包 HTTP 响应完成', summarizeResponse(responseJson, request, response));
       if (isVerboseModelLog()) {
-        logger.info('豆包返回完整 JSON', { traceId: request.traceId, phase: 'model', response: responseJson });
+        logger.debug('豆包 HTTP 完整响应', { traceId: request.traceId, phase: 'model', response: responseJson });
       }
 
       return responseJson;
@@ -128,12 +187,10 @@ export class DoubaoProvider implements ModelProvider {
         max_tokens: request.maxTokens ?? this.maxTokens,
       };
 
-      logger.info('即将向豆包发送流式请求摘要', {
-        ...summarizeRequest({ ...request, stream: true }),
-        endpoint,
-      });
+      const streamRequest = { ...request, stream: true };
+      logger.info('豆包流式请求开始', summarizeRequest(streamRequest, endpoint));
       if (isVerboseModelLog()) {
-        logger.info('即将向豆包发送流式请求', { traceId: request.traceId, phase: 'model', endpoint, body: requestBody });
+        logger.debug('豆包流式完整请求', { traceId: request.traceId, phase: 'model', endpoint, body: requestBody });
       }
 
       // 豆包流式返回也是 SSE，需要把分片 content 和 tool_calls 重新组装。
@@ -148,14 +205,6 @@ export class DoubaoProvider implements ModelProvider {
         body: JSON.stringify(requestBody),
       }, (chunkText) => {
         handleSSEChunk(acc, chunkText, onChunk);
-      });
-
-      logger.debug('豆包流式 HTTP 响应状态', {
-        traceId: request.traceId,
-        phase: 'model',
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText,
       });
 
       if (!response.ok) {
@@ -178,11 +227,19 @@ export class DoubaoProvider implements ModelProvider {
           }));
       }
 
-      return {
+      const result = {
         id: acc.responseId,
         model: acc.responseModel,
         choices: [{ message, finish_reason: acc.finishReason }],
       };
+      logger.info('豆包流式响应完成', {
+        ...summarizeResponse(result, streamRequest, response),
+        diagnostics: getSSEDiagnostics(acc),
+      });
+      if (isVerboseModelLog()) {
+        logger.debug('豆包流式完整响应', { traceId: request.traceId, phase: 'model', response: result });
+      }
+      return result;
     } catch (error) {
       const normalized = normalizeError(error, '豆包', { traceId: request.traceId, phase: 'model' });
       logger.error('豆包流式请求失败', { traceId: request.traceId, phase: 'model', ...normalized });

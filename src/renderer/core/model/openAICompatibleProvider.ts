@@ -2,17 +2,28 @@ import { createLogger } from '../../../shared/logger';
 import { getTextContent, type ChatWithToolsRequest, type ModelMessage, type ModelProvider, type ModelResponse, type StreamChunk } from './types';
 import { modelFetch, modelFetchStream } from './modelTransport';
 import { normalizeError } from './modelErrorHandler';
-import { createSSEAccumulator, handleSSEChunk } from './sseParser';
+import { createSSEAccumulator, getSSEDiagnostics, handleSSEChunk } from './sseParser';
 import { withRetry } from './modelRetry';
 
-const logger = createLogger('model');
+const logger = createLogger('modelProvider');
 
 // 是否打印完整模型请求/响应。调试时很有用，但生产环境不要泄露 prompt、历史和工具参数。
 function isVerboseModelLog(): boolean {
-  return process.env.NODE_ENV !== 'production' && import.meta.env.VITE_VERBOSE_AGENT_LOGS !== 'false';
+  if (process.env.NODE_ENV === 'production') return false;
+  if (import.meta.env.VITE_VERBOSE_MODEL_LOGS === 'true') return true;
+  try {
+    return localStorage.getItem('nova.log.verboseModelPayload') === 'true';
+  } catch {
+    return false;
+  }
 }
 
-function getMessageStructure(messages: ChatWithToolsRequest['messages']) {
+function previewText(value: unknown, maxLength = 300): string {
+  const text = getTextContent(value as any) || (typeof value === 'string' ? value : '');
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function summarizeMessages(messages: ChatWithToolsRequest['messages']) {
   return messages.map((message, index) => ({
     index,
     role: message.role,
@@ -22,23 +33,68 @@ function getMessageStructure(messages: ChatWithToolsRequest['messages']) {
       : Array.isArray(message.content)
         ? message.content.length
         : 0,
+    contentPreview: previewText(message.content),
     hasToolCalls: Boolean(message.tool_calls?.length),
     toolCallCount: message.tool_calls?.length || 0,
     hasReasoningContent: Boolean(message.reasoning_content?.trim()),
+    reasoningPreview: previewText(message.reasoning_content),
     toolCallId: message.tool_call_id,
   }));
 }
 
-function summarizeRequest(request: ChatWithToolsRequest, includeStructure = false) {
+function summarizeRequest(request: ChatWithToolsRequest, endpoint: string, provider: string) {
   return {
     traceId: request.traceId,
     phase: 'model',
+    provider,
+    caller: request.caller,
     model: request.model,
+    endpoint,
     stream: request.stream ?? false,
     roles: request.messages.map((message) => message.role),
     messageCount: request.messages.length,
     toolCount: request.tools?.length || 0,
-    ...(includeStructure ? { messageStructure: getMessageStructure(request.messages) } : {}),
+    request: {
+      messages: summarizeMessages(request.messages),
+      tools: (request.tools || []).map((tool) => tool.function.name),
+      temperature: request.temperature,
+      maxTokens: request.maxTokens,
+    },
+  };
+}
+
+function summarizeResponse(
+  response: ModelResponse,
+  request: ChatWithToolsRequest,
+  provider: string,
+  status?: { status: number; ok: boolean; statusText: string }
+) {
+  const message = response.choices[0]?.message;
+  const content = getTextContent(message?.content);
+  const reasoning = message?.reasoning_content || '';
+  const toolCalls = message?.tool_calls || [];
+  return {
+    traceId: request.traceId,
+    phase: 'model',
+    provider,
+    caller: request.caller,
+    model: response.model || request.model,
+    status: status?.status,
+    ok: status?.ok,
+    statusText: status?.statusText,
+    finishReason: response.choices[0]?.finish_reason ?? null,
+    response: {
+      contentPreview: previewText(content),
+      contentLength: content.length,
+      reasoningPreview: previewText(reasoning),
+      reasoningLength: reasoning.length,
+      toolCallCount: toolCalls.length,
+      toolCalls: toolCalls.map((toolCall) => ({
+        id: toolCall.id,
+        name: toolCall.function?.name,
+        argumentsPreview: previewText(toolCall.function?.arguments, 180),
+      })),
+    },
   };
 }
 
@@ -160,16 +216,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
           max_tokens: request.maxTokens ?? this.maxTokens,
         };
 
-        logger.info(`${this.displayName} 即将发送 HTTP 请求摘要`, {
-          ...summarizeRequest({ ...request, messages }),
-          endpoint,
-        });
+        const normalizedRequest = { ...request, messages };
+        logger.info(`${this.displayName} HTTP 请求开始`, summarizeRequest(normalizedRequest, endpoint, this.id));
         if (isVerboseModelLog()) {
-          logger.debug(`${this.displayName} HTTP 请求结构`, {
-            ...summarizeRequest({ ...request, messages }, true),
-            endpoint,
-          });
-          logger.info(`${this.displayName} 即将发送 HTTP 请求`, { traceId: request.traceId, phase: 'model', endpoint, body });
+          logger.debug(`${this.displayName} HTTP 完整请求`, { traceId: request.traceId, phase: 'model', endpoint, body });
         }
 
         const response = await modelFetch({
@@ -179,15 +229,6 @@ export class OpenAICompatibleProvider implements ModelProvider {
             Authorization: `Bearer ${this.apiKey}`,
           },
           body: JSON.stringify(body),
-        });
-
-        logger.debug(`${this.displayName} HTTP 状态`, {
-          traceId: request.traceId,
-          phase: 'model',
-          status: response.status,
-          ok: response.ok,
-          statusText: response.statusText,
-          responseBodyLength: response.body?.length || 0,
         });
 
         if (!response.ok) {
@@ -200,8 +241,9 @@ export class OpenAICompatibleProvider implements ModelProvider {
         }
 
         const json = JSON.parse(response.body);
+        logger.info(`${this.displayName} HTTP 响应完成`, summarizeResponse(json, normalizedRequest, this.id, response));
         if (isVerboseModelLog()) {
-          logger.info(`${this.displayName} 返回完整 JSON`, { traceId: request.traceId, phase: 'model', response: json });
+          logger.debug(`${this.displayName} HTTP 完整响应`, { traceId: request.traceId, phase: 'model', response: json });
         }
         return json;
       } catch (error: any) {
@@ -235,16 +277,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
         max_tokens: request.maxTokens ?? this.maxTokens,
       };
 
-      logger.info(`${this.displayName} 即将发送流式 HTTP 请求摘要`, {
-        ...summarizeRequest({ ...request, messages, stream: true }),
-        endpoint,
-      });
+      const normalizedRequest = { ...request, messages, stream: true };
+      logger.info(`${this.displayName} 流式请求开始`, summarizeRequest(normalizedRequest, endpoint, this.id));
       if (isVerboseModelLog()) {
-        logger.debug(`${this.displayName} 流式 HTTP 请求结构`, {
-          ...summarizeRequest({ ...request, messages, stream: true }, true),
-          endpoint,
-        });
-        logger.info(`${this.displayName} 即将发送流式 HTTP 请求`, { traceId: request.traceId, phase: 'model', endpoint, body });
+        logger.debug(`${this.displayName} 流式完整请求`, { traceId: request.traceId, phase: 'model', endpoint, body });
       }
 
       // 流式接口不是一次返回完整 JSON，而是一行行 SSE：data: {...}
@@ -260,15 +296,6 @@ export class OpenAICompatibleProvider implements ModelProvider {
         body: JSON.stringify(body),
       }, (chunkText) => {
         handleSSEChunk(acc, chunkText, onChunk);
-      });
-
-      logger.debug(`${this.displayName} 流式 HTTP 状态`, {
-        traceId: request.traceId,
-        phase: 'model',
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText,
-        responseBodyLength: response.body?.length || 0,
       });
 
       if (!response.ok) {
@@ -297,8 +324,12 @@ export class OpenAICompatibleProvider implements ModelProvider {
         choices: [{ message, finish_reason: acc.finishReason }],
       };
 
+      logger.info(`${this.displayName} 流式响应完成`, {
+        ...summarizeResponse(result, normalizedRequest, this.id, response),
+        diagnostics: getSSEDiagnostics(acc),
+      });
       if (isVerboseModelLog()) {
-        logger.info(`${this.displayName} 流式响应汇总`, { traceId: request.traceId, phase: 'model', response: result });
+        logger.debug(`${this.displayName} 流式完整响应`, { traceId: request.traceId, phase: 'model', response: result });
       }
 
       return result;
