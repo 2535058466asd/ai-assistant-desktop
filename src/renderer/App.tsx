@@ -101,9 +101,6 @@ function AppContent() {
       },
       onError: (error) => {
         showToast(error, 'error');
-      },
-      onEvent: (event) => {
-        logger.info('实时通话事件', { event });
       }
     });
 

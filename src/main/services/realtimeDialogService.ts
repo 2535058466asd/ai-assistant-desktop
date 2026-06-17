@@ -138,6 +138,7 @@ function parseResponse(data: WebSocket.RawData): ParsedResponse {
 
 export class RealtimeDialogService {
   private ws: WebSocket | null = null;
+  private connectingPromise: Promise<void> | null = null;
   private mainWindow: BrowserWindow | null = null;
   private sessionId = '';
   private config: RealtimeDialogConfig = {};
@@ -148,7 +149,15 @@ export class RealtimeDialogService {
 
   async connect(config: RealtimeDialogConfig): Promise<void> {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
+    if (this.connectingPromise) return this.connectingPromise;
 
+    this.connectingPromise = this.connectInternal(config).finally(() => {
+      this.connectingPromise = null;
+    });
+    return this.connectingPromise;
+  }
+
+  private async connectInternal(config: RealtimeDialogConfig): Promise<void> {
     this.config = config;
     this.sessionId = crypto.randomUUID();
     const appId = config.appId || readSecret('VITE_VOLCENGINE_REALTIME_DIALOG_APP_ID') || readSecret('VITE_VOLCENGINE_APP_ID');
@@ -156,6 +165,11 @@ export class RealtimeDialogService {
 
     if (!appId || !accessKey) {
       throw new Error('缺少端到端实时语音 App ID / Access Key。请在语音设置中填写，或配置 VITE_VOLCENGINE_REALTIME_DIALOG_APP_ID / VITE_VOLCENGINE_REALTIME_DIALOG_ACCESS_KEY。');
+    }
+
+    if (this.ws && this.ws.readyState !== WebSocket.CLOSED && this.ws.readyState !== WebSocket.CLOSING) {
+      this.ws.close();
+      this.ws = null;
     }
 
     this.ws = await new Promise<WebSocket>((resolve, reject) => {
@@ -173,12 +187,12 @@ export class RealtimeDialogService {
       ws.once('error', reject);
     });
 
-    this.ws.on('message', (data) => this.handleMessage(data));
     this.ws.on('close', () => this.emit('realtime-dialog-state', { state: 'idle' }));
     this.ws.on('error', (error) => this.emit('realtime-dialog-error', { error: error.message }));
 
     await this.sendStartConnection();
     await this.sendStartSession();
+    this.ws.on('message', (data) => this.handleMessage(data));
     this.emit('realtime-dialog-state', { state: 'connected' });
   }
 

@@ -22,6 +22,7 @@ class RealtimeCallMode {
   private outputAudioContext: AudioContext | null = null;
   private nextPlaybackTime = 0;
   private activeSources: AudioBufferSourceNode[] = [];
+  private ipcCleanups: Array<() => void> = [];
   private isRecording = false;
 
   setCallbacks(callbacks: RealtimeCallCallbacks): void {
@@ -91,6 +92,12 @@ class RealtimeCallMode {
     }
 
     this.clearPlaybackQueue();
+    if (this.outputAudioContext) {
+      await this.outputAudioContext.close().catch(() => {});
+      this.outputAudioContext = null;
+      this.nextPlaybackTime = 0;
+    }
+    this.unregisterIpcListeners();
     await window.electronAPI.realtimeDialogDisconnect().catch(() => {});
     this.setState('idle');
     this.emitEvent('实时通话已结束');
@@ -126,23 +133,33 @@ class RealtimeCallMode {
   }
 
   private registerIpcListeners(): void {
-    window.electronAPI.on('realtime-dialog-audio', (data: { audioBase64: string; sampleRate: number }) => {
-      this.playFloat32Pcm(data.audioBase64, data.sampleRate || 24000).catch((error) => {
-        logger.error('播放实时语音音频失败', { error });
-      });
-    });
+    this.unregisterIpcListeners();
+    this.ipcCleanups = [
+      window.electronAPI.on('realtime-dialog-audio', (data: { audioBase64: string; sampleRate: number }) => {
+        this.playFloat32Pcm(data.audioBase64, data.sampleRate || 24000).catch((error) => {
+          logger.error('播放实时语音音频失败', { error });
+        });
+      }),
+      window.electronAPI.on('realtime-dialog-event', (data: { event: number; payload?: any }) => {
+        this.emitEvent(`实时语音事件：${data.event}`);
+        if (data.event === 450 || data.event === 350) {
+          this.clearPlaybackQueue();
+        }
+      }),
+      window.electronAPI.on('realtime-dialog-error', (data: { error: string }) => {
+        this.callbacks.onError?.(data.error);
+        this.setState('error');
+      })
+    ];
+  }
 
-    window.electronAPI.on('realtime-dialog-event', (data: { event: number; payload?: any }) => {
-      this.emitEvent(`实时语音事件：${data.event}`);
-      if (data.event === 450 || data.event === 350) {
-        this.clearPlaybackQueue();
-      }
-    });
-
-    window.electronAPI.on('realtime-dialog-error', (data: { error: string }) => {
-      this.callbacks.onError?.(data.error);
-      this.setState('error');
-    });
+  private unregisterIpcListeners(): void {
+    for (const cleanup of this.ipcCleanups) {
+      try {
+        cleanup();
+      } catch (_) {}
+    }
+    this.ipcCleanups = [];
   }
 
   private async playFloat32Pcm(audioBase64: string, sampleRate: number): Promise<void> {

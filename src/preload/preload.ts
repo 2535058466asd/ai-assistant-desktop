@@ -261,9 +261,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     if (!allowedChannels.has(channel)) {
       throw new Error(`IPC channel is not allowed: ${channel}`);
     }
-    ipcRenderer.on(channel, (_event, ...args) => {
+    const listener = (_event: Electron.IpcRendererEvent, ...args: any[]) => {
       callback(...args)
-    })
+    };
+    ipcRenderer.on(channel, listener);
+    return () => {
+      ipcRenderer.removeListener(channel, listener);
+    };
   }
 })
 
@@ -367,7 +371,7 @@ declare global {
         statusText: string;
         body: string;
       }>;
-      on: (channel: string, callback: (...args: any[]) => void) => void;
+      on: (channel: string, callback: (...args: any[]) => void) => () => void;
   };
   }
 }
