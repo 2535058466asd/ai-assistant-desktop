@@ -3,7 +3,7 @@ import type { ToolDefinition } from '../model';
 import type { ToolExecutionResult } from './toolExecutor';
 
 export type ToolRiskLevel = 'read' | 'low_write' | 'system' | 'destructive' | 'external_send';
-export type ToolCategory = 'file' | 'system' | 'web' | 'clipboard' | 'knowledge' | 'workspace' | 'app';
+export type ToolCategory = 'file' | 'system' | 'web' | 'clipboard' | 'knowledge' | 'memory' | 'workspace' | 'app';
 
 type ElectronAPI = Window['electronAPI'];
 type ToolArgs = Record<string, any>;
@@ -87,6 +87,23 @@ function emptyFunctionTool(name: string, description: string): ToolDefinition {
       parameters: { type: 'object', properties: {}, required: [] },
     },
   };
+}
+
+function formatMemoryWriteResult(result: any, content: string): string {
+  const action = result?.action || 'unknown';
+  const reason = result?.reason ? `（${result.reason}）` : '';
+  switch (action) {
+    case 'added':
+      return `已记住：${content}`;
+    case 'merged':
+      return `已合并到已有记忆：${content}`;
+    case 'superseded':
+      return `已更新记忆：${content}`;
+    case 'ignored':
+      return `记忆未保存${reason}`;
+    default:
+      return `记忆处理完成：${content}`;
+  }
 }
 
 export const TOOLS: Record<string, ToolSpec> = {
@@ -338,6 +355,50 @@ export const TOOLS: Record<string, ToolSpec> = {
     execute: (api) => api.getSystemInfo(),
   },
 
+  add_memory: {
+    schema: functionTool(
+      'add_memory',
+      '当且仅当用户明确要求“记住/以后/我的偏好是”等长期信息时，提交候选记忆。不要用于普通推断或临时信息。',
+      {
+        content: { type: 'string', description: '简洁、可独立理解的记忆内容' },
+        category: {
+          type: 'string',
+          enum: ['preference', 'fact', 'project', 'decision', 'belief', 'event'],
+          description: '记忆类别',
+        },
+        importance: { type: 'number', description: '重要性 1-10，默认 7' },
+        memoryKey: { type: 'string', description: '稳定键，例如 profile.user_name、preference.reply_style、project.nova.focus' },
+        confidence: { type: 'number', description: '可信度 0-1，显式记忆通常为 1' },
+        scope: { type: 'string', enum: ['core', 'long_term'], description: 'core 为常驻记忆，long_term 为按需召回' },
+        reason: { type: 'string', description: '为什么保存这条记忆' },
+      },
+      ['content', 'category']
+    ),
+    category: 'memory',
+    riskLevel: 'low_write',
+    isReadOnly: false,
+    timeoutMs: 10000,
+    execute: async (api, args) => {
+      const content = String(args.content || '').trim();
+      const result = await api.memoryAddMemory(
+        content,
+        args.category || 'fact',
+        args.importance ?? 7,
+        {
+          sourceKind: 'explicit',
+          memoryKey: args.memoryKey,
+          confidence: args.confidence ?? 1,
+          scope: args.scope,
+          reason: args.reason || 'user_explicit_memory_request',
+        }
+      );
+      return {
+        success: true,
+        data: formatMemoryWriteResult(result, content),
+      };
+    },
+  },
+
   knowledge_search: {
     schema: functionTool(
       'knowledge_search',
@@ -502,7 +563,7 @@ export const SKILLS: Record<string, SkillDefinition> = {
 
 const CORE_TOOL_NAMES = [
   'exec_command', 'read_file', 'write_file', 'web_search', 'web_fetch',
-  'get_current_time', 'clipboard_read', 'knowledge_search',
+  'get_current_time', 'clipboard_read', 'knowledge_search', 'add_memory',
 ];
 
 function buildSkillEntryTools(): Record<string, ToolSpec> {

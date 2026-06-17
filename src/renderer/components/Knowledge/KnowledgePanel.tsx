@@ -261,7 +261,7 @@ const KnowledgePanel: React.FC = () => {
               <div className={styles.emptyDropZone} onClick={handleOpenFilePicker}>
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.35"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 <p className={styles.emptyDropTitle}>拖拽文件到这里，或点击选择文件</p>
-                <p className={styles.emptyDropHint}>支持 PDF、Word、Excel、TXT、MD 和图片</p>
+                <p className={styles.emptyDropHint}>支持 PDF、DOCX、XLS/XLSX、TXT、MD、JPG、PNG、WEBP、GIF、BMP</p>
               </div>
             ) : (
               <>

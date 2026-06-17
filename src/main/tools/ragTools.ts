@@ -14,6 +14,9 @@ import { recognizeImage } from '../services/imageRecognizer';
 import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('tool');
+const DOCUMENT_EXTENSIONS = ['pdf', 'docx', 'xlsx', 'xls', 'txt', 'md'];
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+const KNOWLEDGE_EXTENSIONS = [...DOCUMENT_EXTENSIONS, ...IMAGE_EXTENSIONS];
 
 export function registerKnowledgeSearch() {
   ipcMain.handle('knowledge-search', async (_event, query: string, nResults: number = 3) => {
@@ -199,8 +202,9 @@ export function registerShowOpenDialog() {
       const filters = filterNames.length > 0
         ? [{ name: '文件', extensions: filterNames }]
         : [
-            { name: '文档', extensions: ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'txt', 'md'] },
-            { name: '图片', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'] },
+            { name: '支持的知识库文件', extensions: KNOWLEDGE_EXTENSIONS },
+            { name: '文档', extensions: DOCUMENT_EXTENSIONS },
+            { name: '图片', extensions: IMAGE_EXTENSIONS },
           ];
       const result = await dialog.showOpenDialog(win!, {
         properties: ['openFile', 'multiSelections'],

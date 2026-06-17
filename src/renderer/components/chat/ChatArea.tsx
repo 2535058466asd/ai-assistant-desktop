@@ -11,7 +11,7 @@
  * 当前直接渲染完整消息列表，优先保证流式输出、思考面板和滚动行为稳定。
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './ChatArea.module.css';
 import type { UIMessage } from '../../types/chat';
 import type { Attachment, ImageAttachment } from '../../types';
@@ -123,6 +123,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   clipboard_write: '写入剪贴板',
   knowledge_search: '检索知识库',
   knowledge_import_file: '导入知识库',
+  add_memory: '写入记忆',
   workspace_create_task: '创建任务',
   workspace_update_project: '更新项目',
 };
@@ -197,8 +198,8 @@ const ChatImage: React.FC<{
 const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) => {
   /* 消息列表容器 ref，用于滚动到底部 */
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  /* 消息列表底部的 ref，用于自动滚动 */
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const previousRenderRef = useRef<{ count: number; lastId?: string }>({ count: 0 });
 
   /** 收起状态：记录哪些消息被收起了 */
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
@@ -211,12 +212,41 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
   const ttsManagerRef = useRef(getTTSManager()); // TTS 管理器实例
   const audioRef = useRef<HTMLAudioElement | null>(null); // 音频元素引用
 
+  const isNearBottom = useCallback(() => {
+    const container = chatContainerRef.current;
+    if (!container) return true;
+    const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+    return distance < 120;
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    shouldStickToBottomRef.current = isNearBottom();
+  }, [isNearBottom]);
+
   /**
    * 自动滚动到最新消息底部
    */
   useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    const lastMessage = messages[messages.length - 1];
+    const previous = previousRenderRef.current;
+    const hasNewMessage = messages.length !== previous.count || lastMessage?.id !== previous.lastId;
+    const isStreaming = Boolean(lastMessage?.isStreaming);
+
+    previousRenderRef.current = {
+      count: messages.length,
+      lastId: lastMessage?.id,
+    };
+
+    if (!shouldStickToBottomRef.current && !hasNewMessage) return;
+
     const frameId = requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: hasNewMessage && !isStreaming ? 'smooth' : 'auto',
+      });
     });
 
     return () => cancelAnimationFrame(frameId);
@@ -478,7 +508,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
   }
 
   return (
-    <div className={styles.chatArea} ref={chatContainerRef}>
+    <div className={styles.chatArea} ref={chatContainerRef} onScroll={handleScroll}>
       <div className={styles.messageGroup}>
           {/* ===== 遍历消息进行渲染 ===== */}
           {messages.map((message, index) => {
@@ -693,8 +723,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
             </div>
           )}
 
-          {/* 滚动锚点元素 - 用于自动滚动到底部 */}
-          <div ref={messagesEndRef} />
       </div>
       {previewImage && (
         <div className={styles.imagePreviewOverlay} role="dialog" aria-label={previewImage.name} onClick={() => setPreviewImage(null)}>

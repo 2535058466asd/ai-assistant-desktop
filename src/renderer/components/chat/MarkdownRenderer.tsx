@@ -49,23 +49,26 @@ const CodeBlock: React.FC<{
 }> = ({ language, children }) => {
   const [copied, setCopied] = useState(false);
   const codeRef = useRef<HTMLElement>(null);
+  const codeText = String(children).replace(/\n$/, '');
 
   const handleCopy = useCallback(async () => {
     try {
-      const text = String(children).replace(/\n$/, '');
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(codeText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('复制代码失败', err);
     }
-  }, [children]);
+  }, [codeText]);
 
   useEffect(() => {
     if (codeRef.current && language) {
+      if (!hljs.getLanguage(language)) return;
+      codeRef.current.textContent = codeText;
+      delete codeRef.current.dataset.highlighted;
       hljs.highlightElement(codeRef.current);
     }
-  }, [children, language]);
+  }, [codeText, language]);
 
   return (
     <div className={styles.codeBlockWrapper}>
@@ -81,7 +84,7 @@ const CodeBlock: React.FC<{
       </div>
       <pre>
         <code ref={codeRef} className={language ? `language-${language}` : ''}>
-          {String(children).replace(/\n$/, '')}
+          {codeText}
         </code>
       </pre>
     </div>
