@@ -20,6 +20,8 @@ interface SearchResult {
   distance: number;
 }
 
+type PanelMode = 'sources' | 'search' | 'debug';
+
 interface KnowledgeStats {
   count: number;
   collections: string[];
@@ -55,6 +57,8 @@ const KnowledgePanel: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [hasSearched, setHasSearched] = useState(false);
   const [embeddingWarning, setEmbeddingWarning] = useState(false);
+  const [panelMode, setPanelMode] = useState<PanelMode>('sources');
+  const [debugTopK, setDebugTopK] = useState(8);
 
   const api = (window as any).electronAPI;
   const dropRef = useRef<HTMLDivElement>(null);
@@ -134,8 +138,9 @@ const KnowledgePanel: React.FC = () => {
     setSearchResults([]);
     setSearchError('');
     setHasSearched(true);
+    setPanelMode(panelMode === 'debug' ? 'debug' : 'search');
     try {
-      const result = await api.knowledgeSearchStructured(searchQuery, 8);
+      const result = await api.knowledgeSearchStructured(searchQuery, panelMode === 'debug' ? debugTopK : 8);
       if (result.success && result.data) {
         setSearchResults(result.data);
       } else {
@@ -152,6 +157,7 @@ const KnowledgePanel: React.FC = () => {
     setSearchResults([]);
     setSearchError('');
     setHasSearched(false);
+    setPanelMode('sources');
   };
 
   const handleDeleteSource = async (source: string) => {
@@ -162,6 +168,11 @@ const KnowledgePanel: React.FC = () => {
 
   const categories = Array.from(new Set(sources.map(s => s.category)));
   const filteredSources = selectedCategory === 'all' ? sources : sources.filter(s => s.category === selectedCategory);
+  const bestDistance = searchResults.length > 0 ? Math.min(...searchResults.map(item => item.distance)) : null;
+  const averageDistance = searchResults.length > 0
+    ? searchResults.reduce((sum, item) => sum + item.distance, 0) / searchResults.length
+    : null;
+  const totalResultChars = searchResults.reduce((sum, item) => sum + item.text.length, 0);
 
   return (
     <div
@@ -194,6 +205,32 @@ const KnowledgePanel: React.FC = () => {
       )}
 
       <div className={styles.toolbar}>
+        <div className={styles.modeTabs} role="tablist" aria-label="知识库视图">
+          <button
+            type="button"
+            className={`${styles.modeTab} ${panelMode === 'sources' ? styles.modeTabActive : ''}`}
+            onClick={() => {
+              setPanelMode('sources');
+              setHasSearched(false);
+            }}
+          >
+            来源
+          </button>
+          <button
+            type="button"
+            className={`${styles.modeTab} ${panelMode === 'search' ? styles.modeTabActive : ''}`}
+            onClick={() => setPanelMode('search')}
+          >
+            搜索
+          </button>
+          <button
+            type="button"
+            className={`${styles.modeTab} ${panelMode === 'debug' ? styles.modeTabActive : ''}`}
+            onClick={() => setPanelMode('debug')}
+          >
+            调试
+          </button>
+        </div>
         <div className={styles.searchBar}>
           <svg className={styles.searchIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input
@@ -210,9 +247,23 @@ const KnowledgePanel: React.FC = () => {
             </button>
           )}
           <button type="button" className={styles.btnSearch} onClick={handleSearch} disabled={searching || !searchQuery.trim()}>
-            {searching ? '...' : '搜索'}
+            {searching ? '...' : panelMode === 'debug' ? '运行' : '搜索'}
           </button>
         </div>
+        {panelMode === 'debug' && (
+          <div className={styles.debugControls}>
+            <label className={styles.debugControl}>
+              <span>返回片段</span>
+              <select value={debugTopK} onChange={e => setDebugTopK(Number(e.target.value))}>
+                <option value={3}>3</option>
+                <option value={5}>5</option>
+                <option value={8}>8</option>
+                <option value={12}>12</option>
+              </select>
+            </label>
+            <span className={styles.debugHint}>distance 越小，语义越接近查询。</span>
+          </div>
+        )}
         <div className={styles.categoryChips}>
           <button type="button" className={`${styles.chip} ${selectedCategory === 'all' ? styles.chipActive : ''}`} onClick={() => setSelectedCategory('all')}>全部</button>
           {categories.map(cat => (
@@ -238,10 +289,69 @@ const KnowledgePanel: React.FC = () => {
       )}
 
       <div className={styles.mainContent}>
-        {hasSearched ? (
+        {panelMode === 'debug' ? (
+          <>
+            <div className={styles.debugSummary}>
+              <div>
+                <span>Query</span>
+                <strong>{hasSearched ? searchQuery : '等待运行'}</strong>
+              </div>
+              <div>
+                <span>命中片段</span>
+                <strong>{searchResults.length}</strong>
+              </div>
+              <div>
+                <span>最佳距离</span>
+                <strong>{bestDistance === null ? '—' : bestDistance.toFixed(4)}</strong>
+              </div>
+              <div>
+                <span>平均距离</span>
+                <strong>{averageDistance === null ? '—' : averageDistance.toFixed(4)}</strong>
+              </div>
+              <div>
+                <span>片段字符</span>
+                <strong>{totalResultChars}</strong>
+              </div>
+            </div>
+
+            {!hasSearched && (
+              <div className={styles.emptyState}>
+                输入一个问题后点击运行，可以看到 RAG 检索命中的片段、来源、距离和原始返回结构。
+              </div>
+            )}
+            {searchError && <div className={styles.emptyState}>{searchError}</div>}
+            {hasSearched && !searchError && searchResults.length === 0 && !searching && (
+              <div className={styles.emptyState}>没有命中片段。</div>
+            )}
+            {searchResults.map((item, i) => (
+              <details key={`${item.source}-${item.chunkId}-${i}`} className={styles.debugCard} open={i < 3}>
+                <summary className={styles.debugCardSummary}>
+                  <span className={styles.debugRank}>#{i + 1}</span>
+                  <span className={styles.debugSource}>{item.source}</span>
+                  <span className={styles.debugChunk}>{item.chunkId}</span>
+                  <span className={styles.debugDistance}>distance {item.distance.toFixed(4)}</span>
+                </summary>
+                <div className={styles.debugMetaGrid}>
+                  <div><span>category</span><strong>{item.category}</strong></div>
+                  <div><span>chars</span><strong>{item.text.length}</strong></div>
+                  <div><span>source</span><strong>{item.source}</strong></div>
+                  <div><span>chunkId</span><strong>{item.chunkId}</strong></div>
+                </div>
+                <pre className={styles.debugText}>{item.text}</pre>
+                <details className={styles.rawJson}>
+                  <summary>原始返回 JSON</summary>
+                  <pre>{JSON.stringify(item, null, 2)}</pre>
+                </details>
+              </details>
+            ))}
+          </>
+        ) : hasSearched || panelMode === 'search' ? (
           <>
             {searchError && <div className={styles.emptyState}>{searchError}</div>}
-            {!searchError && searchResults.length === 0 && !searching && (
+            {!hasSearched && !searchError && (
+              <div className={styles.emptyState}>输入关键词或问题，搜索知识库中最相关的片段。</div>
+            )}
+            {hasSearched && !searchError && searchResults.length === 0 && !searching && (
               <div className={styles.emptyState}>没有找到相关结果，试试换个关键词？</div>
             )}
             {searchResults.map((item, i) => (

@@ -237,6 +237,43 @@
   flex-shrink: 0;
 }
 
+.modeTabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 3px;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 9px;
+}
+
+.modeTab {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.modeTab:hover {
+  color: var(--text-primary);
+}
+
+.modeTabActive {
+  background: var(--card-bg);
+  color: #5eead4;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .modeTabActive {
+  color: #0891b2;
+}
+
 .searchBar {
   display: flex;
   align-items: center;
@@ -326,6 +363,37 @@
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.debugControls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 30px;
+}
+
+.debugControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.debugControl select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.debugHint {
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .chip {
@@ -478,6 +546,153 @@
   word-break: break-word;
   max-height: 140px;
   overflow-y: auto;
+}
+
+/* ========== RAG 调试 ========== */
+
+.debugSummary {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(96px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.debugSummary > div {
+  min-width: 0;
+  padding: 10px 12px;
+  background: var(--card-bg);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 9px;
+}
+
+.debugSummary span,
+.debugMetaGrid span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.debugSummary strong,
+.debugMetaGrid strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debugCard {
+  margin-bottom: 8px;
+  background: var(--card-bg);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.debugCardSummary {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) minmax(90px, auto) minmax(120px, auto);
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.debugCardSummary::-webkit-details-marker {
+  display: none;
+}
+
+.debugRank {
+  color: #5eead4;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+[data-theme="light"] .debugRank {
+  color: #0891b2;
+}
+
+.debugSource {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debugChunk {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.debugDistance {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.debugMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+
+.debugMetaGrid > div {
+  min-width: 0;
+  padding: 8px;
+  background: var(--card-nested-bg);
+  border-radius: 7px;
+}
+
+.debugText,
+.rawJson pre {
+  margin: 0 14px 12px;
+  padding: 12px;
+  overflow: auto;
+  color: var(--text-secondary);
+  background: var(--card-nested-bg);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.debugText {
+  max-height: 220px;
+}
+
+.rawJson {
+  margin: 0 14px 14px;
+}
+
+.rawJson summary {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rawJson pre {
+  margin: 0;
+  max-height: 220px;
 }
 
 /* ========== 来源列表 ========== */
