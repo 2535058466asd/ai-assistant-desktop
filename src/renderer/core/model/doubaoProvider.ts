@@ -183,6 +183,7 @@ export class DoubaoProvider implements ModelProvider {
         messages: request.messages,
         tools: request.tools,
         stream: true,
+        stream_options: { include_usage: true },
         temperature: request.temperature ?? this.temperature,
         max_tokens: request.maxTokens ?? this.maxTokens,
       };
