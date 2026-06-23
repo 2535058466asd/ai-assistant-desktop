@@ -96,6 +96,8 @@ export interface UIMessage {
   };
   /** 使用的模型 */
   model?: string;
+  /** Agent 循环总耗时（毫秒） */
+  durationMs?: number;
   /** 调试链路 ID */
   traceId?: string;
 }

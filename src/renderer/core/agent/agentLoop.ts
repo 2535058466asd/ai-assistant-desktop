@@ -59,6 +59,8 @@ export interface AgentLoopResult {
   };
   /** 使用的模型 */
   model?: string;
+  /** Agent 循环总耗时（毫秒） */
+  durationMs: number;
 }
 
 /**
@@ -93,6 +95,7 @@ export class AgentLoop {
     streamCallbacks: AgentLoopStreamCallbacks,
     meta: LogMeta = {}
   ): Promise<AgentLoopResult> {
+    const runStartedAt = performance.now();
     let finalResponse = '';
     let finalReasoningContent = '';
     const allToolCallSummaries: ToolCallSummary[] = [];
@@ -320,6 +323,7 @@ export class AgentLoop {
       reasoningSegments: reasoningSegments.length > 0 ? reasoningSegments : undefined,
       usage: accumulatedUsage.total_tokens > 0 ? accumulatedUsage : undefined,
       model: usedModel || undefined,
+      durationMs: Math.round(performance.now() - runStartedAt),
     };
   }
 
@@ -557,6 +561,7 @@ export class AgentLoop {
       });
     }
 
+    // 从运行时历史构建本轮模型上下文。
     const context = await buildModelContextWithDiagnostics(history, {
       provider: runtime.provider,
       maxMessages: DEFAULT_MODEL_CONTEXT_MESSAGES,
@@ -569,6 +574,7 @@ export class AgentLoop {
       return counts;
     }, {});
 
+    // Provider 只接收 requestBody 中的 messages/tools。
     const requestBody = {
       model: requestModel,
       messages: [
@@ -580,6 +586,27 @@ export class AgentLoop {
       traceId: meta.traceId,
       caller: 'mainAgent',
     };
+    // 日志预览只保留结构信息，避免输出图片 base64 或大段工具结果。
+    const contextPreview = context.messages.map((message, index) => {
+      const contentParts = Array.isArray(message.content) ? message.content : null;
+      const text = typeof message.content === 'string'
+        ? message.content
+        : contentParts
+          ?.filter((part) => part.type === 'text')
+          .map((part) => part.text)
+          .join('\n') || '';
+      const imageCount = contentParts?.filter((part) => part.type === 'image_url').length || 0;
+
+      return {
+        index,
+        role: message.role,
+        textPreview: this.previewValue(text, 120),
+        imageCount,
+        hasReasoning: Boolean(message.reasoning_content),
+        toolCallCount: message.tool_calls?.length || 0,
+        toolCallId: message.tool_call_id,
+      };
+    });
 
     logger.info('模型上下文构建完成', {
       ...meta,
@@ -593,6 +620,7 @@ export class AgentLoop {
       hasToolMessages: context.diagnostics.hasToolMessages,
       droppedCount: context.diagnostics.dropped.length,
       droppedReasonCounts,
+      messagesPreview: contextPreview,
     });
 
     if (isVerboseAgentLog()) {

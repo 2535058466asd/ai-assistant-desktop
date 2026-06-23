@@ -156,6 +156,8 @@ export interface Message {
   };
   // 使用的模型
   model?: string;
+  // Agent 循环总耗时（毫秒），从开始回复到完成
+  durationMs?: number;
   // 调试链路 ID，仅用于日志排查，不进入模型上下文
   traceId?: string;
 }

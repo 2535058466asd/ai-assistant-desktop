@@ -139,8 +139,9 @@ export class Orchestrator {
 
   /**
    * 重置对话上下文
-   * 切换对话时调用，确保不同对话的上下文完全隔离
-   * @param history - 新对话的历史消息（用于恢复上下文）
+   *
+   * 切换对话时调用，负责恢复当前会话的运行时历史。
+   * 模型上下文在用户下一次发消息时临时构建。
    */
   resetConversation(history: Message[] = [], meta: LogMeta = {}) {
     const sessionId = this.conversationRuntime.reset(history);
@@ -199,9 +200,11 @@ export class Orchestrator {
   }
 
   /**
-   * 处理文本输入（使用 Function Calling 架构）
+   * 处理一次用户输入。
+   *
    * @param text 用户输入的文本
-   * @param isTextInput 是否是文字输入（默认为true）
+   * @param isTextInput true 表示键盘输入，false 表示语音入口转来的文本
+   * @param attachments 当前用户消息携带的图片等附件
    */
   async processTextInput(text: string, isTextInput: boolean = true, meta: LogMeta = {}, attachments: Attachment[] = []): Promise<void> {
     if (!text.trim() && attachments.length === 0) return;
@@ -246,10 +249,10 @@ export class Orchestrator {
     this.eventBridge.emitMessage(userMessage);
 
     try {
-      // 2. 检查是否需要压缩上下文
+      // 检查运行时历史是否需要摘要压缩；最近 50 条窗口裁剪在 AgentLoop 内完成。
       await this.contextCompactor.compactIfNeeded();
 
-      // 3. Agent 循环（Function Calling）
+      // 创建 UI 流式占位消息，后续由 AgentLoop 增量更新。
       const messageId = this.generateMessageId();
 
       const assistantMessage: Message = {
@@ -279,7 +282,7 @@ export class Orchestrator {
       });
 
       // 4. 执行 Agent 循环（流式）
-      const { content: finalResponse, reasoningContent: finalReasoningContent, toolCallSummary, reasoningSegments, usage, model } = await this.agentLoop.run(
+      const { content: finalResponse, reasoningContent: finalReasoningContent, toolCallSummary, reasoningSegments, usage, model, durationMs } = await this.agentLoop.run(
         messageId,
         text,
         {
@@ -332,6 +335,7 @@ export class Orchestrator {
       if (model) {
         assistantMessage.model = model;
       }
+      assistantMessage.durationMs = durationMs;
       delete (assistantMessage as any).isStreaming; // 移除流式标记
 
       this.conversationRuntime.addMessage({

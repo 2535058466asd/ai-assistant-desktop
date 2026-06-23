@@ -680,7 +680,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
                             {collapsedIds.has(message.id) ? '展开' : '收起'}
                           </button>
 
-                          {/* 用量显示 */}
+                          {/* 耗时 + 用量显示 */}
+                          {message.durationMs != null && (
+                            <span className={styles.usageInfo}>
+                              {formatDuration(message.durationMs)}
+                            </span>
+                          )}
                           {message.usage && (
                             <span className={styles.usageInfo} title={`输入: ${message.usage.prompt_tokens} tokens\n输出: ${message.usage.completion_tokens} tokens`}>
                               {formatTokenCount(message.usage.total_tokens)} tokens
