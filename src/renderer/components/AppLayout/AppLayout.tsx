@@ -715,6 +715,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     toolCallSummary: msg.toolCallSummary,
     usage: msg.usage,
     model: msg.model,
+    durationMs: msg.durationMs,
     traceId: msg.traceId,
     attachments: msg.attachments,
   });
@@ -796,7 +797,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   };
 
   return (
-    <div className={styles.app}>
+    <div className={`${styles.app} ${activeView === 'chat' && sidebarOpen ? styles.chatSidebarOpen : ''}`}>
       {/* ===== 背景装饰光晕（固定定位，不影响布局）===== */}
       <div className="bg-glow bg-glow-1"></div>
       <div className="bg-glow bg-glow-2"></div>

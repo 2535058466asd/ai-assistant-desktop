@@ -8,6 +8,7 @@ export interface SSEAccumulator {
   finishReason: string | null;
   responseId: string;
   responseModel: string;
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
   receivedDone: boolean;
   chunkCount: number;
   dataLineCount: number;
@@ -62,6 +63,7 @@ export function handleSSEChunk(
       const parsed = JSON.parse(data);
       if (parsed.id) acc.responseId = parsed.id;
       if (parsed.model) acc.responseModel = parsed.model;
+      if (parsed.usage) acc.usage = parsed.usage;
 
       const choice = parsed.choices?.[0];
       if (!choice) continue;

@@ -231,6 +231,7 @@ export class DoubaoProvider implements ModelProvider {
         id: acc.responseId,
         model: acc.responseModel,
         choices: [{ message, finish_reason: acc.finishReason }],
+        usage: acc.usage,
       };
       logger.info('豆包流式响应完成', {
         ...summarizeResponse(result, streamRequest, response),

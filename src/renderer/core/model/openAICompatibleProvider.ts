@@ -322,6 +322,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
         id: acc.responseId,
         model: acc.responseModel,
         choices: [{ message, finish_reason: acc.finishReason }],
+        usage: acc.usage,
       };
 
       logger.info(`${this.displayName} 流式响应完成`, {
