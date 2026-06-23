@@ -140,19 +140,29 @@
 
 .imagePreviewOverlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--image-preview-left, 0);
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px;
+  box-sizing: border-box;
+  padding: 56px 32px;
   background: rgba(2, 6, 23, 0.82);
 }
 
 .imagePreviewOverlay img {
-  max-width: min(92vw, 1200px);
-  max-height: 88vh;
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 1280px);
+  max-height: 100%;
   object-fit: contain;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
 }
 
 .imagePreviewClose {

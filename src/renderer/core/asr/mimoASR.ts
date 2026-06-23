@@ -8,6 +8,10 @@ import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('asr');
 
+const SPEECH_RMS_THRESHOLD = 0.012;
+const SILENCE_STOP_MS = 1300;
+const MIN_RECORDING_MS = 600;
+
 export interface MiMoASRConfig {
   baseUrl: string;
   apiKey: string;
@@ -16,6 +20,12 @@ export interface MiMoASRConfig {
   sampleRate?: number;
 }
 
+/**
+ * 小米 MiMo ASR Provider。
+ *
+ * MiMo 当前走批量识别链路：本地录完整句音频，编码成 WAV 后通过
+ * OpenAI-compatible chat/completions 请求提交给 ASR 模型。
+ */
 export class MiMoASR implements ASRService {
   private config: Required<MiMoASRConfig>;
   private audioContext: AudioContext | null = null;
@@ -24,6 +34,10 @@ export class MiMoASR implements ASRService {
   private mediaStream: MediaStream | null = null;
   private isRecording = false;
   private pcmChunks: Int16Array[] = [];
+  private recordingStartedAt = 0;
+  private hasDetectedSpeech = false;
+  private silenceStartedAt: number | null = null;
+  private isStopping = false;
   private onResultCallback: ((result: ASRResult) => void) | null = null;
   private onErrorCallback: ((error: string) => void) | null = null;
   private onEndCallback: (() => void) | null = null;
@@ -41,6 +55,10 @@ export class MiMoASR implements ASRService {
       language: this.config.language,
       baseUrlType: this.getBaseUrlType()
     });
+  }
+
+  getMode(): 'batch' {
+    return 'batch';
   }
 
   async initialize(): Promise<void> {
@@ -66,6 +84,10 @@ export class MiMoASR implements ASRService {
       this.onEndCallback = onEnd || null;
       this.pcmChunks = [];
       this.isRecording = true;
+      this.isStopping = false;
+      this.recordingStartedAt = performance.now();
+      this.hasDetectedSpeech = false;
+      this.silenceStartedAt = null;
 
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -83,13 +105,15 @@ export class MiMoASR implements ASRService {
       this.audioProcessor.onaudioprocess = (event) => {
         if (!this.isRecording) return;
         const inputData = event.inputBuffer.getChannelData(0);
+        // MiMo 没有流式结束事件，这里用本地音量检测模拟“说完一句自动提交”。
+        this.updateVoiceActivity(inputData);
         this.pcmChunks.push(this.floatToInt16(inputData));
       };
 
       this.audioSource.connect(this.audioProcessor);
       this.audioProcessor.connect(this.audioContext.destination);
 
-      logger.info('小米 MiMo ASR 已开始录音，停止后提交识别');
+      logger.info('小米 MiMo ASR 已开始录音，将在检测到静音后自动提交识别');
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : '启动小米 MiMo ASR 失败';
@@ -101,8 +125,9 @@ export class MiMoASR implements ASRService {
   }
 
   stopListening(): void {
-    if (!this.isRecording) return;
+    if (!this.isRecording || this.isStopping) return;
 
+    this.isStopping = true;
     this.isRecording = false;
     this.cleanupRecording();
 
@@ -114,6 +139,8 @@ export class MiMoASR implements ASRService {
       logger.error('小米 MiMo ASR 停止后识别失败', { error: message });
       this.onErrorCallback?.(message);
       this.onEndCallback?.();
+    }).finally(() => {
+      this.isStopping = false;
     });
   }
 
@@ -279,6 +306,45 @@ export class MiMoASR implements ASRService {
     }
   }
 
+  private updateVoiceActivity(inputData: Float32Array): void {
+    const now = performance.now();
+    const elapsed = now - this.recordingStartedAt;
+    const rms = this.calculateRms(inputData);
+
+    if (rms >= SPEECH_RMS_THRESHOLD) {
+      this.hasDetectedSpeech = true;
+      this.silenceStartedAt = null;
+      return;
+    }
+
+    if (!this.hasDetectedSpeech || elapsed < MIN_RECORDING_MS) {
+      return;
+    }
+
+    if (this.silenceStartedAt === null) {
+      this.silenceStartedAt = now;
+      return;
+    }
+
+    if (now - this.silenceStartedAt >= SILENCE_STOP_MS) {
+      logger.info('小米 MiMo ASR 检测到静音，自动停止录音并提交识别', {
+        elapsedMs: Math.round(elapsed),
+        silenceMs: Math.round(now - this.silenceStartedAt)
+      });
+      this.stopListening();
+    }
+  }
+
+  /** 使用 RMS 粗略判断当前音频帧是否有人声。 */
+  private calculateRms(inputData: Float32Array): number {
+    let sum = 0;
+    for (let i = 0; i < inputData.length; i++) {
+      sum += inputData[i] * inputData[i];
+    }
+    return Math.sqrt(sum / inputData.length);
+  }
+
+  /** Web Audio 采集到的是 Float32 PCM，请求前需要转成 16-bit PCM。 */
   private floatToInt16(input: Float32Array): Int16Array {
     const output = new Int16Array(input.length);
     for (let i = 0; i < input.length; i++) {
@@ -288,6 +354,7 @@ export class MiMoASR implements ASRService {
     return output;
   }
 
+  /** 把采集到的 PCM 片段封装成 WAV，供 MiMo input_audio 使用。 */
   private encodeWav(chunks: Int16Array[], sampleRate: number): ArrayBuffer {
     const sampleCount = chunks.reduce((total, chunk) => total + chunk.length, 0);
     const bytesPerSample = 2;

@@ -8,7 +8,7 @@ if (process.env.NODE_ENV === 'development') {
     } catch (_) {}
   }).catch(() => {});
 }
-import { app, BrowserWindow, Menu, ipcMain, globalShortcut } from 'electron'
+import { app, BrowserWindow, ipcMain, globalShortcut } from 'electron'
 import { exec, execSync } from 'child_process'
 import { promisify } from 'util'
 
@@ -50,13 +50,16 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
+      // Renderer 不直接获得 Node 能力，所有本地能力通过 preload 白名单 IPC 暴露。
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: process.env.NODE_ENV !== 'development'
     }
   })
+  mainWindow.setMenuBarVisibility(false)
 
   const isDev = !app.isPackaged;
   if (isDev) {
@@ -118,6 +121,7 @@ function assertNotPrivateUrl(url: string): void {
   }
 }
 
+// 模型请求由主进程代理，但 endpoint 仍来自配置层，必须先挡住内网和保留地址。
 ipcMain.handle('model-fetch', async (_event, request: {
   endpoint: string;
   headers?: Record<string, string>;
@@ -148,6 +152,7 @@ ipcMain.handle('model-fetch', async (_event, request: {
   }
 });
 
+// 流式代理通过 IPC chunk 转发给 Renderer，避免 Renderer 直接维护跨域 SSE/HTTP 流。
 ipcMain.handle('model-fetch-stream', async (event, request: {
   requestId: string;
   endpoint: string;
@@ -551,9 +556,6 @@ ipcMain.handle('asr-v3-stop-recognition', async (_event, config: any) => {
 });
 
 app.whenReady().then(() => {
-  if (app.isPackaged) {
-    Menu.setApplicationMenu(null)
-  }
   createWindow()
   registerDevelopmentShortcuts()
   registerAllTools()

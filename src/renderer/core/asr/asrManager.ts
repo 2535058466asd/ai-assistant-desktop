@@ -3,7 +3,7 @@
 // 支持：豆包语音 ASR 2.0 WebSocket v3
 // ==========================================
 
-import type { ASRService, ASRRequest, ASRResult } from './asrInterface';
+import type { ASRService, ASRRequest, ASRResult, ASRMode } from './asrInterface';
 import { VolcengineASRV3, type VolcengineASRV3Config } from './volcengineASRV3';
 import { MiMoASR, type MiMoASRConfig } from './mimoASR';
 import type { ASRConfig as GlobalASRConfig } from '../../config/asrConfig';
@@ -20,6 +20,10 @@ interface ASRConfig extends Omit<GlobalASRConfig, 'volcengine' | 'mimo'> {
 
 class UnsupportedASRService implements ASRService {
   constructor(private readonly reason: string) {}
+
+  getMode(): ASRMode {
+    return 'batch';
+  }
 
   async initialize(): Promise<void> {
     logger.warn('ASR 服务不可用', { reason: this.reason });
@@ -50,6 +54,11 @@ class UnsupportedASRService implements ASRService {
   }
 }
 
+/**
+ * ASR 服务门面。
+ *
+ * 上层语音对话只依赖 ASRService，不直接关心豆包流式 ASR 或小米批量 ASR 的实现差异。
+ */
 export class ASRManager {
   private currentService: ASRService;
   private config: ASRConfig;
@@ -57,6 +66,25 @@ export class ASRManager {
   private configKey = '';
   private serviceInitialized = false;
   private initializingService: Promise<void> | null = null;
+
+  /**
+   * 切换 Provider 或更新配置前释放当前录音资源。
+   */
+  private stopCurrentService(reason: string): void {
+    try {
+      this.currentService?.stopListening();
+      logger.info('已停止当前 ASR 服务', {
+        reason,
+        type: this.activeType
+      });
+    } catch (error) {
+      logger.warn('停止当前 ASR 服务失败', {
+        reason,
+        type: this.activeType,
+        error
+      });
+    }
+  }
 
   constructor(config?: Partial<ASRConfig>) {
     this.config = {
@@ -73,6 +101,10 @@ export class ASRManager {
     return JSON.stringify(config);
   }
 
+  /**
+   * 根据当前配置创建实际 Provider。
+   * 配置不完整时返回占位服务，避免 UI 层判断 null。
+   */
   private createService(type: ASRType): ASRService {
     switch (type) {
       case 'volcengine':
@@ -105,7 +137,7 @@ export class ASRManager {
   }
 
   /**
-   * 初始化 ASR 服务（使用全局配置）
+   * 使用全局设置同步 ASR 配置。
    */
   initialize(globalConfig: GlobalASRConfig): void {
     const nextConfig: ASRConfig = {
@@ -121,6 +153,7 @@ export class ASRManager {
       return;
     }
 
+    this.stopCurrentService('重新初始化 ASR 配置');
     this.config = nextConfig;
     this.configKey = nextConfigKey;
     
@@ -163,7 +196,7 @@ export class ASRManager {
   }
 
   /**
-   * 开始实时语音识别
+   * 开始语音识别。
    */
   async startListening(
     onResult: (result: ASRResult) => void,
@@ -179,14 +212,14 @@ export class ASRManager {
   }
 
   /**
-   * 停止语音识别
+   * 停止语音识别。
    */
   stopListening(): void {
     this.currentService.stopListening();
   }
 
   /**
-   * 识别音频文件/数据
+   * 识别音频文件或音频数据。
    */
   async recognize(request: ASRRequest): Promise<ASRResult> {
     await this.ensureServiceInitialized();
@@ -201,12 +234,13 @@ export class ASRManager {
   }
 
   /**
-   * 切换 ASR 方案
+   * 切换 ASR Provider。
    */
   switchType(type: ASRType): void {
     if (this.config.type === type) return;
     
     logger.info('ASR 类型已切换', { from: this.config.type, to: type });
+    this.stopCurrentService('切换 ASR 类型');
     this.config.type = type;
     this.currentService = this.createService(type);
     this.serviceInitialized = false;
@@ -214,7 +248,7 @@ export class ASRManager {
   }
 
   /**
-   * 设置配置
+   * 更新 ASR 配置。
    */
   setConfig(config: Partial<ASRConfig>): void {
     const oldType = this.config.type;
@@ -223,6 +257,7 @@ export class ASRManager {
     if (config.type && config.type !== oldType) {
       this.switchType(config.type);
     } else if (config.volcengine || config.mimo || config.language) {
+      this.stopCurrentService('更新 ASR 配置');
       this.currentService = this.createService(this.config.type);
       this.serviceInitialized = false;
       this.initializingService = null;
@@ -234,6 +269,10 @@ export class ASRManager {
    */
   getConfig(): ASRConfig {
     return { ...this.config };
+  }
+
+  getMode(): ASRMode {
+    return this.currentService.getMode();
   }
 }
 

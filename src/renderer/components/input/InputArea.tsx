@@ -34,7 +34,7 @@ const IMAGE_TYPE_BY_EXTENSION: Record<string, PendingImageAttachment['mimeType']
   jpeg: 'image/jpeg',
   webp: 'image/webp',
 };
-const DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv']);
+const DOCUMENT_EXTENSIONS = new Set(['pdf', 'docx', 'xls', 'xlsx', 'txt', 'md']);
 const isDocumentFile = (name: string) => DOCUMENT_EXTENSIONS.has(name.split('.').pop()?.toLowerCase() || '');
 
 /* ==========================================
@@ -189,6 +189,11 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
     });
   };
 
+  const getLocalFilePath = (file: File): string => {
+    const api = (window as any).electronAPI;
+    return api?.getFilePaths?.([file])?.[0] || (file as any).path || '';
+  };
+
   const addFiles = async (files: File[]) => {
     const api = (window as any).electronAPI;
     const accepted: PendingAttachment[] = [];
@@ -218,9 +223,9 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
         });
         totalImageBytes += file.size;
       } else if (isDocumentFile(file.name)) {
-        const filePath = (file as any).path;
+        const filePath = getLocalFilePath(file);
         if (!filePath) {
-          showToast?.('无法获取文件路径。', 'error');
+          showToast?.(`无法获取文件路径：${file.name}`, 'error');
           continue;
         }
         try {
@@ -465,7 +470,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
               className={styles.hiddenFileInput}
               type="file"
               multiple
-              accept="image/png,image/jpeg,image/webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv"
+              accept="image/png,image/jpeg,image/webp,.pdf,.docx,.xls,.xlsx,.txt,.md"
               onChange={handleFileInputChange}
             />
 
@@ -575,7 +580,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
           <button
             className={styles.sendBtn}
             onClick={handleSend}
-            disabled={(!inputText.trim() && pendingAttachments.length === 0) || isLoading || isRecording}
+            disabled={(!inputText.trim() && pendingAttachments.length === 0 && pendingDocuments.length === 0) || isLoading || isRecording}
             title="发送消息"
           >
             <svg

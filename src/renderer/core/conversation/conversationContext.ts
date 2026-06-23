@@ -4,10 +4,15 @@ import { isInternalAgentMessage, isVisibleChatMessage, normalizeArchivedHistory 
 
 export const DEFAULT_MODEL_CONTEXT_MESSAGES = 50;
 
+/**
+ * 本轮模型请求使用的消息格式。
+ * 由运行时历史临时构建，不等同于 SQLite 原始聊天记录。
+ */
 export type ModelContextMessage = ModelMessage;
 
 export interface ContextBuildOptions {
   provider?: string;
+  /** 模型请求窗口大小，默认保留最近 50 条清洗后的消息。 */
   maxMessages?: number;
   includeRecentTools?: boolean;
   summarizeOldTools?: boolean;
@@ -21,8 +26,11 @@ export interface ContextDropInfo {
 }
 
 export interface ContextBuildDiagnostics {
+  /** 输入的原始运行时消息数量。 */
   rawCount: number;
+  /** 归一化后的消息数量。 */
   normalizedCount: number;
+  /** 最终进入模型请求窗口的消息数量。 */
   sanitizedCount: number;
   roles: string[];
   hasToolCalls: boolean;
@@ -31,6 +39,7 @@ export interface ContextBuildDiagnostics {
 }
 
 export interface ContextBuildResult {
+  /** 已清洗、已裁剪、可进入模型请求的上下文消息。 */
   messages: ModelContextMessage[];
   diagnostics: ContextBuildDiagnostics;
 }
@@ -189,6 +198,11 @@ function summarizeToolTraceForModel(toolMessages: Message[]): string {
   ].join('\n');
 }
 
+/**
+ * 构建聊天区展示消息。
+ *
+ * 仅展示用户消息和最终助手回复，工具调用会折叠为摘要挂到助手消息上。
+ */
 export function buildDisplayMessages(rawMessages: Message[]): DisplayMessage[] {
   const normalized = normalizeArchivedHistory(rawMessages);
   const visible: DisplayMessage[] = [];
@@ -230,6 +244,10 @@ export function sanitizeModelMessages(
   return sanitizeModelMessagesWithDiagnostics(messages, provider, dropped);
 }
 
+/**
+ * 对模型请求消息做最终兼容性清洗。
+ * 主要处理空内容、孤立 tool 消息、非法 tool_calls 和不成对工具结果。
+ */
 function sanitizeModelMessagesWithDiagnostics(
   messages: ModelContextMessage[],
   provider: string,
@@ -288,6 +306,11 @@ function sanitizeModelMessagesWithDiagnostics(
   return sanitized;
 }
 
+/**
+ * 把 Nova 内部 Message 转成模型 API 能接受的 ModelMessage。
+ *
+ * 图片附件会被读取成 data URL，再转换为 OpenAI-compatible 的 image_url content part。
+ */
 async function toModelMessage(message: Message, options: ContextBuildOptions): Promise<ModelContextMessage | null> {
   const base: ModelContextMessage = {
     role: message.role,
@@ -324,6 +347,7 @@ export async function buildModelContextWithDiagnostics(
   const provider = options.provider || 'default';
   const maxMessages = options.maxMessages ?? DEFAULT_MODEL_CONTEXT_MESSAGES;
   const includeRecentTools = options.includeRecentTools ?? true;
+  // 归一化只作用于本次上下文构建，不修改 SQLite 原始存档。
   const normalized = normalizeArchivedHistory(rawMessages);
   const requiresReasoningToolReplay = isMimoProvider(provider);
   const latestTrace = includeRecentTools ? collectLatestValidToolTrace(normalized) : null;
@@ -340,6 +364,7 @@ export async function buildModelContextWithDiagnostics(
   const dropped: ContextDropInfo[] = [];
   const candidates: ModelContextMessage[] = [];
 
+  // 历史工具调用默认只保留最近一轮有效链路，旧工具结果会丢弃或摘要化。
   for (const message of normalized) {
     if (message.role === 'tool') {
       if (message.tool_call_id && toolIdsMissingReasoning.has(message.tool_call_id)) {
@@ -402,6 +427,7 @@ export async function buildModelContextWithDiagnostics(
     if (modelMessage) candidates.push(modelMessage);
   }
 
+  // 按 provider 能力清洗消息结构。
   const sanitized = sanitizeModelMessagesWithDiagnostics(candidates, provider, dropped);
   const latestSummary = [...sanitized]
     .reverse()
@@ -409,6 +435,7 @@ export async function buildModelContextWithDiagnostics(
 
   let windowed = sanitized;
   if (sanitized.length > maxMessages) {
+    // 窗口裁剪只影响本次模型请求，不压缩原始历史。
     const recent = sanitized.slice(-maxMessages);
     if (latestSummary && !recent.includes(latestSummary)) {
       windowed = [latestSummary, ...recent.slice(-(maxMessages - 1))];
@@ -417,6 +444,7 @@ export async function buildModelContextWithDiagnostics(
     }
   }
 
+  // diagnostics 仅用于调试和日志观测。
   const diagnostics: ContextBuildDiagnostics = {
     rawCount: rawMessages.length,
     normalizedCount: normalized.length,

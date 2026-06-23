@@ -5,6 +5,7 @@
 
 /* ===== 应用根容器 - 全屏 Flex 布局 ===== */
 .app {
+  --image-preview-left: 72px;
   display: flex;
   height: 100vh;
   width: 100vw;
@@ -12,6 +13,10 @@
   position: relative;
   background: var(--bg-primary);
   z-index: 1;
+}
+
+.chatSidebarOpen {
+  --image-preview-left: calc(72px + var(--sidebar-width));
 }
 
 /* 高级感背景纹理 - 细腻的噪点 */

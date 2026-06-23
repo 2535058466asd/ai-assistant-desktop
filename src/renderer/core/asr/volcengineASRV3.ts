@@ -19,6 +19,12 @@ export interface VolcengineASRV3Config {
   language?: string
 }
 
+/**
+ * 豆包 ASR WebSocket v3 Provider。
+ *
+ * Renderer 负责采集麦克风 PCM，主进程负责 WebSocket 连接和自定义鉴权头。
+ * 识别结果通过 IPC 事件回传到当前 activeInstance。
+ */
 export class VolcengineASRV3 implements ASRService {
   private static activeInstance: VolcengineASRV3 | null = null
   private static listenersRegistered = false
@@ -55,6 +61,14 @@ export class VolcengineASRV3 implements ASRService {
     })
   }
 
+  getMode(): 'streaming' {
+    return 'streaming'
+  }
+
+  /**
+   * 注册全局 IPC 监听。
+   * activeInstance 指向当前服务实例，避免切换配置后旧实例继续消费识别结果。
+   */
   private setupEventListeners(): void {
     VolcengineASRV3.activeInstance = this
 
@@ -216,10 +230,8 @@ export class VolcengineASRV3 implements ASRService {
     logger.debug('⏹️ 停止录音...')
     this.isRecording = false
 
-    // ★ 关键修复：立即保存并置空回调，防止 asr-complete IPC 事件和手动触发重复调用
-    // 根因：发送 isLast=true 后，服务端会返回 isLastPackage=true 的响应，
-    // 主进程 ws.on('message') 会发送 asr-complete IPC 事件到渲染进程，
-    // 而 stopListening() 最后又会手动触发 onEndCallback，导致 sendToAI 被调用两次
+    // 服务端 complete 事件和本地 stop 流程都可能结束本句。
+    // 先取走回调，避免同一段识别结果被重复发送给聊天主链路。
     const cb = this.onEndCallback
     this.onEndCallback = null
 
@@ -252,8 +264,7 @@ export class VolcengineASRV3 implements ASRService {
     }
     this.isConnected = false
 
-    // 手动触发 onEnd 回调（如果 asr-complete 事件还没触发的话）
-    // 此时 onEndCallback 已为 null，asr-complete 事件到达时不会再触发
+    // 如果服务端 complete 事件尚未到达，由本地 stop 流程兜底触发结束。
     if (cb) {
       logger.debug('📢 [ASR] 手动触发 onEnd 回调，识别结果:', this.recognitionResult)
       cb()

@@ -8,6 +8,12 @@ import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('mainAgent');
 
+/**
+ * 运行时上下文摘要压缩器。
+ *
+ * 只在运行时历史过长时生成 [历史摘要]，不修改 SQLite 原始存档。
+ * 最近 50 条窗口裁剪由 conversationContext.ts 在每轮模型请求前处理。
+ */
 export class ContextCompactor {
   private static readonly MAX_TOOL_RESULT_TOKENS = 1500;
   private static readonly MAX_CONTEXT_TOKENS = 80000;
@@ -19,6 +25,9 @@ export class ContextCompactor {
     private readonly sessionId: SessionId
   ) {}
 
+  /**
+   * 截断过长工具结果，避免网页、文件或命令输出长期污染运行时历史。
+   */
   truncateToolResult(result: string): string {
     const estimatedTokens = Math.ceil(result.length / 4);
     if (estimatedTokens < ContextCompactor.MAX_TOOL_RESULT_TOKENS) return result;
@@ -27,11 +36,18 @@ export class ContextCompactor {
     return `${truncated}\n\n[结果已截断，原文共 ${result.length} 字]`;
   }
 
+  /**
+   * 每次用户发消息前检查是否需要摘要压缩。
+   */
   async compactIfNeeded(): Promise<void> {
     if (!(await this.shouldCompact())) return;
     await this.compactHistory();
   }
 
+  /**
+   * 轻量 token 估算，不追求和模型 tokenizer 完全一致。
+   * 仅用于触发阈值判断。
+   */
   private estimateTokens(messages: Array<{ content?: ModelMessage['content'] }>): number {
     let totalTokens = 0;
     for (const message of messages) {
@@ -44,12 +60,28 @@ export class ContextCompactor {
     return totalTokens;
   }
 
+  /**
+   * 判断运行时历史是否需要摘要压缩。
+   */
   private async shouldCompact(): Promise<boolean> {
     const history = await this.getCleanHistoryForCompaction();
     const estimatedTokens = this.estimateTokens(history);
-    return estimatedTokens > ContextCompactor.MAX_CONTEXT_TOKENS * ContextCompactor.COMPACT_THRESHOLD;
+    const thresholdTokens = ContextCompactor.MAX_CONTEXT_TOKENS * ContextCompactor.COMPACT_THRESHOLD;
+    const willCompact = estimatedTokens > thresholdTokens;
+    logger.debug('上下文压缩检查完成', {
+      estimatedTokens,
+      thresholdTokens,
+      willCompact,
+    });
+    return willCompact;
   }
 
+  /**
+   * 真正执行摘要压缩。
+   *
+   * 结果形态为 [历史摘要] 加最近 KEEP_RECENT_MESSAGES 条真实消息。
+   * 只替换运行时历史，不改 SQLite 原始聊天记录。
+   */
   private async compactHistory(): Promise<void> {
     const fullHistory = await this.getCleanHistoryForCompaction();
     const toCompact = fullHistory.slice(0, fullHistory.length - ContextCompactor.KEEP_RECENT_MESSAGES);
@@ -74,9 +106,17 @@ export class ContextCompactor {
     ];
 
     this.historyManager.setHistory(this.sessionId, compactedHistory);
-    logger.info('对话历史已压缩', { kept: ContextCompactor.KEEP_RECENT_MESSAGES });
+    logger.info('运行时上下文已摘要压缩', {
+      compactedCount: toCompact.length,
+      kept: ContextCompactor.KEEP_RECENT_MESSAGES,
+    });
   }
 
+  /**
+   * 为摘要压缩准备一份干净历史。
+   *
+   * 复用模型上下文清洗规则，但不套用最近 50 条窗口。
+   */
   private async getCleanHistoryForCompaction(): Promise<ModelMessage[]> {
     const provider = getModelProvider();
     const result = await buildModelContextWithDiagnostics(this.historyManager.getHistory(this.sessionId), {
@@ -86,7 +126,7 @@ export class ContextCompactor {
       summarizeOldTools: true,
     });
 
-    logger.debug('压缩前上下文已清洗', {
+    logger.debug('上下文压缩检查：历史已清洗', {
       provider: provider.id,
       rawCount: result.diagnostics.rawCount,
       sanitizedCount: result.diagnostics.sanitizedCount,
@@ -100,6 +140,10 @@ export class ContextCompactor {
     return result.messages;
   }
 
+  /**
+   * 调用当前 Provider 的 compact 模型生成历史摘要。
+   * 失败时返回兜底摘要，避免压缩失败阻断正常聊天。
+   */
   private async callLLMForCompaction(messages: ModelMessage[]): Promise<string> {
     try {
       return await getModelProvider().compact(messages);

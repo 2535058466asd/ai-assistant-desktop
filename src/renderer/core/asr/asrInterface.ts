@@ -15,14 +15,29 @@ export interface ASRResult {
   confidence?: number;             // 置信度（0-1）
 }
 
+/**
+ * ASR 服务的交互形态。
+ *
+ * streaming：服务端边收音频边返回中间文本，前端可以用静音计时自动提交。
+ * batch：前端先录完整句音频，再一次性发给服务端识别。
+ */
+export type ASRMode = 'streaming' | 'batch';
+
 export interface ASRService {
   /**
-   * 初始化ASR服务
+   * 获取 ASR 工作模式
+   * streaming：边录边返回识别结果，适合静音检测自动提交
+   * batch：停止录音后一次性识别，适合点击结束本句后提交
    */
+  getMode(): ASRMode;
+
+  /** 初始化 ASR 服务或校验运行环境。 */
   initialize(): Promise<void>;
 
   /**
-   * 开始实时语音识别
+   * 开始语音识别。
+   *
+   * streaming 服务会多次触发 onResult；batch 服务通常在录音结束后触发一次。
    * @param onResult 识别结果回调
    * @param onError 错误回调
    * @param onEnd 结束回调
@@ -33,23 +48,15 @@ export interface ASRService {
     onEnd?: () => void
   ): Promise<boolean>;
 
-  /**
-   * 停止语音识别
-   */
+  /** 停止当前识别流程。 */
   stopListening(): void;
 
-  /**
-   * 识别音频文件/数据
-   */
+  /** 识别已有音频文件或音频数据。 */
   recognize(request: ASRRequest): Promise<ASRResult>;
 
-  /**
-   * 检查是否支持
-   */
+  /** 当前环境和配置是否支持该服务。 */
   isSupported(): boolean;
 
-  /**
-   * 获取支持的语言列表
-   */
+  /** 获取支持的语言列表。 */
   getLanguages(): string[];
 }
