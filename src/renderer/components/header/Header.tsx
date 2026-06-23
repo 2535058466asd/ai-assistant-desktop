@@ -40,6 +40,8 @@ interface HeaderProps {
   onOpenSettings?: () => void;
   /** 是否显示聊天相关控件（模型选择器、语音按钮） */
   showChatControls?: boolean;
+  /** 是否显示聊天侧边栏切换按钮 */
+  showSidebarToggle?: boolean;
 }
 
 /**
@@ -57,6 +59,7 @@ const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   onOpenSettings,
   showChatControls = true,
+  showSidebarToggle = true,
 }) => {
   /* ===== 状态管理 ===== */
 
@@ -109,24 +112,26 @@ const Header: React.FC<HeaderProps> = ({
       {/* ===== 左侧区域 ===== */}
       <div className={styles.headerLeft}>
         {/* 1. 侧边栏切换按钮 */}
-        <button
-          className={styles.sidebarToggleBtn}
-          onClick={onSidebarToggle}
-          title="切换侧边栏"
-        >
-          <svg
-            className={styles.sidebarToggleBtnSvg}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        {showSidebarToggle && (
+          <button
+            className={styles.sidebarToggleBtn}
+            onClick={onSidebarToggle}
+            title="切换侧边栏"
           >
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <line x1="9" y1="3" x2="9" y2="21" />
-          </svg>
-        </button>
+            <svg
+              className={styles.sidebarToggleBtnSvg}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <line x1="9" y1="3" x2="9" y2="21" />
+            </svg>
+          </button>
+        )}
 
         {/* 2. Logo 图标 */}
         <div className={styles.logo} title="Nova">

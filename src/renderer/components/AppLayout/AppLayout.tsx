@@ -35,7 +35,6 @@ import type { InputAreaHandle } from '../input/InputArea';
 import WorkspaceDashboard from '../Workspace/WorkspaceDashboard';
 import KnowledgePanel from '../Knowledge/KnowledgePanel';
 import MemoryPanel from '../Memory/MemoryPanel';
-import EvalPanel from '../Eval/EvalPanel';
 import ModelApiPanel from '../Settings/ModelApiPanel';
 import VoicePanel from '../Settings/VoicePanel';
 import SearchPanel from '../Settings/SearchPanel';
@@ -118,7 +117,7 @@ const LEGACY_STORAGE_KEY_ACTIVE_CHAT = 'qiyuan_active_chat_id';
 const STORAGE_KEY_ACTIVE_VIEW = 'nova.activeView';
 const LEGACY_STORAGE_KEY_ACTIVE_VIEW = 'qiyuan_active_view';
 
-type AppView = 'chat' | 'workspace' | 'knowledge' | 'memory' | 'eval' | 'settings';
+type AppView = 'chat' | 'workspace' | 'knowledge' | 'memory' | 'settings';
 type SettingsPageTab = 'model-api' | 'voice' | 'search' | 'shortcuts';
 
 const navIcons: Record<string, JSX.Element> = {
@@ -147,12 +146,6 @@ const navIcons: Record<string, JSX.Element> = {
       <circle cx="12" cy="12" r="4" />
     </svg>
   ),
-  eval: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
-      <polyline points="9 11 12 14 22 4" />
-      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-    </svg>
-  ),
   settings: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
       <circle cx="12" cy="12" r="3" />
@@ -163,10 +156,9 @@ const navIcons: Record<string, JSX.Element> = {
 
 const appViews: { id: AppView; label: string; description: string }[] = [
   { id: 'chat', label: '聊天', description: '和 Nova 对话、调用工具、处理日常任务' },
-  { id: 'workspace', label: '工作台', description: '查看项目、任务、知识库和记忆概览' },
+  { id: 'workspace', label: '工作台', description: '查看知识库、记忆、工具日志和评估概览' },
   { id: 'knowledge', label: '知识库', description: '导入、检索和管理本地知识片段' },
   { id: 'memory', label: '记忆库', description: '查看和管理 Nova 记住的长期信息' },
-  { id: 'eval', label: '评估', description: '维护固定评估问题，检查 Agent 表现' },
   { id: 'settings', label: '设置', description: '配置模型、语音、搜索和快捷键' },
 ];
 
@@ -288,7 +280,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   /** 侧边栏是否展开（移动端使用）*/
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  /** 当前一级页面：聊天 / 工作台 / 知识库 / 记忆库 / 评估 / 设置 */
+  /** 当前一级页面：聊天 / 工作台 / 知识库 / 记忆库 / 设置 */
   const [activeView, setActiveView] = useState<AppView>(getInitialAppView);
 
   /** 设置页内部标签，只管理配置项，不再承载知识库/记忆库等业务页面 */
@@ -563,10 +555,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
    * 切换侧边栏展开/收起
    */
   const handleSidebarToggle = () => {
-    if (activeView !== 'chat') {
-      setActiveView('chat');
-      return;
-    }
     logger.info('侧边栏展开状态切换', { from: sidebarOpen, to: !sidebarOpen });
     setSidebarOpen((prev) => !prev);
   };
@@ -756,13 +744,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   const renderPrimaryPage = () => {
     switch (activeView) {
       case 'workspace':
-        return <WorkspaceDashboard messages={messages} onSuggestionClick={handleSuggestionClick} />;
+        return <WorkspaceDashboard messages={messages} />;
       case 'knowledge':
         return <KnowledgePanel />;
       case 'memory':
         return <MemoryPanel />;
-      case 'eval':
-        return <EvalPanel />;
       case 'settings':
         return (
           <div className={styles.settingsPage}>
@@ -790,7 +776,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
           <section className={styles.chatWelcome}>
             <div className={styles.chatWelcomeIcon}>✦</div>
             <h2>开始和 Nova 对话</h2>
-            <p>这里专注聊天和工具调用；项目、知识库、记忆库和评估已经放到左侧一级导航里。</p>
+            <p>这里专注聊天和工具调用；工作台、知识库、记忆库和设置已经放到左侧一级导航里。</p>
             <div className={styles.quickPrompts}>
               {['总结一下今天要做什么', '帮我分析当前项目下一步', '搜索一个技术问题'].map((prompt) => (
                 <button key={prompt} type="button" onClick={() => handleSuggestionClick(prompt)}>
@@ -866,6 +852,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         onToggleTheme={onToggleTheme}
         onOpenSettings={handleOpenSettings}
         showChatControls={activeView === 'chat'}
+        showSidebarToggle={activeView === 'chat'}
       />
 
         {/* 2. 当前一级页面内容。各业务页自己承担标题，避免重复的大页头挤占空间。 */}

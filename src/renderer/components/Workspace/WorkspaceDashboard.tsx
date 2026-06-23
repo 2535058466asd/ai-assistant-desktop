@@ -1,10 +1,22 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styles from './WorkspaceDashboard.module.css';
 import type { Message } from '../../types';
-import { getProjects, getTasks, getToolLogs, type WorkspaceProject, type WorkspaceTask } from '../../services/workspaceStore';
+import { getEvalCases, getToolLogs, type EvalCase, type ToolCallLog } from '../../services/workspaceStore';
 import { createLogger } from '../../../shared/logger';
 
 const logger = createLogger('ui');
+
+interface KnowledgeStats {
+  count: number;
+  collections: string[];
+}
+
+interface KnowledgeSource {
+  source: string;
+  category: string;
+  count: number;
+  createdAt?: string;
+}
 
 interface MemoryItem {
   id: string;
@@ -15,21 +27,7 @@ interface MemoryItem {
 
 interface WorkspaceDashboardProps {
   messages: Message[];
-  onSuggestionClick?: (prompt: string) => void;
 }
-
-const statusLabel: Record<WorkspaceProject['status'], string> = {
-  active: '推进中',
-  blocked: '有阻塞',
-  planning: '规划中',
-  done: '已完成',
-};
-
-const taskLabel: Record<WorkspaceTask['status'], string> = {
-  todo: '待办',
-  doing: '进行中',
-  done: '完成',
-};
 
 const formatTime = (timestamp: number) => {
   if (!timestamp) return '未知';
@@ -41,60 +39,73 @@ const formatTime = (timestamp: number) => {
   }).format(new Date(timestamp));
 };
 
-const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages, onSuggestionClick }) => {
+const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages }) => {
   const api = (window as any).electronAPI;
-  const [projects, setProjects] = useState<WorkspaceProject[]>([]);
-  const [tasks, setTasks] = useState<WorkspaceTask[]>([]);
+  const [knowledgeStats, setKnowledgeStats] = useState<KnowledgeStats | null>(null);
+  const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>([]);
   const [memories, setMemories] = useState<MemoryItem[]>([]);
-  const [toolLogCount, setToolLogCount] = useState(0);
+  const [toolLogs, setToolLogs] = useState<ToolCallLog[]>([]);
+  const [evalCases, setEvalCases] = useState<EvalCase[]>([]);
 
   const refreshLocalState = () => {
-    setProjects(getProjects());
-    setTasks(getTasks());
-    setToolLogCount(getToolLogs().length);
+    setToolLogs(getToolLogs());
+    setEvalCases(getEvalCases());
   };
 
   useEffect(() => {
     refreshLocalState();
 
-    const loadMemories = async () => {
+    const loadSystemData = async () => {
       try {
-        const memoryResult = await api?.memoryGetAllMemories?.();
+        const [memoryResult, statsResult, sourcesResult] = await Promise.all([
+          api?.memoryGetAllMemories?.(),
+          api?.knowledgeStats?.(),
+          api?.knowledgeSources?.(),
+        ]);
+
         if (Array.isArray(memoryResult)) {
           setMemories(memoryResult.filter((memory: any) => !memory.status || memory.status === 'active'));
         }
+
+        if (statsResult?.success) {
+          setKnowledgeStats(statsResult.data);
+        }
+
+        if (sourcesResult?.success && Array.isArray(sourcesResult.data)) {
+          setKnowledgeSources(sourcesResult.data);
+        }
       } catch (error) {
-        logger.error('加载记忆数据失败', error);
+        logger.error('加载工作台统计失败', error);
       }
     };
 
-    loadMemories();
+    loadSystemData();
     const timer = window.setInterval(refreshLocalState, 3000);
     return () => window.clearInterval(timer);
   }, [api]);
 
-  const activeProject = useMemo(() => {
-    return projects.find((project) => project.status === 'active') || projects[0];
-  }, [projects]);
-
-  const blockedProjects = projects.filter((project) => project.status === 'blocked');
-  const openTasks = tasks.filter((task) => task.status !== 'done');
-  const doingTasks = tasks.filter((task) => task.status === 'doing');
-  const recentTasks = openTasks.slice(0, 5);
   const recentMemories = [...memories].sort((a, b) => b.updated_at - a.updated_at).slice(0, 4);
+  const recentToolLogs = [...toolLogs].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
+  const failedToolLogs = toolLogs.filter((log) => log.status === 'error');
+  const testedEvalCases = evalCases.filter((item) => item.status !== 'untested');
+  const failedEvalCases = evalCases.filter((item) => item.status === 'fail');
+  const passRate = testedEvalCases.length
+    ? Math.round(((testedEvalCases.length - failedEvalCases.length) / testedEvalCases.length) * 100)
+    : 0;
 
   const metrics = [
-    { label: '项目', value: projects.length },
-    { label: '未完成任务', value: openTasks.length },
+    { label: '知识来源', value: knowledgeSources.length },
+    { label: '知识片段', value: knowledgeStats?.count ?? 0 },
     { label: '长期记忆', value: memories.length },
-    { label: '工具日志', value: toolLogCount },
+    { label: '工具日志', value: toolLogs.length },
+    { label: 'Eval 失败', value: failedEvalCases.length },
   ];
 
   return (
     <section className={styles.dashboard}>
       <div className={styles.hero}>
-        <h1 className={styles.title}>项目总览</h1>
-        <p className={styles.subtitle}>集中查看项目、任务、记忆和工具轨迹，优先暴露需要处理的事项。</p>
+        <h1 className={styles.title}>运行总览</h1>
+        <p className={styles.subtitle}>集中查看知识库、长期记忆、工具日志和评估状态，快速判断 Nova 当前是否健康。</p>
       </div>
 
       <div className={styles.metricsGrid}>
@@ -109,76 +120,55 @@ const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages, onSug
       <div className={styles.mainGrid}>
         <article className={styles.focusPanel}>
           <div className={styles.panelTopline}>
-            <span>当前焦点</span>
-            <small>{activeProject ? formatTime(activeProject.updatedAt) : '未初始化'}</small>
+            <span>系统状态</span>
+            <small>{messages.length} 条当前会话消息</small>
           </div>
-          {activeProject ? (
-            <>
-              <div className={styles.focusHeader}>
-                <div>
-                  <h2>{activeProject.name}</h2>
-                  <p>{activeProject.goal}</p>
-                </div>
-                <span className={`${styles.statusPill} ${styles[activeProject.status]}`}>
-                  {statusLabel[activeProject.status]}
-                </span>
-              </div>
+          <div className={styles.focusHeader}>
+            <div>
+              <h2>Nova 桌面 AI Agent</h2>
+              <p>核心能力集中在多模型对话、RAG 知识库、长期记忆、工具调用和可观测日志。</p>
+            </div>
+            <span className={`${styles.statusPill} ${styles.active}`}>运行中</span>
+          </div>
 
-              <div className={styles.nextStepCard}>
-                <span className={styles.cardEyebrow}>下一步</span>
-                <p>{activeProject.nextStep}</p>
-              </div>
+          <div className={styles.focusSplit}>
+            <div className={styles.miniBlock}>
+              <span>知识库</span>
+              <p>{knowledgeSources.length} 个来源，{knowledgeStats?.count ?? 0} 个片段。</p>
+            </div>
 
-              <div className={styles.focusSplit}>
-                <div className={styles.miniBlock}>
-                  <span>阻塞点</span>
-                  {blockedProjects.length === 0 ? (
-                    <p>当前没有阻塞项。</p>
-                  ) : (
-                    blockedProjects.map((project) => (
-                      <div key={project.id} className={styles.inlineIssue}>
-                        <strong>{project.name}</strong>
-                        <p>{project.blocker || '未填写阻塞原因'}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
+            <div className={styles.miniBlock}>
+              <span>长期记忆</span>
+              <p>{memories.length} 条生效记忆，会在对话前按相关性注入。</p>
+            </div>
 
-                <div className={styles.miniBlock}>
-                  <span>进行中任务</span>
-                  {doingTasks.length === 0 ? (
-                    <p>当前没有标记为进行中的任务。</p>
-                  ) : (
-                    doingTasks.slice(0, 3).map((task) => (
-                      <div key={task.id} className={styles.inlineIssue}>
-                        <strong>{task.title}</strong>
-                        <p>{task.priority} 优先级</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className={styles.emptyState}>还没有项目数据，先在工作区建立主项目。</div>
-          )}
+            <div className={styles.miniBlock}>
+              <span>工具调用</span>
+              <p>{toolLogs.length} 条日志，最近失败 {failedToolLogs.length} 条。</p>
+            </div>
+
+            <div className={styles.miniBlock}>
+              <span>质量评估</span>
+              <p>{evalCases.length} 条用例，已测 {testedEvalCases.length} 条，通过率 {passRate}%。</p>
+            </div>
+          </div>
         </article>
 
         <div className={styles.secondarySplit}>
           <article className={styles.queuePanel}>
             <div className={styles.panelTopline}>
-              <span>任务队列</span>
-              <small>{openTasks.length} 项待处理</small>
+              <span>最近工具日志</span>
+              <small>{failedToolLogs.length} 条失败</small>
             </div>
-            {recentTasks.length === 0 ? (
-              <div className={styles.emptyState}>当前没有待办任务。</div>
+            {recentToolLogs.length === 0 ? (
+              <div className={styles.emptyState}>暂无工具调用日志。</div>
             ) : (
               <div className={styles.listStack}>
-                {recentTasks.map((task) => (
-                  <div key={task.id} className={styles.listRow}>
+                {recentToolLogs.map((log) => (
+                  <div key={log.id} className={styles.listRow}>
                     <div>
-                      <strong>{task.title}</strong>
-                      <p>{taskLabel[task.status]} · {task.priority} 优先级</p>
+                      <strong>{log.name}</strong>
+                      <p>{log.status === 'success' ? '成功' : '失败'} · {log.durationMs}ms · {formatTime(log.createdAt)}</p>
                     </div>
                   </div>
                 ))}

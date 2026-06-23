@@ -124,8 +124,6 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   knowledge_search: '检索知识库',
   knowledge_import_file: '导入知识库',
   add_memory: '写入记忆',
-  workspace_create_task: '创建任务',
-  workspace_update_project: '更新项目',
 };
 
 const PROCESS_STATUS_LABELS: Record<ProcessEvent['status'], string> = {

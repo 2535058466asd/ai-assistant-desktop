@@ -1,9 +1,8 @@
-import { createTask, updateProject } from '../../services/workspaceStore';
 import type { ToolDefinition } from '../model';
 import type { ToolExecutionResult } from './toolExecutor';
 
 export type ToolRiskLevel = 'read' | 'low_write' | 'system' | 'destructive' | 'external_send';
-export type ToolCategory = 'file' | 'system' | 'web' | 'clipboard' | 'knowledge' | 'memory' | 'workspace' | 'app';
+export type ToolCategory = 'file' | 'system' | 'web' | 'clipboard' | 'knowledge' | 'memory' | 'app';
 
 type ElectronAPI = Window['electronAPI'];
 type ToolArgs = Record<string, any>;
@@ -474,55 +473,6 @@ export const TOOLS: Record<string, ToolSpec> = {
     execute: (api, args) => api.knowledgeImportImage(args.image_path, args.category),
   },
 
-  workspace_create_task: {
-    schema: functionTool(
-      'workspace_create_task',
-      '创建工作台任务。',
-      {
-        title: { type: 'string', description: '任务标题' },
-        project_id: { type: 'string', description: '项目 ID，默认 project-ai-workspace' },
-        priority: { type: 'string', enum: ['low', 'medium', 'high'], description: '任务优先级' },
-      },
-      ['title']
-    ),
-    category: 'workspace',
-    riskLevel: 'low_write',
-    isReadOnly: false,
-    timeoutMs: 5000,
-    execute: async (_api, args) => {
-      const task = createTask(args.title, args.project_id, args.priority);
-      return { success: true, data: `已创建任务：${task.title}` };
-    },
-  },
-  workspace_update_project: {
-    schema: functionTool(
-      'workspace_update_project',
-      '更新工作台项目状态或下一步。',
-      {
-        project_id: { type: 'string', description: '项目 ID' },
-        status: { type: 'string', enum: ['active', 'blocked', 'planning', 'done'], description: '项目状态' },
-        goal: { type: 'string', description: '项目目标' },
-        next_step: { type: 'string', description: '下一步行动' },
-        blocker: { type: 'string', description: '阻塞点' },
-      },
-      ['project_id']
-    ),
-    category: 'workspace',
-    riskLevel: 'low_write',
-    isReadOnly: false,
-    timeoutMs: 5000,
-    execute: async (_api, args) => {
-      const patch: Record<string, any> = {};
-      if (args.status) patch.status = args.status;
-      if (args.goal) patch.goal = args.goal;
-      if (args.next_step) patch.nextStep = args.next_step;
-      if (args.blocker) patch.blocker = args.blocker;
-      const project = updateProject(args.project_id, patch);
-      return project
-        ? { success: true, data: `已更新项目：${project.name}` }
-        : { success: false, error: `未找到项目：${args.project_id}` };
-    },
-  },
 };
 
 export const toolDefinitions: ToolDefinition[] = Object.values(TOOLS).map((tool) => tool.schema);
@@ -552,12 +502,6 @@ export const SKILLS: Record<string, SkillDefinition> = {
     description: '系统工具：打开应用、发送通知、获取系统信息、写入剪贴板',
     tools: ['open_app', 'notify', 'get_system_info', 'clipboard_write'],
     instructions: '打开应用时直接传应用名称或 URL，工具会自动处理。\n系统通知适合设置提醒或告知用户重要信息。\n获取系统信息返回 CPU、内存、磁盘等硬件数据。',
-  },
-  workspace: {
-    name: 'workspace',
-    description: '工作台：创建任务、更新项目状态',
-    tools: ['workspace_create_task', 'workspace_update_project'],
-    instructions: '工作台用于管理个人项目和任务。\n创建任务时可指定优先级（low/medium/high）。\n更新项目时可修改状态（active/blocked/planning/done）、目标、下一步或阻塞点。',
   },
 };
 

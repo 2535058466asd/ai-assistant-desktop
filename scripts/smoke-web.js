@@ -147,6 +147,87 @@ async function main() {
   try {
     browser = await launchBrowser();
     const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
+    await page.addInitScript(() => {
+      const ok = (data) => Promise.resolve({ success: true, data });
+      const emptyOk = () => Promise.resolve({ success: true });
+
+      window.electronAPI = {
+        conversationList: () => ok([]),
+        conversationGetMessages: () => ok([]),
+        conversationSave: emptyOk,
+        conversationDelete: emptyOk,
+        conversationRename: emptyOk,
+        conversationSetPinned: emptyOk,
+        conversationImportLegacy: () => Promise.resolve({ success: true, data: { conversations: 0, messages: 0 } }),
+        attachmentSave: (input) => ok({
+          id: `mock-${Date.now()}`,
+          type: 'image',
+          name: input.name,
+          mimeType: input.mimeType,
+          sizeBytes: 0,
+          relativePath: `mock/${input.name}`,
+        }),
+        attachmentReadDataUrl: () => ok('data:image/png;base64,'),
+        attachmentDeleteByChat: emptyOk,
+        knowledgeStats: () => ok({ count: 0, collections: [] }),
+        knowledgeSources: () => ok([]),
+        knowledgeSearchStructured: () => ok([]),
+        knowledgeSearch: () => ok(''),
+        knowledgeAdd: () => Promise.resolve({ success: true, count: 0 }),
+        knowledgeDeleteBySource: () => Promise.resolve({ success: true, deletedCount: 0 }),
+        knowledgeImportFile: () => Promise.resolve({ success: true, chunks: 0 }),
+        knowledgeImportImage: () => Promise.resolve({ success: true, count: 0 }),
+        showOpenDialog: () => ok([]),
+        parseFileToText: () => Promise.resolve({ success: false, error: 'mock parse unavailable' }),
+        memorySetPreference: () => Promise.resolve(),
+        memoryGetPreference: () => Promise.resolve(null),
+        memoryGetAllPreferences: () => Promise.resolve({}),
+        memoryAddMemory: () => Promise.resolve({ action: 'ignored', content: '' }),
+        memoryGetAllMemories: () => Promise.resolve([]),
+        memoryGetPrompt: () => Promise.resolve(''),
+        memorySearchMemories: () => Promise.resolve([]),
+        memoryDeleteMemory: () => Promise.resolve(),
+        memorySetStatus: () => Promise.resolve(),
+        memoryClearAllMemories: () => Promise.resolve(),
+        searchSetConfig: emptyOk,
+        volcengineTTSListSpeakers: () => ok([]),
+        ttsCacheCheck: () => Promise.resolve({ exists: false }),
+        ttsCacheSave: emptyOk,
+        modelFetch: () => Promise.resolve({ ok: false, status: 501, statusText: 'Mocked', body: '' }),
+        modelFetchStream: () => Promise.resolve({ ok: false, status: 501, statusText: 'Mocked', body: '' }),
+        ttsV3Connect: emptyOk,
+        ttsV3Synthesize: emptyOk,
+        ttsV3Disconnect: emptyOk,
+        asrV3Connect: emptyOk,
+        asrV3StartRecognition: emptyOk,
+        asrV3SendAudio: emptyOk,
+        asrV3StopRecognition: emptyOk,
+        realtimeDialogConnect: emptyOk,
+        realtimeDialogSendAudio: emptyOk,
+        realtimeDialogDisconnect: emptyOk,
+        getFilePaths: () => [],
+        clipboardReadFiles: () => ok([]),
+        clipboardRead: () => ok(''),
+        clipboardWrite: emptyOk,
+        execCommand: emptyOk,
+        readFile: emptyOk,
+        writeFile: emptyOk,
+        createDir: emptyOk,
+        copyFile: emptyOk,
+        moveFile: emptyOk,
+        deleteFile: emptyOk,
+        webSearch: emptyOk,
+        webFetch: emptyOk,
+        listDir: emptyOk,
+        searchFiles: emptyOk,
+        grepContent: emptyOk,
+        openApp: emptyOk,
+        getCurrentTime: () => ok(new Date().toISOString()),
+        getSystemInfo: () => ok('mock system'),
+        notify: emptyOk,
+        on: () => () => {},
+      };
+    });
 
     page.on('console', (message) => {
       const text = message.text();
@@ -247,7 +328,10 @@ async function main() {
     await page.screenshot({ path: screenshot, fullPage: true });
     result.screenshots.push(screenshot);
 
-    const unexpectedErrors = result.errors.filter((error) => !/electronAPI.*不可用/i.test(error));
+    const unexpectedErrors = result.errors.filter((error) => (
+      !/electronAPI.*不可用/i.test(error)
+      && !/Autofill\.(enable|setAddresses)/i.test(error)
+    ));
     if (unexpectedErrors.length > 0) {
       throw new Error(`Unexpected console errors: ${unexpectedErrors.join(' | ')}`);
     }
