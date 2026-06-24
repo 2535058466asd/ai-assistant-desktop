@@ -78,8 +78,13 @@ function hasUserAttachment(message: Message): boolean {
   return Boolean(message.role === 'user' && message.attachments?.length);
 }
 
-function getAttachmentFallbackText(attachments?: Attachment[]): string {
-  return '请分析这些图片。';
+function buildAttachmentText(message: Message): string {
+  const documents = (message.attachments || []).filter((attachment) => attachment.type === 'document');
+  const documentSections = documents.map((document) =>
+    `【附件文档：${document.name}】\n${document.extractedText}`
+  );
+  const fallback = documents.length > 0 ? '请根据附件文档回答。' : '请分析这些图片。';
+  return [message.content.trim() || fallback, ...documentSections].join('\n\n');
 }
 
 function getToolCallIds(toolCalls?: ToolCall[]): string[] {
@@ -312,9 +317,12 @@ function sanitizeModelMessagesWithDiagnostics(
  * 图片附件会被读取成 data URL，再转换为 OpenAI-compatible 的 image_url content part。
  */
 async function toModelMessage(message: Message, options: ContextBuildOptions): Promise<ModelContextMessage | null> {
+  const attachmentText = message.role === 'user' && message.attachments?.length
+    ? buildAttachmentText(message)
+    : message.content;
   const base: ModelContextMessage = {
     role: message.role,
-    content: message.content,
+    content: attachmentText,
     ...(message.reasoning_content?.trim() ? { reasoning_content: message.reasoning_content } : {}),
     ...(message.tool_calls?.length ? { tool_calls: message.tool_calls as ToolCall[] } : {}),
     ...(message.tool_call_id ? { tool_call_id: message.tool_call_id } : {}),
@@ -329,7 +337,7 @@ async function toModelMessage(message: Message, options: ContextBuildOptions): P
   );
   if (supportedAttachments.length === 0) return base;
 
-  const parts: ModelContentPart[] = [{ type: 'text', text: message.content || getAttachmentFallbackText(message.attachments) }];
+  const parts: ModelContentPart[] = [{ type: 'text', text: attachmentText }];
   for (const attachment of supportedAttachments) {
     const dataUrl = await options.readAttachmentDataUrl(attachment);
     if (dataUrl) {

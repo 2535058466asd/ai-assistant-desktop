@@ -14,11 +14,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './ChatArea.module.css';
 import type { UIMessage } from '../../types/chat';
-import type { Attachment, ImageAttachment } from '../../types';
+import type { DocumentAttachment, ImageAttachment } from '../../types';
 import { getTTSManager } from '../../core/tts/ttsManager';
 import DOMPurify from 'dompurify';
 import { createLogger } from '../../../shared/logger';
 import MarkdownRenderer from './MarkdownRenderer';
+import FileTypeIcon from '../common/FileTypeIcon';
 
 const logger = createLogger('ui');
 
@@ -187,6 +188,19 @@ const ChatImage: React.FC<{
     <div className={styles.messageImageFallback}>正在加载图片...</div>
   );
 };
+
+const ChatDocument: React.FC<{ attachment: DocumentAttachment }> = ({ attachment }) => (
+  <div
+    className={styles.messageDocument}
+    title={attachment.name}
+  >
+    <FileTypeIcon fileName={attachment.name} />
+    <span className={styles.messageDocumentMeta}>
+      <strong>{attachment.name}</strong>
+      <small>{Math.max(1, Math.ceil(attachment.sizeBytes / 1024))} KB</small>
+    </span>
+  </div>
+);
 
 /**
  * ChatArea 聊天区域组件
@@ -546,9 +560,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
                                   ))}
                                 </div>
                               )}
+                              {message.attachments.some(a => a.type === 'document') && (
+                                <div className={styles.messageDocumentList}>
+                                  {message.attachments.filter(a => a.type === 'document').map((attachment) => (
+                                    <ChatDocument key={attachment.id} attachment={attachment as DocumentAttachment} />
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )}
-                          {renderMessageContent(message.content, message.role)}
+                          {message.content.trim() && renderMessageContent(message.content, message.role)}
                         </div>
                         {/* 时间戳 */}
                         <div className={styles.userBubbleTime}>

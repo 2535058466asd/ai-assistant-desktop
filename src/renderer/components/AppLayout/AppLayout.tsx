@@ -496,7 +496,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       /* 生成友好的标题：如果首条消息太短（<4 字）则用默认标题 */
       const trimmedContent = content.trim();
       const hasImages = pendingAttachments.some(a => a.type === 'image');
-      const attachmentLabel = hasImages ? '图片分析' : '新对话';
+      const hasDocuments = pendingAttachments.some(a => a.type === 'document');
+      const attachmentLabel = hasImages ? '图片分析' : hasDocuments ? '文档分析' : '新对话';
+      const attachmentPreview = pendingAttachments.map((attachment) => attachment.name).join('、');
       const chatTitle = trimmedContent.length >= 4
         ? trimmedContent.slice(0, 30)
         : pendingAttachments.length > 0
@@ -506,7 +508,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       const newChat: ChatItem = {
         id: `chat-${Date.now()}`,
         title: chatTitle,
-        preview: trimmedContent.slice(0, 50) || '空消息',
+        preview: trimmedContent.slice(0, 50) || attachmentPreview || '空消息',
         icon: '\uD83D\uDCAC', // 💬
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -529,6 +531,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({
 
     const savedAttachments: Attachment[] = [];
     for (const attachment of pendingAttachments) {
+      if (attachment.type === 'document') {
+        savedAttachments.push(attachment);
+        continue;
+      }
+
       const result = await window.electronAPI?.attachmentSave?.({
         chatId: currentChatId,
         name: attachment.name,
@@ -543,8 +550,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       savedAttachments.push(result.data as Attachment);
     }
 
-    const fallbackText = '请分析这些图片。';
-    await onSendMessage(content || fallbackText, {
+    await onSendMessage(content, {
       traceId,
       chatId: currentChatId,
       phase: 'input',

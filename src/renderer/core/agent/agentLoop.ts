@@ -697,6 +697,7 @@ export class AgentLoop {
   }
 
   private async readAttachmentDataUrl(attachment: Attachment): Promise<string | null> {
+    if (attachment.type !== 'image') return null;
     const result = await window.electronAPI?.attachmentReadDataUrl?.(attachment.relativePath, attachment.mimeType);
     if (!result?.success || !result.data) {
       logger.warn('读取聊天附件失败，跳过', {

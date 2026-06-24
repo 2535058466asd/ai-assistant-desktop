@@ -118,6 +118,29 @@ describe('conversationContext', () => {
     expect(doubao.map((item) => item.content)).toEqual(mimo.map((item) => item.content));
   });
 
+  it('文档附件只在模型上下文中展开，原始用户消息保持简洁', async () => {
+    const userMessage = message({
+      id: 'u-doc',
+      role: 'user',
+      content: '总结申请条件',
+      attachments: [{
+        id: 'doc-1',
+        type: 'document',
+        name: 'FAQ.xlsx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        sizeBytes: 2048,
+        extractedText: '主题 | 问题 | 答案',
+      }],
+    });
+
+    const context = await buildModelContext([userMessage]);
+
+    expect(userMessage.content).toBe('总结申请条件');
+    expect(context[0].content).toContain('总结申请条件');
+    expect(context[0].content).toContain('【附件文档：FAQ.xlsx】');
+    expect(context[0].content).toContain('主题 | 问题 | 答案');
+  });
+
   it('buildModelContextWithDiagnostics 记录清洗前后数量和丢弃原因', async () => {
     const result = await buildModelContextWithDiagnostics([
       message({ id: 'u1', role: 'user', content: '' }),

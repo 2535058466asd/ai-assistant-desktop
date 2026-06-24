@@ -113,11 +113,24 @@ export interface PendingImageAttachment {
   dataUrl: string;
 }
 
+/** 文档附件。解析文本只用于构建模型上下文，聊天区仅展示文件元数据。 */
+export interface DocumentAttachment {
+  id: string;
+  type: 'document';
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  extractedText: string;
+}
+
+/** 输入框中已完成解析、等待发送的文档。 */
+export type PendingDocumentAttachment = DocumentAttachment;
+
 /** 所有已保存附件的联合类型 */
-export type Attachment = ImageAttachment;
+export type Attachment = ImageAttachment | DocumentAttachment;
 
 /** 所有待发送附件的联合类型 */
-export type PendingAttachment = PendingImageAttachment;
+export type PendingAttachment = PendingImageAttachment | PendingDocumentAttachment;
 
 /** 工具调用摘要（给 UI 展示用） */
 export interface ToolCallSummary {

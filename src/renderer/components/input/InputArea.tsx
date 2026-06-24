@@ -18,10 +18,11 @@
 import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import styles from './InputArea.module.css';
 import type { SendMessageHandler } from '../../types/chat';
-import type { PendingAttachment, PendingImageAttachment } from '../../types';
+import type { PendingAttachment, PendingDocumentAttachment, PendingImageAttachment } from '../../types';
 import { getASRManager } from '../../core/asr/asrManager';
 import type { ASRResult } from '../../core/asr/asrInterface';
 import { createLogger } from '../../../shared/logger';
+import FileTypeIcon from '../common/FileTypeIcon';
 
 const logger = createLogger('ui');
 const MAX_IMAGE_COUNT = 4;
@@ -93,8 +94,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
   const [isFocused, setIsFocused] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recognitionText, setRecognitionText] = useState('');
-  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
-  const [pendingDocuments, setPendingDocuments] = useState<{ id: string; name: string; text: string }[]>([]);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingImageAttachment[]>([]);
+  const [pendingDocuments, setPendingDocuments] = useState<PendingDocumentAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -132,11 +133,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
     if ((!trimmedText && pendingAttachments.length === 0 && pendingDocuments.length === 0) || isLoading) return;
 
     const docsToSend = pendingDocuments;
-    let messageText = trimmedText;
-    if (docsToSend.length > 0) {
-      const docSection = docsToSend.map(d => `【${d.name}】\n${d.text}`).join('\n\n---\n\n');
-      messageText = docSection + (trimmedText ? `\n\n${trimmedText}` : '');
-    }
+    const messageText = trimmedText;
 
     logger.info('发送按钮或回车提交输入', {
       textPreview: messageText.slice(0, 120),
@@ -148,7 +145,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
 
     setInputText('');
     setPendingDocuments([]);
-    const attachmentsToSend = pendingAttachments;
+    const imagesToSend = pendingAttachments;
+    const attachmentsToSend: PendingAttachment[] = [...imagesToSend, ...docsToSend];
     setPendingAttachments([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -158,7 +156,8 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
       await onSendMessage(messageText, undefined, attachmentsToSend);
     } catch (error) {
       logger.error('输入区发送失败', error);
-      setPendingAttachments(attachmentsToSend);
+      setPendingAttachments(imagesToSend);
+      setPendingDocuments(docsToSend);
     }
   };
 
@@ -196,7 +195,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
 
   const addFiles = async (files: File[]) => {
     const api = (window as any).electronAPI;
-    const accepted: PendingAttachment[] = [];
+    const accepted: PendingImageAttachment[] = [];
     let totalImageBytes = pendingAttachments.filter(a => a.type === 'image').reduce((sum, a) => sum + a.sizeBytes, 0);
     const imageCount = pendingAttachments.filter(a => a.type === 'image').length;
 
@@ -232,7 +231,14 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
           const result = await api.parseFileToText(filePath);
           if (result.success && result.text) {
             const docId = `doc-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-            setPendingDocuments(prev => [...prev, { id: docId, name: result.fileName || file.name, text: result.text }]);
+            setPendingDocuments(prev => [...prev, {
+              id: docId,
+              type: 'document',
+              name: result.fileName || file.name,
+              mimeType: file.type || 'application/octet-stream',
+              sizeBytes: file.size,
+              extractedText: result.text,
+            }]);
           } else {
             showToast?.(`文件解析失败：${result.error}`, 'error');
           }
@@ -387,7 +393,7 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
     >
       <div className={styles.inputWrapper}>
         {isDragging && (
-          <div className={styles.dropOverlay}>释放鼠标，图片添加到对话，文档解析后发送</div>
+          <div className={styles.dropOverlay}>释放鼠标，将文件添加到当前对话</div>
         )}
         
         {/* 快捷建议芯片组 */}
@@ -429,10 +435,17 @@ const InputArea = forwardRef<InputAreaHandle, InputAreaProps>(({
             </div>
           )}
           {pendingDocuments.length > 0 && (
-            <div className={styles.pendingImages}>
+            <div className={styles.pendingDocuments}>
               {pendingDocuments.map((doc) => (
-                <div className={styles.pendingImageCard} key={doc.id} style={{ width: 'auto', maxWidth: 200 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '4px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📄 {doc.name}</span>
+                <div
+                  className={styles.pendingDocumentCard}
+                  key={doc.id}
+                >
+                  <FileTypeIcon fileName={doc.name} />
+                  <span className={styles.pendingDocumentMeta}>
+                    <strong className={styles.pendingDocumentName} title={doc.name}>{doc.name}</strong>
+                    <small>{doc.name.split('.').pop()?.toUpperCase() || 'FILE'} · {Math.max(1, Math.ceil(doc.sizeBytes / 1024))} KB</small>
+                  </span>
                   <button
                     type="button"
                     className={styles.removeImageBtn}

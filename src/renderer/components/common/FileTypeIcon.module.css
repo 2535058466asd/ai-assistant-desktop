@@ -1,0 +1,35 @@
+.icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  place-items: center;
+  border-radius: 8px;
+  background: #eef2f7;
+  color: #64748b;
+}
+
+.pdf {
+  background: #fff0ef;
+  color: #ef4444;
+}
+
+.word {
+  background: #eef5ff;
+  color: #2563eb;
+}
+
+.sheet {
+  background: #edf9f1;
+  color: #16834b;
+}
+
+.markdown {
+  background: #eef0f4;
+  color: #1e293b;
+}
+
+.text {
+  background: #f2f5f8;
+  color: #526174;
+}

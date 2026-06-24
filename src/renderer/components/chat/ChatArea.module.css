@@ -153,6 +153,48 @@
   background: rgba(2, 6, 23, 0.82);
 }
 
+.messageDocumentList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.messageDocument {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: min(246px, 100%);
+  min-height: 66px;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #172033;
+  box-shadow: 0 5px 16px rgba(30, 41, 59, 0.12);
+  box-sizing: border-box;
+}
+
+.messageDocumentMeta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.messageDocumentMeta strong {
+  overflow: hidden;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messageDocumentMeta small {
+  color: #64748b;
+  font-size: 11px;
+}
+
 .imagePreviewOverlay img {
   display: block;
   width: auto;
