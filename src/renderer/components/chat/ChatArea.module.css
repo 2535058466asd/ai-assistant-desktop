@@ -269,7 +269,7 @@
   min-width: 0;
 }
 
-/* AI 消息气泡 - 高级毛玻璃 + 精致边框 */
+/* AI 消息气泡 - 高级毛玻璃 + 品牌渐变左边框 */
 .aiBubble {
   padding: 14px 18px;
   background: var(--card-bg);
@@ -277,6 +277,8 @@
   -webkit-backdrop-filter: blur(20px) saturate(150%);
   border-radius: 6px var(--radius-xl) var(--radius-xl) var(--radius-xl);
   border: 1px solid rgba(255, 255, 255, 0.06);
+  border-left: 3px solid transparent;
+  border-image: linear-gradient(180deg, var(--accent-cyan), var(--accent-blue)) 1;
   font-size: 14px;
   line-height: 1.8;
   color: var(--text-primary);
@@ -290,8 +292,10 @@
 
 /* 亮色主题 */
 [data-theme="light"] .aiBubble {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(0, 0, 0, 0.06);
+  border-left: 3px solid transparent;
+  border-image: linear-gradient(180deg, #0891b2, #4f46e5) 1;
   backdrop-filter: blur(20px) saturate(150%);
   -webkit-backdrop-filter: blur(20px) saturate(150%);
 }
@@ -505,8 +509,9 @@
   align-items: center;
   gap: 8px;
   padding: 7px 10px;
-  background: var(--card-nested-bg);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.06), rgba(99, 102, 241, 0.06));
   border: 1px solid rgba(148, 163, 184, 0.12);
+  border-left: 3px solid var(--accent-cyan);
   border-radius: 8px;
   color: var(--text-secondary);
   font-family: inherit;
@@ -522,8 +527,9 @@
 }
 
 [data-theme="light"] .agentProcessToggle {
-  background: rgba(248, 250, 252, 0.78);
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.06), rgba(79, 70, 229, 0.06));
   border-color: rgba(148, 163, 184, 0.24);
+  border-left: 3px solid #0891b2;
 }
 
 .agentProcessSummaryDot {
@@ -588,14 +594,14 @@
   align-items: start;
   padding: 9px 10px;
   border-radius: 8px;
-  background: var(--card-nested-bg);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.04), rgba(99, 102, 241, 0.04));
   border: 1px solid rgba(148, 163, 184, 0.12);
   color: var(--text-secondary);
   font-size: 12px;
 }
 
 [data-theme="light"] .agentProcessItem {
-  background: rgba(248, 250, 252, 0.78);
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.04), rgba(79, 70, 229, 0.04));
   border-color: rgba(148, 163, 184, 0.24);
 }
 
@@ -701,8 +707,8 @@
 /* 单个操作按钮 */
 .aiActionBtn {
   padding: 4px 10px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background: rgba(34, 211, 238, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.15);
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   font-size: 12px;
@@ -710,7 +716,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  transition: opacity , background-color ;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
   font-family: inherit;
 }
 
@@ -732,9 +738,12 @@
 .usageInfo {
   font-size: 11px;
   color: var(--text-muted);
-  padding: 2px 6px;
+  padding: 2px 8px;
   margin-left: auto;
   user-select: none;
+  background: rgba(34, 211, 238, 0.06);
+  border-radius: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
 }
 
 /* ==========================================
