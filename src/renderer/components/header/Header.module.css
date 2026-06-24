@@ -15,7 +15,7 @@
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   flex-shrink: 0;
   z-index: 10;
-  transition: all var(--transition-normal) var(--ease-smooth);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
   position: relative;
 }
 
@@ -50,7 +50,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-normal) var(--ease-smooth);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
   flex-shrink: 0;
 }
 
@@ -76,7 +76,7 @@
   justify-content: center;
   box-shadow: var(--shadow-logo);
   flex-shrink: 0;
-  transition: all var(--transition-normal) var(--ease-smooth);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .logo:hover {
@@ -114,7 +114,7 @@
   font-size: 12px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all var(--transition-normal) var(--ease-smooth);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
   user-select: none;
 }
 
@@ -167,7 +167,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-normal) var(--ease-smooth);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .headerBtn:hover {
@@ -219,7 +219,7 @@
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all var(--transition-fast) var(--ease-smooth);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
   text-align: left;
   font-family: inherit;
 }
@@ -277,7 +277,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-normal) var(--ease-smooth);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .themeToggleBtn:hover {

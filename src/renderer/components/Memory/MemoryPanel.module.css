@@ -203,7 +203,7 @@
 
 .categoryChip {
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: opacity , background-color ;
 }
 
 .categoryChip:hover {

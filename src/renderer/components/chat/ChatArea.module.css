@@ -68,7 +68,7 @@
   box-shadow: var(--shadow-msg-user);
   word-wrap: break-word;
   overflow-wrap: break-word;
-  transition: all var(--transition-normal) var(--ease-smooth);
+  transition: box-shadow 0.2s ease;
   position: relative;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -250,7 +250,7 @@
   flex-shrink: 0;
   box-shadow: var(--shadow-avatar);
   margin-top: 2px;
-  transition: all var(--transition-normal) var(--ease-smooth);
+  transition: box-shadow 0.2s ease;
 }
 
 .messageAi:hover .aiAvatar {
@@ -283,7 +283,7 @@
   word-wrap: break-word;
   overflow-wrap: break-word;
   box-shadow: var(--shadow-sm);
-  transition: all var(--transition-normal) var(--ease-smooth);
+  transition: box-shadow 0.2s ease;
   position: relative;
   z-index: 1;
 }
@@ -415,7 +415,7 @@
   color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: opacity , background-color ;
   font-family: inherit;
 }
 
@@ -710,7 +710,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  transition: all 0.15s ease;
+  transition: opacity , background-color ;
   font-family: inherit;
 }
 
@@ -759,7 +759,7 @@
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-sm);
   /* 微妙的动画效果 */
-  transition: all 0.2s ease;
+  transition: opacity , background-color ;
 }
 
 /* 单个跳动的小圆点 - 蓝色渐变 */

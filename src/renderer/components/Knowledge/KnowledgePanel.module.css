@@ -405,7 +405,7 @@
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: opacity , background-color ;
 }
 
 .chipActive {

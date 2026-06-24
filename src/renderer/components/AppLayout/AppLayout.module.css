@@ -110,7 +110,7 @@
   font-weight: 800;
   background: var(--gradient-logo);
   box-shadow: var(--shadow-logo);
-  transition: all var(--transition-normal) var(--ease-smooth);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .primaryBrandIcon:hover {
@@ -147,7 +147,7 @@
   color: var(--text-muted);
   background: transparent;
   cursor: pointer;
-  transition: all var(--transition-normal) var(--ease-smooth);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   position: relative;
 }
 
@@ -314,7 +314,7 @@
   color: var(--text-secondary);
   background: var(--bg-secondary);
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
 }
 
 .quickPrompts button:hover {
@@ -351,7 +351,7 @@
   color: var(--text-secondary);
   background: transparent;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
 }
 
 .settingsNavItem:hover {
