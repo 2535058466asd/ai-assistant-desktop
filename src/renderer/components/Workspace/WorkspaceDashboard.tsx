@@ -98,14 +98,13 @@ const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages }) => 
     { label: '知识片段', value: knowledgeStats?.count ?? 0 },
     { label: '长期记忆', value: memories.length },
     { label: '工具日志', value: toolLogs.length },
-    { label: 'Eval 失败', value: failedEvalCases.length },
   ];
 
   return (
     <section className={styles.dashboard}>
       <div className={styles.hero}>
         <h1 className={styles.title}>运行总览</h1>
-        <p className={styles.subtitle}>集中查看知识库、长期记忆、工具日志和评估状态，快速判断 Nova 当前是否健康。</p>
+        <p className={styles.subtitle}>集中查看知识库、长期记忆、工具日志，快速判断 Nova 当前是否健康。</p>
       </div>
 
       <div className={styles.metricsGrid}>
@@ -145,11 +144,6 @@ const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages }) => 
             <div className={styles.miniBlock}>
               <span>工具调用</span>
               <p>{toolLogs.length} 条日志，最近失败 {failedToolLogs.length} 条。</p>
-            </div>
-
-            <div className={styles.miniBlock}>
-              <span>质量评估</span>
-              <p>{evalCases.length} 条用例，已测 {testedEvalCases.length} 条，通过率 {passRate}%。</p>
             </div>
           </div>
         </article>
