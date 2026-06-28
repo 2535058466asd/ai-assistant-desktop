@@ -1,11 +1,11 @@
 /**
- * ToolsPanel 工具与技能展示面板样式
+ * ToolsPanel 样式
  */
 
 .panel {
   display: flex;
   flex-direction: column;
-  max-width: 720px;
+  max-width: 680px;
   margin: 0 auto;
   padding: 24px 32px 48px;
   height: 100%;
@@ -13,7 +13,7 @@
 }
 
 .header {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .header h1 {
@@ -29,95 +29,82 @@
   color: var(--text-secondary);
 }
 
-/* ===== 类别区块 ===== */
-.category {
+/* ===== 分组 ===== */
+.group {
   border-bottom: 1px solid var(--border-color);
 }
 
-.category:last-child {
+.group:last-child {
   border-bottom: none;
 }
 
-.categoryHeader {
+.groupSkill {
+  border-left: 3px solid var(--accent-cyan);
+  padding-left: 12px;
+  margin-left: 0;
+}
+
+.groupHeader {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
-  padding: 14px 0;
+  padding: 12px 0;
   border: none;
   background: transparent;
   cursor: pointer;
   font-family: inherit;
-  text-align: left;
 }
 
-.categoryHeader:hover {
-  opacity: 0.8;
-}
-
-.categoryEmoji {
-  font-size: 20px;
-  flex-shrink: 0;
-  width: 32px;
-  text-align: center;
-}
-
-.categoryInfo {
-  flex: 1;
-  min-width: 0;
-}
-
-.categoryTitleRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.categoryTitleRow strong {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.skillBadge {
-  font-size: 11px;
-  font-family: var(--font-mono);
-  padding: 1px 8px;
-  background: rgba(34, 211, 238, 0.1);
+.groupHeader:hover strong {
   color: var(--accent-cyan);
-  border: 1px solid rgba(34, 211, 238, 0.2);
-  border-radius: 4px;
-}
-
-.categoryDesc {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.4;
 }
 
 .chevron,
 .chevronOpen {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
-  flex-shrink: 0;
   transition: transform 0.15s ease;
+  flex-shrink: 0;
+  width: 12px;
 }
 
 .chevronOpen {
   transform: rotate(90deg);
 }
 
+.groupHeader strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: color 0.15s;
+}
+
+.skillTag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  background: rgba(34, 211, 238, 0.1);
+  color: var(--accent-cyan);
+  border-radius: 4px;
+}
+
+.count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* ===== 工具列表 ===== */
 .toolList {
-  padding: 0 0 12px 44px;
+  padding: 0 0 8px 20px;
 }
 
 .toolRow {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  padding: 5px 0;
+  padding: 4px 0;
 }
 
 .toolName {
@@ -132,5 +119,4 @@
 .toolDesc {
   font-size: 12px;
   color: var(--text-secondary);
-  line-height: 1.4;
 }
