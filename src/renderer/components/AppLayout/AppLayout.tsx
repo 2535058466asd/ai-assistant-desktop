@@ -744,16 +744,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
       case 'search':
         return <SearchPanel />;
       case 'diagnostics':
-        return (
-          <DebugPanel
-            messages={messages}
-            currentModel={currentModel}
-            voiceChatState={voiceChatState}
-            isVoiceChatEnabled={isVoiceChatEnabled}
-            realtimeCallState={realtimeCallState}
-            isRealtimeCallEnabled={isRealtimeCallEnabled}
-          />
-        );
+        return <DebugPanel messages={messages} />;
       case 'shortcuts':
         return <ShortcutsPanel />;
       default:
