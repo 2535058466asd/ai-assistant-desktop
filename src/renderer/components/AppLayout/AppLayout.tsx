@@ -35,6 +35,7 @@ import type { InputAreaHandle } from '../input/InputArea';
 import WorkspaceDashboard from '../Workspace/WorkspaceDashboard';
 import KnowledgePanel from '../Knowledge/KnowledgePanel';
 import MemoryPanel from '../Memory/MemoryPanel';
+import DebugPanel from '../Debug/DebugPanel';
 import ModelApiPanel from '../Settings/ModelApiPanel';
 import VoicePanel from '../Settings/VoicePanel';
 import SearchPanel from '../Settings/SearchPanel';
@@ -118,7 +119,7 @@ const STORAGE_KEY_ACTIVE_VIEW = 'nova.activeView';
 const LEGACY_STORAGE_KEY_ACTIVE_VIEW = 'qiyuan_active_view';
 
 type AppView = 'chat' | 'workspace' | 'knowledge' | 'memory' | 'settings';
-type SettingsPageTab = 'model-api' | 'voice' | 'search' | 'shortcuts';
+type SettingsPageTab = 'model-api' | 'voice' | 'search' | 'shortcuts' | 'diagnostics';
 
 const navIcons: Record<string, JSX.Element> = {
   chat: (
@@ -166,6 +167,7 @@ const settingsTabs: { id: SettingsPageTab; label: string; description: string }[
   { id: 'model-api', label: '模型与 API', description: '配置当前模型、Provider 和密钥来源' },
   { id: 'voice', label: '语音', description: '配置 ASR、TTS 和语音交互体验' },
   { id: 'search', label: '搜索', description: '配置联网搜索和结果处理方式' },
+  { id: 'diagnostics', label: '诊断', description: '工具调用统计、模型上下文快照、运行日志' },
   { id: 'shortcuts', label: '快捷键', description: '查看常用快捷操作' },
 ];
 
@@ -741,6 +743,17 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         return <VoicePanel />;
       case 'search':
         return <SearchPanel />;
+      case 'diagnostics':
+        return (
+          <DebugPanel
+            messages={messages}
+            currentModel={currentModel}
+            voiceChatState={voiceChatState}
+            isVoiceChatEnabled={isVoiceChatEnabled}
+            realtimeCallState={realtimeCallState}
+            isRealtimeCallEnabled={isRealtimeCallEnabled}
+          />
+        );
       case 'shortcuts':
         return <ShortcutsPanel />;
       default:
