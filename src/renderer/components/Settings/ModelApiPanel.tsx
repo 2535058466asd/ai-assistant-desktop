@@ -19,6 +19,8 @@ export default function ModelApiPanel() {
   const [temperature, setTemperature] = useState(0.8);
   const [maxTokens, setMaxTokens] = useState(1024);
   const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     const config = getActiveModelConfig();
@@ -57,6 +59,28 @@ export default function ModelApiPanel() {
   };
 
   const needsBaseUrl = provider === 'openai-compatible' || provider === 'mimo';
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const testConfig = { provider, apiKey, baseUrl, temperature: 0.1, maxTokens: 32, model: getActiveModelConfig().model, compactModel: getActiveModelConfig().compactModel };
+      const testProvider = createModelProvider(testConfig);
+      const response = await testProvider.chatWithTools({
+        model: testConfig.model,
+        messages: [{ role: 'user', content: 'hi' }],
+        stream: false,
+      });
+      if (response.error) {
+        setTestResult({ ok: false, message: response.error.message || '请求失败' });
+      } else {
+        setTestResult({ ok: true, message: '连接成功' });
+      }
+    } catch (e: any) {
+      setTestResult({ ok: false, message: e.message || '连接失败' });
+    }
+    setTesting(false);
+  };
 
   return (
     <div className={styles.panel}>
@@ -130,9 +154,24 @@ export default function ModelApiPanel() {
         </div>
       </div>
 
-      <button className={styles.btnPrimary} onClick={handleSave}>
-        {saved ? '已保存' : '保存配置'}
-      </button>
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <button className={styles.btnPrimary} onClick={handleSave}>
+          {saved ? '已保存' : '保存配置'}
+        </button>
+        <button
+          className={styles.btnPrimary}
+          onClick={handleTest}
+          disabled={testing || !apiKey}
+          style={{ background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}
+        >
+          {testing ? '测试中...' : '测试连接'}
+        </button>
+        {testResult && (
+          <span style={{ fontSize: '13px', color: testResult.ok ? '#22c55e' : '#ef4444' }}>
+            {testResult.message}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
