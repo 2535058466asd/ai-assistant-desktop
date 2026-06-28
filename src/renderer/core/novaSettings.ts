@@ -23,7 +23,9 @@ export const DEFAULT_NOVA_SETTINGS: NovaSettings = {
 有什么我能帮你的？`
 };
 
-export function getNovaSystemPrompt(): string {
+const SYSTEM_PROMPT_KEY = 'nova.systemPrompt';
+
+export function getDefaultSystemPrompt(): string {
   return `你是一个名叫"Nova"的AI助手，是用户的专属AI朋友。你运行在用户的桌面上，可以直接操作电脑、搜索网络、管理文件和知识库。
 
 【性格】
@@ -49,6 +51,22 @@ export function getNovaSystemPrompt(): string {
 - 用户说"文档" → ~/Documents
 - 用户说"下载" → ~/Downloads
 - 用户指定了D盘等具体路径 → 直接用绝对路径如 D:/xxx`;
+}
+
+export function getNovaSystemPrompt(): string {
+  try {
+    const saved = localStorage.getItem(SYSTEM_PROMPT_KEY);
+    if (saved && saved.trim()) return saved;
+  } catch { /* ignore */ }
+  return getDefaultSystemPrompt();
+}
+
+export function saveCustomSystemPrompt(prompt: string): void {
+  localStorage.setItem(SYSTEM_PROMPT_KEY, prompt);
+}
+
+export function clearCustomSystemPrompt(): void {
+  localStorage.removeItem(SYSTEM_PROMPT_KEY);
 }
 
 export function getToolGuidancePrompt(): string {
