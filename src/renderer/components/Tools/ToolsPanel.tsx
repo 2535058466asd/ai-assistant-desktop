@@ -1,16 +1,32 @@
 /**
  * ToolsPanel 工具与技能展示面板
  *
- * 展示 Nova 所有可用工具和技能。
- * - 技能卡片突出展示，包含子工具列表
- * - 工具按类别折叠，点击展开
- * - 不显示风险等级（给模型看的，不是给用户看的）
+ * 按类别分组展示所有工具，技能作为类别标题高亮。
+ * 有技能标签的类别是工具包，没有的是散装工具。
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { TOOLS, SKILLS } from '../../core/tools/toolRegistry';
-import type { ToolSpec } from '../../core/tools/toolRegistry';
 import styles from './ToolsPanel.module.css';
+
+interface CategoryGroup {
+  id: string;
+  label: string;
+  emoji: string;
+  skillName?: string;
+  skillDesc?: string;
+  tools: Array<{ name: string; desc: string }>;
+}
+
+const CATEGORY_ICONS: Record<string, string> = {
+  file: '📁',
+  web: '🌐',
+  knowledge: '📚',
+  memory: '🧠',
+  clipboard: '📋',
+  system: '🔧',
+  app: '🖥️',
+};
 
 const CATEGORY_LABELS: Record<string, string> = {
   file: '文件',
@@ -27,15 +43,22 @@ const categoryOrder = ['file', 'web', 'knowledge', 'memory', 'clipboard', 'syste
 const ToolsPanel: React.FC = () => {
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
 
-  const toolsByCategory = useMemo(() => {
-    const map: Record<string, Array<{ name: string } & ToolSpec>> = {};
-    for (const [name, tool] of Object.entries(TOOLS)) {
-      const cat = tool.category || 'other';
-      if (!map[cat]) map[cat] = [];
-      map[cat].push({ name, ...tool });
-    }
-    return map;
-  }, []);
+  const categories: CategoryGroup[] = categoryOrder.map((cat) => {
+    const skillKey = cat === 'file' ? 'file_manager' : cat === 'knowledge' ? 'knowledge_manager' : cat === 'system' ? 'system_tools' : undefined;
+    const skill = skillKey ? SKILLS[skillKey] : undefined;
+    const tools = Object.entries(TOOLS)
+      .filter(([, t]) => (t.category || 'other') === cat)
+      .map(([name, t]) => ({ name, desc: t.schema.function.description }));
+
+    return {
+      id: cat,
+      label: CATEGORY_LABELS[cat] || cat,
+      emoji: CATEGORY_ICONS[cat] || '📦',
+      skillName: skill?.name,
+      skillDesc: skill?.description,
+      tools,
+    };
+  }).filter((c) => c.tools.length > 0);
 
   const toggleCat = (cat: string) => {
     setExpandedCats((prev) => {
@@ -49,57 +72,45 @@ const ToolsPanel: React.FC = () => {
     <section className={styles.panel}>
       <header className={styles.header}>
         <h1>工具与技能</h1>
-        <p>技能是工具的组合入口，工具由模型自动调用。</p>
+        <p>按类别分组展示。有技能标签的是工具包，没有的是散装工具。</p>
       </header>
 
-      <div className={styles.skillsSection}>
-        <h2>技能</h2>
-        <div className={styles.skillsGrid}>
-          {Object.entries(SKILLS).map(([key, skill]) => (
-            <article key={key} className={styles.skillCard}>
-              <h3>{skill.name}</h3>
-              <p className={styles.skillDesc}>{skill.description}</p>
-              <div className={styles.skillTools}>
-                {skill.tools.map((toolName) => (
-                  <span key={toolName} className={styles.toolTag}>{toolName}</span>
+      {categories.map((cat) => {
+        const expanded = expandedCats.has(cat.id);
+        return (
+          <div key={cat.id} className={styles.category}>
+            <button
+              type="button"
+              className={styles.categoryHeader}
+              onClick={() => toggleCat(cat.id)}
+            >
+              <span className={styles.categoryEmoji}>{cat.emoji}</span>
+              <div className={styles.categoryInfo}>
+                <div className={styles.categoryTitleRow}>
+                  <strong>{cat.label}</strong>
+                  {cat.skillName && (
+                    <span className={styles.skillBadge}>{cat.skillName}</span>
+                  )}
+                </div>
+                {cat.skillDesc && (
+                  <p className={styles.categoryDesc}>{cat.skillDesc}</p>
+                )}
+              </div>
+              <span className={expanded ? styles.chevronOpen : styles.chevron}>▸</span>
+            </button>
+            {expanded && (
+              <div className={styles.toolList}>
+                {cat.tools.map((tool) => (
+                  <div key={tool.name} className={styles.toolRow}>
+                    <span className={styles.toolName}>{tool.name}</span>
+                    <span className={styles.toolDesc}>{tool.desc}</span>
+                  </div>
                 ))}
               </div>
-            </article>
-          ))}
-        </div>
-      </div>
-
-      <div className={styles.toolsSection}>
-        <h2>工具</h2>
-        {categoryOrder.map((cat) => {
-          const tools = toolsByCategory[cat];
-          if (!tools || tools.length === 0) return null;
-          const expanded = expandedCats.has(cat);
-          return (
-            <div key={cat} className={styles.categoryGroup}>
-              <button
-                type="button"
-                className={styles.categoryToggle}
-                onClick={() => toggleCat(cat)}
-              >
-                <span className={expanded ? styles.chevronOpen : styles.chevron}>▸</span>
-                <strong>{CATEGORY_LABELS[cat] || cat}</strong>
-                <span className={styles.toolCount}>{tools.length}</span>
-              </button>
-              {expanded && (
-                <div className={styles.toolsList}>
-                  {tools.map((tool) => (
-                    <div key={tool.name} className={styles.toolRow}>
-                      <span className={styles.toolName}>{tool.name}</span>
-                      <span className={styles.toolDesc}>{tool.schema.function.description}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+            )}
+          </div>
+        );
+      })}
     </section>
   );
 };

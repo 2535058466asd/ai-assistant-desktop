@@ -5,12 +5,15 @@
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 28px;
   max-width: 720px;
   margin: 0 auto;
   padding: 24px 32px 48px;
   height: 100%;
   overflow-y: auto;
+}
+
+.header {
+  margin-bottom: 20px;
 }
 
 .header h1 {
@@ -26,121 +29,95 @@
   color: var(--text-secondary);
 }
 
-/* ===== 技能区 ===== */
-.skillsSection h2,
-.toolsSection h2 {
-  margin: 0 0 14px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.skillsGrid {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.skillCard {
-  padding: 18px 20px;
-  background: linear-gradient(135deg, rgba(34, 211, 238, 0.05), rgba(99, 102, 241, 0.05));
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  border-left: 3px solid var(--accent-cyan);
-  border-radius: 10px;
-}
-
-.skillCard h3 {
-  margin: 0 0 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.skillDesc {
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.skillTools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.toolTag {
-  padding: 3px 10px;
-  font-size: 12px;
-  font-family: var(--font-mono);
-  color: var(--accent-cyan);
-  background: rgba(34, 211, 238, 0.08);
-  border: 1px solid rgba(34, 211, 238, 0.15);
-  border-radius: 6px;
-}
-
-/* ===== 工具折叠列表 ===== */
-.categoryGroup {
+/* ===== 类别区块 ===== */
+.category {
   border-bottom: 1px solid var(--border-color);
 }
 
-.categoryGroup:last-child {
+.category:last-child {
   border-bottom: none;
 }
 
-.categoryToggle {
+.categoryHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.categoryHeader:hover {
+  opacity: 0.8;
+}
+
+.categoryEmoji {
+  font-size: 20px;
+  flex-shrink: 0;
+  width: 32px;
+  text-align: center;
+}
+
+.categoryInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.categoryTitleRow {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  padding: 12px 0;
-  border: none;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
 }
 
-.categoryToggle:hover {
+.categoryTitleRow strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.skillBadge {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  padding: 1px 8px;
+  background: rgba(34, 211, 238, 0.1);
   color: var(--accent-cyan);
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  border-radius: 4px;
+}
+
+.categoryDesc {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 .chevron,
 .chevronOpen {
   font-size: 12px;
   color: var(--text-muted);
-  transition: transform 0.15s ease;
   flex-shrink: 0;
-  width: 14px;
+  transition: transform 0.15s ease;
 }
 
 .chevronOpen {
   transform: rotate(90deg);
 }
 
-.toolCount {
-  margin-left: auto;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-  background: var(--card-bg);
-  padding: 1px 8px;
-  border-radius: 10px;
-}
-
-.toolsList {
-  display: flex;
-  flex-direction: column;
-  padding-bottom: 12px;
+/* ===== 工具列表 ===== */
+.toolList {
+  padding: 0 0 12px 44px;
 }
 
 .toolRow {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  padding: 6px 0 6px 22px;
+  padding: 5px 0;
 }
 
 .toolName {
@@ -149,7 +126,7 @@
   font-weight: 600;
   color: var(--text-primary);
   flex-shrink: 0;
-  min-width: 140px;
+  min-width: 160px;
 }
 
 .toolDesc {
