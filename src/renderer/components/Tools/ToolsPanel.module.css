@@ -1,11 +1,11 @@
 /**
- * ToolsPanel 样式
+ * ToolsPanel 样式 — 工具柜风格
  */
 
 .panel {
   display: flex;
   flex-direction: column;
-  max-width: 680px;
+  max-width: 720px;
   margin: 0 auto;
   padding: 24px 32px 48px;
   height: 100%;
@@ -17,106 +17,157 @@
 }
 
 .header h1 {
-  margin: 0 0 6px;
-  font-size: 22px;
+  margin: 0 0 4px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
 }
 
-.header p {
+.subtitle {
   margin: 0;
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
-/* ===== 分组 ===== */
-.group {
-  border-bottom: 1px solid var(--border-color);
+/* ===== 工具柜网格 ===== */
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.group:last-child {
-  border-bottom: none;
+/* ===== 单个抽屉 ===== */
+.drawer {
+  border-radius: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  transition: border-color 0.2s ease;
 }
 
-.groupSkill {
+.drawer:hover {
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.drawerSkill {
   border-left: 3px solid var(--accent-cyan);
-  padding-left: 12px;
-  margin-left: 0;
 }
 
-.groupHeader {
+.drawerOpen {
+  border-color: rgba(34, 211, 238, 0.2);
+}
+
+.drawerHeader {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
-  padding: 12px 0;
+  padding: 12px 16px;
   border: none;
   background: transparent;
   cursor: pointer;
   font-family: inherit;
 }
 
-.groupHeader:hover strong {
-  color: var(--accent-cyan);
-}
-
-.chevron,
-.chevronOpen {
-  font-size: 11px;
-  color: var(--text-muted);
-  transition: transform 0.15s ease;
+.drawerIcon {
+  font-size: 18px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-nested-bg);
+  border-radius: 8px;
   flex-shrink: 0;
-  width: 12px;
 }
 
-.chevronOpen {
-  transform: rotate(90deg);
+.drawerMeta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.groupHeader strong {
+.drawerTitle {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
-  transition: color 0.15s;
+  line-height: 1.2;
 }
 
-.skillTag {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 6px;
-  background: rgba(34, 211, 238, 0.1);
-  color: var(--accent-cyan);
-  border-radius: 4px;
-}
-
-.count {
-  margin-left: auto;
-  font-size: 12px;
+.drawerDesc {
+  font-size: 11px;
   color: var(--text-muted);
 }
 
-/* ===== 工具列表 ===== */
-.toolList {
-  padding: 0 0 8px 20px;
+.drawerCount {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--card-nested-bg);
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
 }
 
-.toolRow {
+.chev,
+.chevOpen {
+  font-size: 13px;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.chevOpen {
+  transform: rotate(90deg);
+}
+
+/* ===== 展开的工具列表 ===== */
+.drawerBody {
+  padding: 4px 16px 12px;
   display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 4px 0;
+  flex-direction: column;
+  gap: 2px;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.toolItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.toolItem:hover {
+  background: var(--card-nested-bg);
 }
 
 .toolName {
-  font-size: 13px;
+  font-size: 12px;
   font-family: var(--font-mono);
-  font-weight: 600;
-  color: var(--text-primary);
+  font-weight: 500;
+  color: var(--accent-cyan);
   flex-shrink: 0;
-  min-width: 160px;
+}
+
+.toolDot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .toolDesc {
   font-size: 12px;
   color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
