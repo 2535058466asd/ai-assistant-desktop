@@ -6,7 +6,7 @@
   display: flex;
   flex-direction: column;
   gap: 28px;
-  max-width: 960px;
+  max-width: 720px;
   margin: 0 auto;
   padding: 24px 32px 48px;
   height: 100%;
@@ -26,74 +26,39 @@
   color: var(--text-secondary);
 }
 
-/* 统计卡片 */
-.statsRow {
-  display: flex;
-  gap: 12px;
-}
-
-.statCard {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 16px 28px;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  min-width: 100px;
-}
-
-.statCard strong {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--accent-cyan);
-}
-
-.statCard span {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-/* 技能区域 */
+/* ===== 技能区 ===== */
 .skillsSection h2,
 .toolsSection h2 {
-  margin: 0 0 4px;
-  font-size: 16px;
+  margin: 0 0 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.sectionDesc {
-  margin: 0 0 16px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
 .skillsGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
 .skillCard {
-  padding: 16px;
+  padding: 18px 20px;
   background: linear-gradient(135deg, rgba(34, 211, 238, 0.05), rgba(99, 102, 241, 0.05));
   border: 1px solid rgba(148, 163, 184, 0.12);
   border-left: 3px solid var(--accent-cyan);
   border-radius: 10px;
 }
 
-.skillHeader h3 {
+.skillCard h3 {
   margin: 0 0 6px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .skillDesc {
-  margin: 0 0 10px;
-  font-size: 12px;
+  margin: 0 0 12px;
+  font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.5;
 }
@@ -101,71 +66,94 @@
 .skillTools {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
 
 .toolTag {
-  padding: 2px 8px;
-  font-size: 11px;
+  padding: 3px 10px;
+  font-size: 12px;
   font-family: var(--font-mono);
   color: var(--accent-cyan);
   background: rgba(34, 211, 238, 0.08);
   border: 1px solid rgba(34, 211, 238, 0.15);
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
-/* 工具区域 */
+/* ===== 工具折叠列表 ===== */
 .categoryGroup {
-  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-color);
 }
 
-.categoryTitle {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.categoryGroup:last-child {
+  border-bottom: none;
 }
 
-.toolsGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 8px;
-}
-
-.toolCard {
-  padding: 12px 14px;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-}
-
-.toolHeader {
+.categoryToggle {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
 }
 
-.toolHeader strong {
+.categoryToggle:hover {
+  color: var(--accent-cyan);
+}
+
+.chevron,
+.chevronOpen {
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+  width: 14px;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.toolCount {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--card-bg);
+  padding: 1px 8px;
+  border-radius: 10px;
+}
+
+.toolsList {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 12px;
+}
+
+.toolRow {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0 6px 22px;
+}
+
+.toolName {
   font-size: 13px;
   font-family: var(--font-mono);
   font-weight: 600;
   color: var(--text-primary);
-}
-
-.riskBadge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border: 1px solid;
-  border-radius: 4px;
+  flex-shrink: 0;
+  min-width: 140px;
 }
 
 .toolDesc {
-  margin: 0;
   font-size: 12px;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.4;
 }
