@@ -38,6 +38,7 @@ import MemoryPanel from '../Memory/MemoryPanel';
 import DebugPanel from '../Debug/DebugPanel';
 import ModelApiPanel from '../Settings/ModelApiPanel';
 import SystemPromptPanel from '../Settings/SystemPromptPanel';
+import ToolsPanel from '../Tools/ToolsPanel';
 import VoicePanel from '../Settings/VoicePanel';
 import SearchPanel from '../Settings/SearchPanel';
 import ShortcutsPanel from '../Settings/ShortcutsPanel';
@@ -119,7 +120,7 @@ const LEGACY_STORAGE_KEY_ACTIVE_CHAT = 'qiyuan_active_chat_id';
 const STORAGE_KEY_ACTIVE_VIEW = 'nova.activeView';
 const LEGACY_STORAGE_KEY_ACTIVE_VIEW = 'qiyuan_active_view';
 
-type AppView = 'chat' | 'workspace' | 'knowledge' | 'memory' | 'settings';
+type AppView = 'chat' | 'workspace' | 'knowledge' | 'memory' | 'tools' | 'settings';
 type SettingsPageTab = 'model-api' | 'voice' | 'search' | 'shortcuts' | 'diagnostics' | 'system-prompt';
 
 const navIcons: Record<string, JSX.Element> = {
@@ -148,6 +149,11 @@ const navIcons: Record<string, JSX.Element> = {
       <circle cx="12" cy="12" r="4" />
     </svg>
   ),
+  tools: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+    </svg>
+  ),
   settings: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
       <circle cx="12" cy="12" r="3" />
@@ -161,6 +167,7 @@ const appViews: { id: AppView; label: string; description: string }[] = [
   { id: 'workspace', label: '工作台', description: '查看知识库、记忆、工具日志和评估概览' },
   { id: 'knowledge', label: '知识库', description: '导入、检索和管理本地知识片段' },
   { id: 'memory', label: '记忆库', description: '查看和管理 Nova 记住的长期信息' },
+  { id: 'tools', label: '工具', description: '查看所有可用工具和技能' },
   { id: 'settings', label: '设置', description: '配置模型、语音、搜索和快捷键' },
 ];
 
@@ -761,6 +768,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         return <KnowledgePanel />;
       case 'memory':
         return <MemoryPanel />;
+      case 'tools':
+        return <ToolsPanel />;
       case 'settings':
         return (
           <div className={styles.settingsPage}>
