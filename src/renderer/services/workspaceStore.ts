@@ -22,10 +22,39 @@ export interface EvalCase {
   notes?: string;
 }
 
+export interface ModelContextMessagePreview {
+  index: number;
+  role: string;
+  textPreview: string;
+  imageCount: number;
+  hasReasoning: boolean;
+  toolCallCount: number;
+  toolCallId?: string;
+}
+
+export interface ModelContextSnapshot {
+  id: string;
+  traceId?: string;
+  chatId?: string | null;
+  provider: string;
+  model: string;
+  rawCount: number;
+  normalizedCount: number;
+  sanitizedCount: number;
+  roles: string[];
+  hasToolCalls: boolean;
+  hasToolMessages: boolean;
+  droppedCount: number;
+  droppedReasonCounts: Record<string, number>;
+  messagesPreview: ModelContextMessagePreview[];
+  createdAt: number;
+}
+
 const TOOL_LOGS_KEY = 'nova.tool.call.logs';
 const LEGACY_TOOL_LOGS_KEY = 'qiyuan_tool_call_logs';
 const EVAL_CASES_KEY = 'nova.eval.cases';
 const LEGACY_EVAL_CASES_KEY = 'qiyuan_eval_cases';
+const MODEL_CONTEXT_SNAPSHOTS_KEY = 'nova.debug.model_context_snapshots';
 
 const now = () => Date.now();
 const id = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -57,6 +86,23 @@ export function getToolLogs(): ToolCallLog[] {
 
 export function clearToolLogs(): void {
   writeJson(TOOL_LOGS_KEY, [], LEGACY_TOOL_LOGS_KEY);
+}
+
+export function addModelContextSnapshot(snapshot: Omit<ModelContextSnapshot, 'id' | 'createdAt'>): ModelContextSnapshot {
+  const snapshots = getModelContextSnapshots();
+  const next: ModelContextSnapshot = { ...snapshot, id: id('ctx'), createdAt: now() };
+  writeJson(MODEL_CONTEXT_SNAPSHOTS_KEY, [next, ...snapshots].slice(0, 50));
+  window.dispatchEvent(new CustomEvent('nova-model-context-snapshot-updated'));
+  return next;
+}
+
+export function getModelContextSnapshots(): ModelContextSnapshot[] {
+  return readJson<ModelContextSnapshot[]>(MODEL_CONTEXT_SNAPSHOTS_KEY, []);
+}
+
+export function clearModelContextSnapshots(): void {
+  writeJson(MODEL_CONTEXT_SNAPSHOTS_KEY, []);
+  window.dispatchEvent(new CustomEvent('nova-model-context-snapshot-updated'));
 }
 
 export function getEvalCases(): EvalCase[] {

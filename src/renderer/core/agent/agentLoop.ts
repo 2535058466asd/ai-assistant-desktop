@@ -23,6 +23,7 @@ import { getResolvedRuntimeModel, resolveModelForRequest } from '../model/modelR
 import { getErrorMessage } from '../model/modelErrorHandler';
 import { DEFAULT_MODEL_CONTEXT_MESSAGES, buildModelContextWithDiagnostics, hasValidToolCallArguments } from '../conversation/conversationContext';
 import { createLogger, type LogMeta } from '../../../shared/logger';
+import { addModelContextSnapshot } from '../../services/workspaceStore';
 
 const logger = createLogger('mainAgent');
 
@@ -612,6 +613,22 @@ export class AgentLoop {
       ...meta,
       phase: 'model',
       provider: runtime.provider,
+      rawCount: context.diagnostics.rawCount,
+      normalizedCount: context.diagnostics.normalizedCount,
+      sanitizedCount: context.diagnostics.sanitizedCount,
+      roles: context.diagnostics.roles,
+      hasToolCalls: context.diagnostics.hasToolCalls,
+      hasToolMessages: context.diagnostics.hasToolMessages,
+      droppedCount: context.diagnostics.dropped.length,
+      droppedReasonCounts,
+      messagesPreview: contextPreview,
+    });
+
+    addModelContextSnapshot({
+      traceId: meta.traceId,
+      chatId: meta.chatId,
+      provider: runtime.provider,
+      model: requestModel,
       rawCount: context.diagnostics.rawCount,
       normalizedCount: context.diagnostics.normalizedCount,
       sanitizedCount: context.diagnostics.sanitizedCount,

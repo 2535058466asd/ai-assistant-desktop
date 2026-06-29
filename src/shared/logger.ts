@@ -28,6 +28,16 @@ export interface LogMeta {
   [key: string]: unknown;
 }
 
+export interface BufferedLogEntry {
+  id: string;
+  level: LogLevel;
+  module: string;
+  label: string;
+  message: string;
+  meta?: unknown;
+  createdAt: number;
+}
+
 const levelWeight: Record<LogLevel, number> = {
   debug: 10,
   info: 20,
@@ -75,6 +85,32 @@ const moduleColor: Record<LogModule, string> = {
 
 export function createTraceId(): string {
   return `trc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+const LOG_BUFFER_LIMIT = 300;
+const rendererLogBuffer: BufferedLogEntry[] = [];
+
+function pushBufferedLog(entry: Omit<BufferedLogEntry, 'id' | 'createdAt'>): void {
+  if (typeof window === 'undefined') return;
+  const next: BufferedLogEntry = {
+    ...entry,
+    id: `log-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: Date.now(),
+  };
+  rendererLogBuffer.unshift(next);
+  rendererLogBuffer.splice(LOG_BUFFER_LIMIT);
+  window.dispatchEvent(new CustomEvent('nova-log-buffer-updated'));
+}
+
+export function getBufferedLogs(): BufferedLogEntry[] {
+  return [...rendererLogBuffer];
+}
+
+export function clearBufferedLogs(): void {
+  rendererLogBuffer.splice(0);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('nova-log-buffer-updated'));
+  }
 }
 
 function getMinLevel(): LogLevel {
@@ -138,6 +174,13 @@ export function createLogger(moduleName: LogModule) {
     const prefix = `[${moduleLabel[moduleName] || moduleName}] ${message}`;
     const rawPayload = extra.length > 0 ? [meta, ...extra] : meta;
     const payload = rawPayload === undefined ? undefined : redact(rawPayload);
+    pushBufferedLog({
+      level,
+      module: moduleName,
+      label: moduleLabel[moduleName] || moduleName,
+      message,
+      meta: payload,
+    });
     const args = supportsConsoleStyle()
       ? payload === undefined
         ? [`%c${prefix}`, `color:${moduleColor[moduleName]};font-weight:600`]
