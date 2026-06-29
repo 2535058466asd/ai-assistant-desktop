@@ -39,6 +39,10 @@ lerna-debug.log*
 .agents/
 skills-lock.json
 
+# AI tool local state
+.mimocode/
+.claude/
+
 # Local test media and scratch files
 sample.mp4
 *.tmp
