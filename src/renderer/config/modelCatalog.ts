@@ -38,6 +38,13 @@ const MODEL_CATALOG: Record<ModelProviderId, ProviderModelCatalog> = {
       { id: 'mimo-v2.5-pro', name: 'MiMo 2.5 Pro', isOnline: true },
     ],
   },
+  deepseek: {
+    defaultModel: 'deepseek-v4-flash',
+    models: [
+      { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', isOnline: true },
+      { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', isOnline: true },
+    ],
+  },
   'openai-compatible': {
     defaultModel: 'gpt-4',
     models: [

@@ -1,4 +1,4 @@
-export type ModelProviderId = 'doubao' | 'openai-compatible' | 'mimo';
+export type ModelProviderId = 'doubao' | 'openai-compatible' | 'mimo' | 'deepseek';
 
 /**
  * 当前真正生效的模型配置。
@@ -22,6 +22,8 @@ const DEFAULT_MIMO_MODEL = 'mimo-v2.5';
 const DEFAULT_MIMO_BASE_URL = 'https://api.xiaomimimo.com/v1';
 const MIMO_ORDINARY_API_HOST = 'api.xiaomimimo.com/v1';
 const MIMO_TOKEN_PLAN_HOST = 'token-plan-cn.xiaomimimo.com/v1';
+const DEFAULT_DEEPSEEK_MODEL = 'deepseek-v4-flash';
+const DEFAULT_DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
 
 const KEYS = {
   provider: 'nova.model.provider',
@@ -60,6 +62,10 @@ const KEYS = {
   legacyOpenaiModel: 'qiyuan.openai.model',
   openaiCompactModel: 'nova.openai.compactModel',
   legacyOpenaiCompactModel: 'qiyuan.openai.compactModel',
+  deepseekApiKey: 'nova.deepseek.apiKey',
+  deepseekBaseUrl: 'nova.deepseek.baseUrl',
+  deepseekModel: 'nova.deepseek.model',
+  deepseekCompactModel: 'nova.deepseek.compactModel',
 } as const;
 
 // 读取设置页保存的值。服务端构建阶段没有 window，所以要先判断。
@@ -87,7 +93,7 @@ function readNumber(value: string, fallback: number): number {
 }
 
 function normalizeProvider(value: string): ModelProviderId {
-  if (value === 'mimo' || value === 'openai-compatible' || value === 'doubao') return value;
+  if (value === 'mimo' || value === 'openai-compatible' || value === 'doubao' || value === 'deepseek') return value;
   return 'doubao';
 }
 
@@ -181,6 +187,23 @@ export function getModelConfigForProvider(provider: ModelProviderId): ActiveMode
     };
   }
 
+  if (provider === 'deepseek') {
+    const model = firstValue(
+      readStored(KEYS.deepseekModel),
+      readEnv('VITE_DEEPSEEK_MODEL'),
+      DEFAULT_DEEPSEEK_MODEL,
+    );
+    return {
+      provider,
+      apiKey: firstValue(readStored(KEYS.deepseekApiKey), readEnv('VITE_DEEPSEEK_API_KEY')),
+      baseUrl: firstValue(readStored(KEYS.deepseekBaseUrl), readEnv('VITE_DEEPSEEK_BASE_URL'), DEFAULT_DEEPSEEK_BASE_URL),
+      model,
+      compactModel: firstValue(readStored(KEYS.deepseekCompactModel), model),
+      temperature,
+      maxTokens,
+    };
+  }
+
   if (provider === 'openai-compatible') {
     // 给 DeepSeek、OpenRouter、LM Studio、Ollama 兼容服务等预留的通用入口。
     const model = firstValue(
@@ -230,7 +253,7 @@ export function getActiveModelConfig(): ActiveModelConfig {
 
 export function saveActiveModelConfig(config: ActiveModelConfig): void {
   if (typeof window === 'undefined') return;
-  // 通用键用于当前 Provider；Provider 专属键用于切换回来时恢复各自配置。
+  // 通用键用于 getActiveModelConfig
   writeStored(KEYS.provider, config.provider, KEYS.legacyProvider);
   writeStored(KEYS.modelApiKey, config.apiKey, KEYS.legacyModelApiKey);
   writeStored(KEYS.modelBaseUrl, config.baseUrl, KEYS.legacyModelBaseUrl);
@@ -238,6 +261,7 @@ export function saveActiveModelConfig(config: ActiveModelConfig): void {
   writeStored(KEYS.modelTemperature, String(config.temperature), KEYS.legacyModelTemperature);
   writeStored(KEYS.modelMaxTokens, String(config.maxTokens), KEYS.legacyModelMaxTokens);
 
+  // 同时写 provider 专属键，让 getModelConfigForProvider 能读到
   if (config.provider === 'doubao') {
     writeStored(KEYS.doubaoApiKey, config.apiKey, KEYS.legacyDoubaoApiKey);
     writeStored(KEYS.doubaoModel, config.model, KEYS.legacyDoubaoModel);
@@ -248,6 +272,11 @@ export function saveActiveModelConfig(config: ActiveModelConfig): void {
     writeStored(KEYS.mimoBaseUrl, config.baseUrl, KEYS.legacyMimoBaseUrl);
     writeStored(KEYS.mimoModel, config.model, KEYS.legacyMimoModel);
     writeStored(KEYS.mimoCompactModel, config.compactModel, KEYS.legacyMimoCompactModel);
+  } else if (config.provider === 'deepseek') {
+    writeStored(KEYS.deepseekApiKey, config.apiKey);
+    writeStored(KEYS.deepseekBaseUrl, config.baseUrl);
+    writeStored(KEYS.deepseekModel, config.model);
+    writeStored(KEYS.deepseekCompactModel, config.compactModel);
   } else {
     writeStored(KEYS.openaiApiKey, config.apiKey, KEYS.legacyOpenaiApiKey);
     writeStored(KEYS.openaiBaseUrl, config.baseUrl, KEYS.legacyOpenaiBaseUrl);

@@ -36,6 +36,7 @@ export function resolveModelForRequest(runtime: ResolvedModelRuntime, hasImageAt
 export function inferProviderFromModelId(modelId: string, currentProvider?: ModelProviderId | null): ModelProviderId | null {
   if (currentProvider === 'mimo' && modelId.startsWith('mimo-')) return 'mimo';
   if (currentProvider === 'doubao' && modelId.startsWith('doubao-')) return 'doubao';
+  if (currentProvider === 'deepseek' && modelId.startsWith('deepseek-')) return 'deepseek';
   if (currentProvider === 'openai-compatible') {
     const known = getModelsForProvider('openai-compatible').some((model) => model.id === modelId);
     if (known) return 'openai-compatible';
@@ -43,6 +44,7 @@ export function inferProviderFromModelId(modelId: string, currentProvider?: Mode
 
   if (modelId.startsWith('mimo-')) return 'mimo';
   if (modelId.startsWith('doubao-')) return 'doubao';
+  if (modelId.startsWith('deepseek-')) return 'deepseek';
   if (getModelsForProvider('openai-compatible').some((model) => model.id === modelId)) return 'openai-compatible';
 
   return currentProvider || null;

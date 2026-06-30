@@ -8,6 +8,7 @@ const logger = createLogger('ui');
 
 const PROVIDER_OPTIONS = [
   { value: 'doubao', label: '豆包 (火山引擎)' },
+  { value: 'deepseek', label: 'DeepSeek' },
   { value: 'openai-compatible', label: 'OpenAI Compatible' },
   { value: 'mimo', label: '小米 MiMo' },
 ];
@@ -148,7 +149,7 @@ export default function ModelApiPanel() {
           type="text"
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder={provider === 'doubao' ? 'https://ark.cn-beijing.volces.com/api/v3/chat/completions' : provider === 'mimo' ? 'https://api.xiaomimimo.com/v1' : 'https://api.deepseek.com/v1'}
+          placeholder={provider === 'doubao' ? 'https://ark.cn-beijing.volces.com/api/v3/chat/completions' : provider === 'mimo' ? 'https://api.xiaomimimo.com/v1' : provider === 'deepseek' ? 'https://api.deepseek.com/v1' : 'https://api.openai.com/v1'}
         />
         <label className={styles.label}>
           模型名称
@@ -177,7 +178,7 @@ export default function ModelApiPanel() {
             type="text"
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder={provider === 'doubao' ? 'doubao-seed-2-0-pro-260215' : provider === 'mimo' ? 'mimo-v2.5' : 'deepseek-chat'}
+            placeholder={provider === 'doubao' ? 'doubao-seed-2-0-pro-260215' : provider === 'mimo' ? 'mimo-v2.5' : provider === 'deepseek' ? 'deepseek-v4-flash' : 'gpt-4o'}
           />
         )}
       </div>

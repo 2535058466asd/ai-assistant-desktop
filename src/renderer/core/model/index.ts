@@ -22,10 +22,10 @@ export function createModelProvider(config: ActiveModelConfig = getActiveModelCo
       compactModel: config.compactModel,
     });
   }
-  if (config.provider === 'openai-compatible') {
+  if (config.provider === 'openai-compatible' || config.provider === 'deepseek') {
     return new OpenAICompatibleProvider({
-      id: 'openai-compatible',
-      displayName: 'OpenAI Compatible',
+      id: config.provider,
+      displayName: config.provider === 'deepseek' ? 'DeepSeek' : 'OpenAI Compatible',
       baseUrl: config.baseUrl,
       apiKey: config.apiKey,
       defaultModel: config.model,
