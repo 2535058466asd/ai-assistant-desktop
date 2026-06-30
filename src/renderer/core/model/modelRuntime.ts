@@ -92,8 +92,9 @@ export function getResolvedRuntimeModel(requestedModelId?: string): ResolvedMode
 }
 
 export function syncProviderConfigForModel(modelId: string): ResolvedModelRuntime {
-  const genericConfig = getActiveModelConfig();
-  const provider = inferProviderFromModelId(modelId, genericConfig.provider) || genericConfig.provider;
+  // 从 provider 专属 key 读当前 provider，不根据 model ID 推断
+  const activeConfig = getActiveModelConfig();
+  const provider = activeConfig.provider;
   const baseConfig = getModelConfigForProvider(provider);
   const normalized = normalizeModelSelection(provider, modelId);
   const nextConfig: ActiveModelConfig = {

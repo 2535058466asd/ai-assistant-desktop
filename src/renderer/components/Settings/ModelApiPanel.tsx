@@ -38,9 +38,9 @@ export default function ModelApiPanel() {
   const handleProviderChange = (newProvider: ModelProviderId) => {
     setProvider(newProvider);
     const config = getModelConfigForProvider(newProvider);
+    console.log('[Settings] 切换 Provider', { newProvider, apiKey: config.apiKey?.slice(0, 10) + '...', baseUrl: config.baseUrl, model: config.model });
     setApiKey(config.apiKey);
     setBaseUrl(config.baseUrl);
-    // config.model 已经是该 provider 自己的 model（读的是 provider 专属 key）
     setModel(config.model);
     setAvailableModels([]);
   };
