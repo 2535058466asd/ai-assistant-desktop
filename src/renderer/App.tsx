@@ -28,7 +28,6 @@ import type { StreamCallbacks } from './core/orchestrator';
 import { createLogger, type LogMeta } from '../shared/logger';
 import { createModelProvider, setModelProvider } from './core/model';
 import { syncProviderConfigForModel } from './core/model/modelRuntime';
-import { fetchModelsForProvider } from './config/modelCatalog';
 import { syncSearchConfig } from './config/searchConfig';
 import { upsertById } from './utils/storage';
 import { buildDisplayMessages } from './core/conversation/conversationContext';
@@ -69,11 +68,6 @@ function AppContent() {
   useEffect(() => {
     syncSearchConfig().catch((error) => {
       logger.error('搜索配置初始化失败', { error });
-    });
-    // 启动时自动获取当前 provider 的模型列表
-    import('./config/modelConfig').then(({ getActiveModelConfig }) => {
-      const config = getActiveModelConfig();
-      fetchModelsForProvider(config.provider).catch(() => {});
     });
   }, []);
 
@@ -258,8 +252,6 @@ function AppContent() {
     logger.info('用户切换模型', { modelId: runtime.modelId, provider: runtime.provider });
     setModelProvider(createModelProvider(runtime.config));
     orchestratorRef.current.setModel(runtime.modelId);
-    // 异步获取当前 provider 的模型列表，更新聊天页下拉
-    fetchModelsForProvider(runtime.provider).catch(() => {});
   };
 
   const handleClearMessages = useCallback((meta: LogMeta = {}) => {
