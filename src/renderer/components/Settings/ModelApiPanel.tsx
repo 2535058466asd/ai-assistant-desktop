@@ -65,14 +65,14 @@ export default function ModelApiPanel() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const needsBaseUrl = provider === 'openai-compatible' || provider === 'mimo';
-
   const handleFetchModels = async () => {
     if (!apiKey || !baseUrl) return;
     setFetchingModels(true);
     setAvailableModels([]);
     try {
-      const url = baseUrl.replace(/\/+$/, '') + '/models';
+      // 去掉末尾的 /chat/completions 再拼 /models
+      const base = baseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+      const url = base + '/models';
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${apiKey}` },
       });
@@ -136,32 +136,26 @@ export default function ModelApiPanel() {
           type="password"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder={provider === 'mimo' ? 'sk-...' : 'sk-...'}
+          placeholder="sk-..."
         />
-        {needsBaseUrl && (
-          <>
-            <label className={styles.label}>Base URL</label>
-            <input
-              className={styles.input}
-              type="text"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder={provider === 'mimo' ? 'https://api.xiaomimimo.com/v1' : 'https://api.example.com/v1'}
-            />
-          </>
-        )}
+        <label className={styles.label}>Base URL</label>
+        <input
+          className={styles.input}
+          type="text"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder={provider === 'doubao' ? 'https://ark.cn-beijing.volces.com/api/v3/chat/completions' : provider === 'mimo' ? 'https://api.xiaomimimo.com/v1' : 'https://api.deepseek.com/v1'}
+        />
         <label className={styles.label}>
           模型名称
-          {provider === 'openai-compatible' && (
-            <button
-              type="button"
-              className={styles.btnFetch}
-              onClick={handleFetchModels}
-              disabled={fetchingModels || !apiKey || !baseUrl}
-            >
-              {fetchingModels ? '获取中...' : '获取模型列表'}
-            </button>
-          )}
+          <button
+            type="button"
+            className={styles.btnFetch}
+            onClick={handleFetchModels}
+            disabled={fetchingModels || !apiKey || !baseUrl}
+          >
+            {fetchingModels ? '获取中...' : '获取模型列表'}
+          </button>
         </label>
         {availableModels.length > 0 ? (
           <select
