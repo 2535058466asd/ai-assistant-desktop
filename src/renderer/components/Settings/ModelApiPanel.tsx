@@ -16,6 +16,7 @@ export default function ModelApiPanel() {
   const [provider, setProvider] = useState<ModelProviderId>('doubao');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
+  const [model, setModel] = useState('');
   const [temperature, setTemperature] = useState(0.8);
   const [maxTokens, setMaxTokens] = useState(1024);
   const [saved, setSaved] = useState(false);
@@ -27,6 +28,7 @@ export default function ModelApiPanel() {
     setProvider(config.provider);
     setApiKey(config.apiKey);
     setBaseUrl(config.baseUrl);
+    setModel(config.model);
     setTemperature(config.temperature);
     setMaxTokens(config.maxTokens);
   }, []);
@@ -36,6 +38,7 @@ export default function ModelApiPanel() {
     const config = getModelConfigForProvider(newProvider);
     setApiKey(config.apiKey);
     setBaseUrl(config.baseUrl);
+    setModel(config.model);
   };
 
   const handleSave = () => {
@@ -43,6 +46,7 @@ export default function ModelApiPanel() {
       provider,
       apiKey,
       baseUrl,
+      model,
       temperature,
       maxTokens,
     });
@@ -123,6 +127,14 @@ export default function ModelApiPanel() {
             />
           </>
         )}
+        <label className={styles.label}>模型名称</label>
+        <input
+          className={styles.input}
+          type="text"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          placeholder={provider === 'doubao' ? 'doubao-seed-2-0-pro-260215' : provider === 'mimo' ? 'mimo-v2.5' : 'deepseek-chat'}
+        />
       </div>
 
       <div className={styles.section}>

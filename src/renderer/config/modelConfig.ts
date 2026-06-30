@@ -256,13 +256,13 @@ export function saveActiveModelConfig(config: ActiveModelConfig): void {
   }
 }
 
-export function saveProviderConnectionConfig(config: Pick<ActiveModelConfig, 'provider' | 'apiKey' | 'baseUrl' | 'temperature' | 'maxTokens'>): ActiveModelConfig {
+export function saveProviderConnectionConfig(config: Pick<ActiveModelConfig, 'provider' | 'apiKey' | 'baseUrl' | 'temperature' | 'maxTokens'> & { model?: string }): ActiveModelConfig {
   const current = getModelConfigForProvider(config.provider);
   const nextConfig: ActiveModelConfig = {
     ...current,
     ...config,
-    model: current.model,
-    compactModel: current.compactModel || current.model,
+    model: config.model || current.model,
+    compactModel: current.compactModel || config.model || current.model,
   };
   saveActiveModelConfig(nextConfig);
   return nextConfig;
