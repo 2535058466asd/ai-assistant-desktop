@@ -28,6 +28,29 @@
   font-size: 12px;
   color: var(--text-secondary);
   margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btnFetch {
+  padding: 2px 8px;
+  background: transparent;
+  border: 1px solid var(--accent-color, #2E86C1);
+  border-radius: 4px;
+  color: var(--accent-color, #2E86C1);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btnFetch:hover:not(:disabled) {
+  background: rgba(46, 134, 193, 0.1);
+}
+
+.btnFetch:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .input {

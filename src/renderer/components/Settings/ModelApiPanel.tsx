@@ -22,6 +22,8 @@ export default function ModelApiPanel() {
   const [saved, setSaved] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
 
   useEffect(() => {
     const config = getActiveModelConfig();
@@ -39,6 +41,7 @@ export default function ModelApiPanel() {
     setApiKey(config.apiKey);
     setBaseUrl(config.baseUrl);
     setModel(config.model);
+    setAvailableModels([]);
   };
 
   const handleSave = () => {
@@ -63,6 +66,26 @@ export default function ModelApiPanel() {
   };
 
   const needsBaseUrl = provider === 'openai-compatible' || provider === 'mimo';
+
+  const handleFetchModels = async () => {
+    if (!apiKey || !baseUrl) return;
+    setFetchingModels(true);
+    setAvailableModels([]);
+    try {
+      const url = baseUrl.replace(/\/+$/, '') + '/models';
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const ids = (data.data || []).map((m: any) => m.id).sort();
+      setAvailableModels(ids);
+      if (ids.length > 0 && !model) setModel(ids[0]);
+    } catch (e: any) {
+      setTestResult({ ok: false, message: `获取模型失败: ${e.message}` });
+    }
+    setFetchingModels(false);
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -127,14 +150,38 @@ export default function ModelApiPanel() {
             />
           </>
         )}
-        <label className={styles.label}>模型名称</label>
-        <input
-          className={styles.input}
-          type="text"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder={provider === 'doubao' ? 'doubao-seed-2-0-pro-260215' : provider === 'mimo' ? 'mimo-v2.5' : 'deepseek-chat'}
-        />
+        <label className={styles.label}>
+          模型名称
+          {provider === 'openai-compatible' && (
+            <button
+              type="button"
+              className={styles.btnFetch}
+              onClick={handleFetchModels}
+              disabled={fetchingModels || !apiKey || !baseUrl}
+            >
+              {fetchingModels ? '获取中...' : '获取模型列表'}
+            </button>
+          )}
+        </label>
+        {availableModels.length > 0 ? (
+          <select
+            className={styles.select}
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+          >
+            {availableModels.map((id) => (
+              <option key={id} value={id}>{id}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            className={styles.input}
+            type="text"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder={provider === 'doubao' ? 'doubao-seed-2-0-pro-260215' : provider === 'mimo' ? 'mimo-v2.5' : 'deepseek-chat'}
+          />
+        )}
       </div>
 
       <div className={styles.section}>
