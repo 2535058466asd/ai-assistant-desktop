@@ -1,43 +1,29 @@
-import React, { useEffect, useState } from 'react';
+/**
+ * WorkspaceDashboard — 运维总览（纯展示，不跳转）
+ *
+ * 一眼看完系统状态：指标卡片 + 费用概要 + 工具调用 + 记忆 + 知识库
+ * 详情请到侧边栏对应的独立页面查看。
+ */
+
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import styles from './WorkspaceDashboard.module.css';
 import type { Message } from '../../types';
-import { getEvalCases, getToolLogs, type EvalCase, type ToolCallLog } from '../../services/workspaceStore';
+import { getToolLogs, type ToolCallLog } from '../../core/history/workspaceStore';
 import { createLogger } from '../../../shared/logger';
+import { TOOLS } from '../../core/tools/toolRegistry';
+import { getUsageStats } from '../../core/cost/costTracker';
 
 const logger = createLogger('ui');
 
-interface KnowledgeStats {
-  count: number;
-  collections: string[];
-}
+interface KnowledgeStats { count: number; collections: string[]; }
+interface KnowledgeSource { source: string; category: string; count: number; createdAt?: string; }
+interface MemoryItem { id: string; content: string; category: string; updated_at: number; }
+interface WorkspaceDashboardProps { messages: Message[]; }
 
-interface KnowledgeSource {
-  source: string;
-  category: string;
-  count: number;
-  createdAt?: string;
-}
+const fmtTime = (ts: number) =>
+  new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(ts));
 
-interface MemoryItem {
-  id: string;
-  content: string;
-  category: string;
-  updated_at: number;
-}
-
-interface WorkspaceDashboardProps {
-  messages: Message[];
-}
-
-const formatTime = (timestamp: number) => {
-  if (!timestamp) return '未知';
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(timestamp));
-};
+const fmtDuration = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
 
 const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages }) => {
   const api = (window as any).electronAPI;
@@ -45,149 +31,158 @@ const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages }) => 
   const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>([]);
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [toolLogs, setToolLogs] = useState<ToolCallLog[]>([]);
-  const [evalCases, setEvalCases] = useState<EvalCase[]>([]);
 
-  const refreshLocalState = () => {
-    setToolLogs(getToolLogs());
-    setEvalCases(getEvalCases());
-  };
+  const refresh = useCallback(() => setToolLogs(getToolLogs()), []);
 
   useEffect(() => {
-    refreshLocalState();
-
-    const loadSystemData = async () => {
+    refresh();
+    const load = async () => {
       try {
-        const [memoryResult, statsResult, sourcesResult] = await Promise.all([
-          api?.memoryGetAllMemories?.(),
-          api?.knowledgeStats?.(),
-          api?.knowledgeSources?.(),
+        const [mem, stats, src] = await Promise.all([
+          api?.memoryGetAllMemories?.(), api?.knowledgeStats?.(), api?.knowledgeSources?.(),
         ]);
-
-        if (Array.isArray(memoryResult)) {
-          setMemories(memoryResult.filter((memory: any) => !memory.status || memory.status === 'active'));
-        }
-
-        if (statsResult?.success) {
-          setKnowledgeStats(statsResult.data);
-        }
-
-        if (sourcesResult?.success && Array.isArray(sourcesResult.data)) {
-          setKnowledgeSources(sourcesResult.data);
-        }
-      } catch (error) {
-        logger.error('加载工作台统计失败', error);
-      }
+        if (Array.isArray(mem)) setMemories(mem.filter((m: any) => !m.status || m.status === 'active'));
+        if (stats?.success) setKnowledgeStats(stats.data);
+        if (src?.success && Array.isArray(src.data)) setKnowledgeSources(src.data);
+      } catch (e) { logger.error('加载工作台统计失败', e); }
     };
+    load();
+    const t = window.setInterval(refresh, 3000);
+    return () => window.clearInterval(t);
+  }, [api, refresh]);
 
-    loadSystemData();
-    const timer = window.setInterval(refreshLocalState, 3000);
-    return () => window.clearInterval(timer);
-  }, [api]);
-
-  const recentMemories = [...memories].sort((a, b) => b.updated_at - a.updated_at).slice(0, 4);
-  const recentToolLogs = [...toolLogs].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
-  const failedToolLogs = toolLogs.filter((log) => log.status === 'error');
-  const testedEvalCases = evalCases.filter((item) => item.status !== 'untested');
-  const failedEvalCases = evalCases.filter((item) => item.status === 'fail');
-  const passRate = testedEvalCases.length
-    ? Math.round(((testedEvalCases.length - failedEvalCases.length) / testedEvalCases.length) * 100)
-    : 0;
-
-  const metrics = [
-    { label: '知识来源', value: knowledgeSources.length },
-    { label: '知识片段', value: knowledgeStats?.count ?? 0 },
-    { label: '长期记忆', value: memories.length },
-    { label: '工具日志', value: toolLogs.length },
-  ];
+  const recentMemories = useMemo(() => [...memories].sort((a, b) => b.updated_at - a.updated_at).slice(0, 3), [memories]);
+  const recentLogs = useMemo(() => [...toolLogs].sort((a, b) => b.createdAt - a.createdAt).slice(0, 6), [toolLogs]);
+  const failedCount = toolLogs.filter((l) => l.status === 'error').length;
+  const costStats = useMemo(() => getUsageStats(), [toolLogs]);
+  const todayCost = useMemo(() => {
+    const s = new Date(); s.setHours(0, 0, 0, 0);
+    return getUsageStats({ since: s.getTime() });
+  }, [toolLogs]);
+  const avgDuration = useMemo(() =>
+    toolLogs.length ? Math.round(toolLogs.reduce((s, l) => s + l.durationMs, 0) / toolLogs.length) : 0
+  , [toolLogs]);
+  const successRate = useMemo(() =>
+    toolLogs.length ? Math.round(((toolLogs.length - failedCount) / toolLogs.length) * 100) : 100
+  , [toolLogs, failedCount]);
 
   return (
     <section className={styles.dashboard}>
-      <div className={styles.hero}>
-        <h1 className={styles.title}>运行总览</h1>
-        <p className={styles.subtitle}>集中查看知识库、长期记忆、工具日志，快速判断 Nova 当前是否健康。</p>
-      </div>
-
+      {/* 指标卡片 */}
       <div className={styles.metricsGrid}>
-        {metrics.map((metric) => (
-          <div key={metric.label} className={styles.metricCard}>
-            <strong>{metric.value}</strong>
-            <span>{metric.label}</span>
+        {[
+          { icon: '📚', label: '知识库', value: knowledgeStats?.count ?? 0, sub: `${knowledgeSources.length} 个来源` },
+          { icon: '🧠', label: '记忆', value: memories.length, sub: '条生效' },
+          { icon: '🔧', label: '工具', value: toolLogs.length, sub: failedCount > 0 ? `${failedCount} 次失败` : '全部成功', accent: failedCount > 0 ? '#ef4444' : undefined },
+          { icon: '💰', label: '今日费用', value: `$${todayCost.totalCost.toFixed(2)}`, sub: `${todayCost.totalRecords} 次` },
+          { icon: '💬', label: '消息', value: messages.length, sub: '当前对话' },
+        ].map((c) => (
+          <div key={c.label} className={styles.metricCard}>
+            <div className={styles.metricIcon}>{c.icon}</div>
+            <div className={styles.metricValue} style={c.accent ? { color: c.accent } : undefined}>{c.value}</div>
+            <div className={styles.metricLabel}>{c.label}</div>
+            <div className={styles.metricSub}>{c.sub}</div>
           </div>
         ))}
       </div>
 
-      <div className={styles.mainGrid}>
-        <article className={styles.focusPanel}>
-          <div className={styles.panelTopline}>
-            <span>系统状态</span>
-            <small>{messages.length} 条当前会话消息</small>
+      {/* 费用与耗时 + 工具调用 */}
+      <div className={styles.activityGrid}>
+        {/* 费用与耗时 */}
+        <div className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div className={styles.panelTitle}>💰 费用与耗时</div>
           </div>
-          <div className={styles.focusHeader}>
-            <div>
-              <h2>Nova 桌面 AI Agent</h2>
-              <p>核心能力集中在多模型对话、RAG 知识库、长期记忆、工具调用和可观测日志。</p>
+          <div className={styles.panelSummary}>
+            <div className={styles.summaryItem}>
+              <span>累计费用</span>
+              <strong>${costStats.totalCost.toFixed(2)}</strong>
             </div>
-            <span className={`${styles.statusPill} ${styles.active}`}>运行中</span>
-          </div>
-
-          <div className={styles.focusSplit}>
-            <div className={styles.miniBlock}>
-              <span>知识库</span>
-              <p>{knowledgeSources.length} 个来源，{knowledgeStats?.count ?? 0} 个片段。</p>
+            <div className={styles.summaryItem}>
+              <span>今日费用</span>
+              <strong>${todayCost.totalCost.toFixed(2)}</strong>
             </div>
-
-            <div className={styles.miniBlock}>
-              <span>长期记忆</span>
-              <p>{memories.length} 条生效记忆，会在对话前按相关性注入。</p>
+            <div className={styles.summaryItem}>
+              <span>平均耗时</span>
+              <strong>{fmtDuration(avgDuration)}</strong>
             </div>
-
-            <div className={styles.miniBlock}>
-              <span>工具调用</span>
-              <p>{toolLogs.length} 条日志，最近失败 {failedToolLogs.length} 条。</p>
+            <div className={styles.summaryItem}>
+              <span>成功率</span>
+              <strong style={{ color: successRate >= 90 ? '#22c55e' : '#ef4444' }}>{successRate}%</strong>
             </div>
           </div>
-        </article>
+        </div>
 
-        <div className={styles.secondarySplit}>
-          <article className={styles.queuePanel}>
-            <div className={styles.panelTopline}>
-              <span>最近工具日志</span>
-              <small>{failedToolLogs.length} 条失败</small>
+        {/* 工具调用 */}
+        <div className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div className={styles.panelTitle}>🔧 工具调用</div>
+            <span className={styles.panelBadge}>{toolLogs.length} 次</span>
+          </div>
+          <div className={styles.panelSummary}>
+            <div className={styles.summaryItem}>
+              <span>总调用</span>
+              <strong>{toolLogs.length}</strong>
             </div>
-            {recentToolLogs.length === 0 ? (
-              <div className={styles.emptyState}>暂无工具调用日志。</div>
-            ) : (
-              <div className={styles.listStack}>
-                {recentToolLogs.map((log) => (
-                  <div key={log.id} className={styles.listRow}>
-                    <div>
-                      <strong>{log.name}</strong>
-                      <p>{log.status === 'success' ? '成功' : '失败'} · {log.durationMs}ms · {formatTime(log.createdAt)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
+            <div className={styles.summaryItem}>
+              <span>工具种类</span>
+              <strong>{new Set(toolLogs.map((l) => l.name)).size}</strong>
+            </div>
+            <div className={styles.summaryItem}>
+              <span>失败</span>
+              <strong style={{ color: failedCount > 0 ? '#ef4444' : '#22c55e' }}>{failedCount}</strong>
+            </div>
+          </div>
+          {recentLogs.length > 0 && (
+            <div className={styles.panelPreview}>
+              {recentLogs.slice(0, 4).map((log) => (
+                <div key={log.id} className={styles.previewItem}>
+                  <span className={`${styles.statusDot} ${log.status === 'success' ? styles.dotGreen : styles.dotRed}`} />
+                  <span className={styles.previewName}>{log.name}</span>
+                  <span className={styles.previewTime}>{fmtDuration(log.durationMs)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
-          <article className={styles.memoryPanel}>
-            <div className={styles.panelTopline}>
-              <span>最近记忆</span>
-              <small>{memories.length} 条长期记忆</small>
+      {/* 底部：记忆 + 知识库 */}
+      <div className={styles.bottomGrid}>
+        <div className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div className={styles.panelTitle}>🧠 最近记忆</div>
+            <span className={styles.panelBadge}>{memories.length} 条</span>
+          </div>
+          {recentMemories.length === 0 ? (
+            <div className={styles.emptyState}>暂无记忆</div>
+          ) : (
+            <div className={styles.memoryList}>
+              {recentMemories.map((m) => (
+                <div key={m.id} className={styles.memoryItem}>
+                  <span className={styles.memoryTag}>{m.category}</span>
+                  <span className={styles.memoryContent}>{m.content}</span>
+                </div>
+              ))}
             </div>
-            {recentMemories.length === 0 ? (
-              <div className={styles.emptyState}>暂无长期记忆。</div>
-            ) : (
-              <div className={styles.memoryGrid}>
-                {recentMemories.map((memory) => (
-                  <div key={memory.id} className={styles.memoryCard}>
-                    <span>{memory.category}</span>
-                    <p>{memory.content}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
+          )}
+        </div>
+
+        <div className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div className={styles.panelTitle}>📚 知识库</div>
+            <span className={styles.panelBadge}>{knowledgeSources.length} 个来源</span>
+          </div>
+          <div className={styles.panelSummary}>
+            <div className={styles.summaryItem}>
+              <span>文档片段</span>
+              <strong>{knowledgeStats?.count ?? 0}</strong>
+            </div>
+            <div className={styles.summaryItem}>
+              <span>来源数</span>
+              <strong>{knowledgeSources.length}</strong>
+            </div>
+          </div>
         </div>
       </div>
     </section>

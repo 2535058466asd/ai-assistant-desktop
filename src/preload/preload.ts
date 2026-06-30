@@ -122,6 +122,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   knowledgeSearchStructured: async (query: string, nResults?: number) => {
     return ipcRenderer.invoke('knowledge-search-structured', query, nResults);
   },
+  knowledgeChunksBySource: async (source: string) => {
+    return ipcRenderer.invoke('knowledge-chunks-by-source', source);
+  },
   // 打开文件选择对话框
   showOpenDialog: async (options?: { filters?: string[] }) => {
     return ipcRenderer.invoke('show-open-dialog', options);
@@ -305,6 +308,7 @@ declare global {
       knowledgeImportFile: (filePath: string, category?: string) => Promise<{ success: boolean; count?: number; chunks?: number; info?: string; error?: string }>;
       knowledgeImportImage: (imagePath: string, category?: string) => Promise<{ success: boolean; count?: number; info?: string; error?: string }>;
       knowledgeSearchStructured: (query: string, nResults?: number) => Promise<{ success: boolean; data?: Array<{ text: string; source: string; category: string; chunkId: string; distance: number }>; error?: string }>;
+      knowledgeChunksBySource: (source: string) => Promise<{ success: boolean; data?: Array<{ chunkId: string; text: string; category: string; createdAt?: string }>; error?: string }>;
       showOpenDialog: (options?: { filters?: string[] }) => Promise<{ success: boolean; data?: string[]; error?: string }>;
       parseFileToText: (filePath: string) => Promise<{ success: boolean; text?: string; fileName?: string; error?: string }>;
       clipboardReadFiles: () => Promise<{ success: boolean; data?: string[]; error?: string }>;

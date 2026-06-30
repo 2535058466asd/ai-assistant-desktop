@@ -26,7 +26,11 @@ export function resolveModelForRequest(runtime: ResolvedModelRuntime, hasImageAt
   if (!hasImageAttachment) return runtime.modelId;
   if (runtime.provider === 'mimo') return 'mimo-v2.5';
   if (runtime.provider === 'doubao') return runtime.modelId;
-  throw new Error('当前 OpenAI-compatible 模型暂未配置图片理解能力，请切换到豆包或 MiMo。');
+  logger.warn('OpenAI-compatible 模型暂未配置图片理解，将使用当前模型继续', {
+    provider: runtime.provider,
+    model: runtime.modelId,
+  });
+  return runtime.modelId;
 }
 
 export function inferProviderFromModelId(modelId: string, currentProvider?: ModelProviderId | null): ModelProviderId | null {

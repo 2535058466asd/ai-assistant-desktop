@@ -20,54 +20,16 @@ import DOMPurify from 'dompurify';
 import { createLogger } from '../../../shared/logger';
 import MarkdownRenderer from './MarkdownRenderer';
 import FileTypeIcon from '../common/FileTypeIcon';
+import AgentProcessPanel from './AgentProcessPanel';
+import { pcmToWav } from './audioUtils';
 
 const logger = createLogger('ui');
 
-/**
- * PCM 音频数据转 WAV 格式
- * TTS 返回的是原始 PCM 数据，需要添加 WAV 头部才能在浏览器中播放
- * @param pcmData - 原始 PCM 音频数据（ArrayBuffer）
- * @param sampleRate - 采样率（默认 24000）
- * @param numChannels - 声道数（默认 1）
- * @param bitsPerSample - 位深度（默认 16）
- */
-function pcmToWav(pcmData: ArrayBuffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): ArrayBuffer {
-  const pcmBytes = new Uint8Array(pcmData)
-  const wavBuffer = new ArrayBuffer(44 + pcmBytes.length)
-  const view = new DataView(wavBuffer)
-
-  // WAV 文件头部
-  const writeString = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) {
-      view.setUint8(offset + i, str.charCodeAt(i))
-    }
-  }
-
-  // RIFF header
-  writeString(0, 'RIFF')
-  view.setUint32(4, 36 + pcmBytes.length, true)
-  writeString(8, 'WAVE')
-
-  // fmt chunk
-  writeString(12, 'fmt ')
-  view.setUint32(16, 16, true) // chunk size
-  view.setUint16(20, 1, true) // PCM format
-  view.setUint16(22, numChannels, true)
-  view.setUint32(24, sampleRate, true)
-  view.setUint32(28, sampleRate * numChannels * bitsPerSample / 8, true) // byte rate
-  view.setUint16(32, numChannels * bitsPerSample / 8, true) // block align
-  view.setUint16(34, bitsPerSample, true)
-
-  // data chunk
-  writeString(36, 'data')
-  view.setUint32(40, pcmBytes.length, true)
-
-  // 写入 PCM 数据
-  const output = new Uint8Array(wavBuffer)
-  output.set(pcmBytes, 44)
-
-  return output.buffer
-}
+const formatDuration = (durationMs?: number): string => {
+  if (typeof durationMs !== 'number') return '';
+  if (durationMs < 1000) return `${durationMs}ms`;
+  return `${(durationMs / 1000).toFixed(1)}s`;
+};
 
 /* ==========================================
    组件 Props 类型定义
@@ -112,36 +74,6 @@ const shouldShowTimestamp = (current: number, previous: number): boolean => {
 };
 
 type ProcessEvent = NonNullable<UIMessage['processEvents']>[number];
-
-const TOOL_DISPLAY_NAMES: Record<string, string> = {
-  exec_command: '执行命令',
-  open_app: '打开应用',
-  read_file: '读取文件',
-  write_file: '写入文件',
-  web_search: '搜索网页',
-  web_fetch: '读取网页',
-  clipboard_read: '读取剪贴板',
-  clipboard_write: '写入剪贴板',
-  knowledge_search: '检索知识库',
-  knowledge_import_file: '导入知识库',
-  add_memory: '写入记忆',
-};
-
-const PROCESS_STATUS_LABELS: Record<ProcessEvent['status'], string> = {
-  pending: '等待',
-  running: '执行中',
-  success: '完成',
-  error: '失败',
-  cancelled: '取消',
-};
-
-const getToolDisplayName = (toolName: string): string => TOOL_DISPLAY_NAMES[toolName] || toolName;
-
-const formatDuration = (durationMs?: number): string => {
-  if (typeof durationMs !== 'number') return '';
-  if (durationMs < 1000) return `${durationMs}ms`;
-  return `${(durationMs / 1000).toFixed(1)}s`;
-};
 
 const formatTokenCount = (tokens: number): string => {
   if (tokens >= 1000) {
@@ -414,106 +346,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
     });
   };
 
-  const renderAgentProcess = (message: UIMessage) => {
-    const hasReasoning = !!message.reasoningContent;
-    const hasToolCalls = message.toolCallSummary && message.toolCallSummary.length > 0;
-
-    // 如果没有思考内容和工具调用，不渲染
-    if (!hasReasoning && !hasToolCalls) return null;
-
-    const isExpanded = message.isStreaming || processExpandedIds.has(message.id);
-    const toolCount = message.toolCallSummary?.length || 0;
-    const summaryText = message.isStreaming
-      ? '思考中'
-      : toolCount > 0
-        ? `思考过程 · ${toolCount} 个工具调用`
-        : '思考过程';
-
-    return (
-      <div className={styles.agentProcessPanel}>
-        <button
-          type="button"
-          className={styles.agentProcessToggle}
-          onClick={() => handleToggleProcess(message.id)}
-          aria-expanded={isExpanded}
-        >
-          <span className={`${styles.agentProcessSummaryDot} ${message.isStreaming ? styles.processSummaryRunning : ''}`} />
-          <span className={styles.agentProcessSummaryText}>{summaryText}</span>
-          <span className={styles.agentProcessSummaryHint}>{isExpanded ? '收起' : '展开'}</span>
-          <svg
-            className={`${styles.agentProcessChevron} ${isExpanded ? styles.agentProcessChevronOpen : ''}`}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </button>
-
-        {isExpanded && (
-          <div className={styles.agentProcessList}>
-            {/* 推理内容 - 分段展示 */}
-            {hasReasoning && message.reasoningSegments && message.reasoningSegments.length > 0 ? (
-              message.reasoningSegments.map((segment, index) => (
-                <div key={index} className={styles.agentProcessItem}>
-                  <span className={styles.agentProcessDot} />
-                  <div className={styles.agentProcessBody}>
-                    <div className={styles.agentProcessHeader}>
-                      <span className={styles.agentProcessName}>第{segment.round}轮思考</span>
-                    </div>
-                    <div className={styles.agentProcessResult}>
-                      {segment.content}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : hasReasoning ? (
-              <div className={styles.agentProcessItem}>
-                <span className={styles.agentProcessDot} />
-                <div className={styles.agentProcessBody}>
-                  <div className={styles.agentProcessHeader}>
-                    <span className={styles.agentProcessName}>推理内容</span>
-                  </div>
-                  <div className={styles.agentProcessResult}>
-                    {message.reasoningContent}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {/* 工具调用列表 */}
-            {hasToolCalls && message.toolCallSummary?.map((tool, index) => (
-              <div
-                key={index}
-                className={`${styles.agentProcessItem} ${styles.processKind_tool} ${styles[`processStatus_${tool.status}`] || ''}`}
-              >
-                <span className={styles.agentProcessDot} />
-                <div className={styles.agentProcessBody}>
-                  <div className={styles.agentProcessHeader}>
-                    <span className={styles.agentProcessName}>{getToolDisplayName(tool.name)}</span>
-                    <span className={styles.agentProcessStatus}>{tool.status === 'success' ? '完成' : '失败'}</span>
-                    <span className={styles.agentProcessDuration}>{formatDuration(tool.durationMs)}</span>
-                  </div>
-                  {tool.argsPreview && (
-                    <div className={styles.agentProcessMeta}>
-                      {tool.argsPreview}
-                    </div>
-                  )}
-                  {tool.resultPreview && (
-                    <div className={styles.agentProcessResult}>
-                      {tool.resultPreview}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   /* 如果没有消息且不在加载中，不渲染任何内容（由 WelcomeScreen 处理） */
   if (messages.length === 0 && !isLoading) {
     return null;
@@ -614,7 +446,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({ messages, isLoading, showToast }) =
                           )}
                         </div>
 
-                        {renderAgentProcess(message)}
+                        <AgentProcessPanel
+                          message={message}
+                          isExpanded={processExpandedIds.has(message.id)}
+                          onToggle={() => handleToggleProcess(message.id)}
+                        />
 
                         {/* 操作按钮（默认隐藏，悬停显示）*/}
                         <div className={styles.aiActions}>

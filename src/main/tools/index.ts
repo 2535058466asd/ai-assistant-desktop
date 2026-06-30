@@ -9,7 +9,7 @@ import { registerReadFile, registerWriteFile, registerCreateDir, registerCopyFil
 import { registerWebSearch, registerWebFetch, registerSearchSetConfig } from './webTools'
 import { registerClipboardRead, registerClipboardWrite, registerClipboardReadFiles } from './clipboard'
 import { registerOpenApp } from './openApp'
-import { registerKnowledgeSearch, registerKnowledgeAdd, registerKnowledgeStats, registerKnowledgeImportFile, registerKnowledgeImportImage, registerKnowledgeSources, registerKnowledgeDeleteBySource, registerKnowledgeSearchStructured, registerShowOpenDialog, registerParseFileToText } from './ragTools'
+import { registerKnowledgeSearch, registerKnowledgeAdd, registerKnowledgeStats, registerKnowledgeImportFile, registerKnowledgeImportImage, registerKnowledgeSources, registerKnowledgeDeleteBySource, registerKnowledgeSearchStructured, registerShowOpenDialog, registerParseFileToText, registerKnowledgeChunksBySource } from './ragTools'
 import { registerSystemTools } from './systemTools'
 import { createLogger } from '../../shared/logger'
 
@@ -52,6 +52,7 @@ export function registerAllTools() {
   registerKnowledgeDeleteBySource()
   registerKnowledgeImportFile()
   registerKnowledgeImportImage()
+  registerKnowledgeChunksBySource()
   registerShowOpenDialog()
   registerParseFileToText()
 

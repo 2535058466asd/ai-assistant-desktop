@@ -45,7 +45,7 @@ export function normalizeError(error: any, providerName: string = 'Model', meta:
   const result: ModelError = {
     code,
     message,
-    retryable: !isAuthError && /timeout|rate|429|5\d\d/i.test(`${code} ${message}`),
+    retryable: !isAuthError && /timeout|rate|429|502|503|504/i.test(`${code} ${message}`),
   };
 
   logger.error(`${providerName} 错误`, { ...meta, ...result });

@@ -4,6 +4,7 @@
   gap: 12px;
 }
 
+/* ===== Hero ===== */
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
@@ -19,9 +20,7 @@
   font-weight: 700;
 }
 
-.kicker {
-  margin: 0 0 6px;
-}
+.kicker { margin: 0 0 6px; }
 
 .heroCopy h3,
 .toolbarTop h4,
@@ -31,18 +30,8 @@
   letter-spacing: -0.03em;
 }
 
-.heroCopy h3 {
-  font-size: 26px;
-  line-height: 1.15;
-}
-
-.heroCopy p {
-  margin: 8px 0 0;
-  max-width: 620px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
-}
+.heroCopy h3 { font-size: 26px; line-height: 1.15; }
+.heroCopy p { margin: 8px 0 0; max-width: 620px; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
 
 .metrics {
   display: grid;
@@ -68,28 +57,11 @@
   background: var(--card-bg);
 }
 
-.metricCard {
-  padding: 12px;
-}
+.metricCard { padding: 12px; }
+.metricCard strong { display: block; color: var(--text-primary); font-size: 24px; line-height: 1; }
+.metricCard span { display: block; margin-top: 8px; color: var(--text-muted); font-size: 12px; }
 
-.metricCard strong {
-  display: block;
-  color: var(--text-primary);
-  font-size: 24px;
-  line-height: 1;
-}
-
-.metricCard span {
-  display: block;
-  margin-top: 8px;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.toolbarCard,
-.listCard {
-  padding: 16px;
-}
+.toolbarCard, .listCard { padding: 16px; }
 
 .toolbarTop,
 .listHeader,
@@ -106,23 +78,12 @@
   gap: 12px;
 }
 
-.toolbarActions {
-  display: flex;
-  gap: 8px;
-}
+.toolbarActions { display: flex; gap: 8px; }
+.memoryActions { display: flex; gap: 6px; }
 
-.memoryActions {
-  display: flex;
-  gap: 6px;
-}
+.toolbarTop h4, .listHeader h4 { margin-top: 4px; font-size: 18px; line-height: 1.2; }
 
-.toolbarTop h4,
-.listHeader h4 {
-  margin-top: 4px;
-  font-size: 18px;
-  line-height: 1.2;
-}
-
+/* ===== 搜索 ===== */
 .searchInput {
   width: 100%;
   height: 40px;
@@ -137,21 +98,49 @@
   outline: none;
 }
 
-[data-theme="light"] .searchInput {
-  background: var(--card-nested-bg);
-}
+[data-theme="light"] .searchInput { background: var(--card-nested-bg); }
+.searchInput:focus { border-color: rgba(34, 211, 238, 0.36); }
 
-.searchInput:focus {
-  border-color: rgba(34, 211, 238, 0.36);
+/* ===== 筛选行 ===== */
+.filterRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  flex-wrap: wrap;
 }
 
 .categoryRail {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 12px;
+  flex: 1;
 }
 
+.sortButtons {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sortBtn {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sortBtn:hover { color: var(--text-primary); background: var(--card-nested-bg); }
+.sortBtnActive { color: #22d3ee; border-color: rgba(34, 211, 238, 0.3); background: rgba(34, 211, 238, 0.06); }
+[data-theme="light"] .sortBtnActive { color: #0891b2; }
+
+/* ===== 状态 tab ===== */
 .statusTabs {
   display: flex;
   gap: 4px;
@@ -173,12 +162,9 @@
   cursor: pointer;
   font-size: 12px;
 }
+.statusTabActive { color: var(--text-primary); background: rgba(34, 211, 238, 0.1); }
 
-.statusTabActive {
-  color: var(--text-primary);
-  background: rgba(34, 211, 238, 0.1);
-}
-
+/* ===== 芯片 & 标签 ===== */
 .categoryChip,
 .categoryPill,
 .statusPill {
@@ -193,9 +179,7 @@
   font-size: 12px;
 }
 
-.statusPill {
-  font-size: 11px;
-}
+.statusPill { font-size: 11px; }
 
 .active { color: #22c55e; }
 .superseded { color: #f59e0b; }
@@ -203,20 +187,16 @@
 
 .categoryChip {
   cursor: pointer;
-  transition: opacity , background-color ;
+  transition: opacity var(--transition-normal), background-color var(--transition-normal);
 }
-
-.categoryChip:hover {
-  border-color: rgba(34, 211, 238, 0.28);
-  color: var(--text-primary);
-}
-
+.categoryChip:hover { border-color: rgba(34, 211, 238, 0.28); color: var(--text-primary); }
 .categoryChipActive {
   color: var(--accent-cyan, #22d3ee);
   border-color: rgba(34, 211, 238, 0.36);
   background: rgba(34, 211, 238, 0.1);
 }
 
+/* ===== 按钮 ===== */
 .iconButton,
 .deleteButton {
   display: inline-flex;
@@ -229,9 +209,7 @@
 }
 
 [data-theme="light"] .iconButton,
-[data-theme="light"] .deleteButton {
-  background: var(--card-nested-bg);
-}
+[data-theme="light"] .deleteButton { background: var(--card-nested-bg); }
 
 .iconButton {
   width: 36px;
@@ -246,15 +224,8 @@
 }
 
 .iconButton:disabled,
-.deleteButton:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.iconButton svg {
-  width: 16px;
-  height: 16px;
-}
+.deleteButton:disabled { opacity: 0.45; cursor: not-allowed; }
+.iconButton svg { width: 16px; height: 16px; }
 
 .errorBox {
   padding: 10px 12px;
@@ -265,10 +236,7 @@
   font-size: 13px;
 }
 
-.listHeader > span {
-  color: var(--text-muted);
-  font-size: 12px;
-}
+.listHeader > span { color: var(--text-muted); font-size: 12px; }
 
 .memoryList {
   display: grid;
@@ -283,12 +251,18 @@
   font-size: 13px;
 }
 
+/* ===== 记忆卡片 ===== */
 .memoryCard {
   padding: 12px;
+  transition: border-color 0.2s ease;
 }
+
+.memoryCardExpiring { border-color: rgba(245, 158, 11, 0.35); }
+.memoryCardExpired { border-color: rgba(239, 68, 68, 0.3); opacity: 0.75; }
 
 .memoryLead {
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .preference { border-color: rgba(6, 182, 212, 0.22); }
@@ -298,10 +272,39 @@
 .belief { border-color: rgba(245, 158, 11, 0.22); }
 .event { border-color: rgba(239, 68, 68, 0.22); }
 
-.memoryTime {
-  color: var(--text-muted);
-  font-size: 11px;
+/* 重要性圆点 */
+.importanceDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
+
+/* 来源类型标签 */
+.sourceKindTag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+/* 记忆键标签 */
+.memoryKeyTag {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: var(--card-nested-bg);
+  padding: 1px 6px;
+  border-radius: 4px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memoryTime { color: var(--text-muted); font-size: 11px; }
 
 .deleteButton {
   width: 28px;
@@ -309,11 +312,7 @@
   border-radius: 8px;
   flex: 0 0 auto;
 }
-
-.deleteButton svg {
-  width: 14px;
-  height: 14px;
-}
+.deleteButton svg { width: 14px; height: 14px; }
 
 .memoryContent {
   margin: 10px 0 0;
@@ -323,17 +322,135 @@
   word-break: break-word;
 }
 
+/* ===== 元数据行 ===== */
 .memoryMeta {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 6px;
   margin-top: 10px;
-  color: var(--text-muted);
-  font-size: 11px;
 }
 
+.metaItem {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.metaExpiring { color: #f59e0b; background: rgba(245, 158, 11, 0.1); font-weight: 600; }
+.metaExpired { color: #ef4444; background: rgba(239, 68, 68, 0.1); font-weight: 600; }
+
+/* ===== 手动添加表单 ===== */
+.addForm {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--card-nested-bg);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 8px;
+}
+
+.addInput {
+  width: 100%;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+}
+.addInput:focus { border-color: rgba(34, 211, 238, 0.36); }
+
+.addFormRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.addSelect {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+}
+
+.addLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.addRange {
+  width: 80px;
+  accent-color: #22d3ee;
+}
+
+.addBtn {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: #5eead4;
+  color: #052015;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+[data-theme="light"] .addBtn { background: #0891b2; color: #fff; }
+.addBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.addCancelBtn {
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.addCancelBtn:hover { color: var(--text-primary); background: var(--card-nested-bg); }
+
+/* ===== 分组视图 ===== */
+.groupSection {
+  margin-bottom: 8px;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  margin-bottom: 4px;
+}
+
+.groupIcon { font-size: 14px; }
+.groupLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.groupCount {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--card-nested-bg);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+/* ===== 响应式 ===== */
 @media (max-width: 860px) {
-  .hero {
-    grid-template-columns: 1fr;
-  }
+  .hero { grid-template-columns: 1fr; }
 }

@@ -39,6 +39,7 @@ import DebugPanel from '../Debug/DebugPanel';
 import ModelApiPanel from '../Settings/ModelApiPanel';
 import SystemPromptPanel from '../Settings/SystemPromptPanel';
 import ToolsPanel from '../Tools/ToolsPanel';
+import CostDetailPanel from '../Workspace/CostDetailPanel';
 import VoicePanel from '../Settings/VoicePanel';
 import SearchPanel from '../Settings/SearchPanel';
 import ShortcutsPanel from '../Settings/ShortcutsPanel';
@@ -120,8 +121,8 @@ const LEGACY_STORAGE_KEY_ACTIVE_CHAT = 'qiyuan_active_chat_id';
 const STORAGE_KEY_ACTIVE_VIEW = 'nova.activeView';
 const LEGACY_STORAGE_KEY_ACTIVE_VIEW = 'qiyuan_active_view';
 
-type AppView = 'chat' | 'workspace' | 'knowledge' | 'memory' | 'tools' | 'settings';
-type SettingsPageTab = 'model-api' | 'voice' | 'search' | 'shortcuts' | 'diagnostics' | 'system-prompt';
+type AppView = 'chat' | 'workspace' | 'cost' | 'knowledge' | 'memory' | 'tools' | 'settings';
+type SettingsPageTab = 'model-api' | 'voice' | 'search' | 'shortcuts' | 'system-prompt';
 
 const navIcons: Record<string, JSX.Element> = {
   chat: (
@@ -154,6 +155,11 @@ const navIcons: Record<string, JSX.Element> = {
       <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
     </svg>
   ),
+  cost: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  ),
   settings: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
       <circle cx="12" cy="12" r="3" />
@@ -167,7 +173,8 @@ const appViews: { id: AppView; label: string; description: string }[] = [
   { id: 'workspace', label: '工作台', description: '查看知识库、记忆、工具日志和评估概览' },
   { id: 'knowledge', label: '知识库', description: '导入、检索和管理本地知识片段' },
   { id: 'memory', label: '记忆库', description: '查看和管理 Nova 记住的长期信息' },
-  { id: 'tools', label: '工具', description: '查看所有可用工具和技能' },
+  { id: 'tools', label: '工具', description: '查看所有可用工具和调用统计' },
+  { id: 'cost', label: '费用', description: 'Token 用量、费用统计和模型消耗' },
   { id: 'settings', label: '设置', description: '配置模型、语音、搜索和快捷键' },
 ];
 
@@ -175,7 +182,6 @@ const settingsTabs: { id: SettingsPageTab; label: string; description: string }[
   { id: 'model-api', label: '模型与 API', description: '配置当前模型、Provider 和密钥来源' },
   { id: 'system-prompt', label: '提示词', description: '自定义 Nova 的性格和行为规则' },
   { id: 'voice', label: '语音', description: '配置 ASR、TTS 和语音交互体验' },
-  { id: 'diagnostics', label: '诊断', description: '工具调用统计和模型上下文快照' },
   { id: 'shortcuts', label: '快捷键', description: '查看常用快捷操作' },
 ];
 
@@ -751,8 +757,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         return <SystemPromptPanel />;
       case 'voice':
         return <VoicePanel />;
-      case 'diagnostics':
-        return <DebugPanel messages={messages} />;
       case 'shortcuts':
         return <ShortcutsPanel />;
       default:
@@ -770,6 +774,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         return <MemoryPanel />;
       case 'tools':
         return <ToolsPanel />;
+      case 'cost':
+        return <CostDetailPanel />;
       case 'settings':
         return (
           <div className={styles.settingsPage}>

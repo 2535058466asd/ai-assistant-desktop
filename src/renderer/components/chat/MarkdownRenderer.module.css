@@ -31,7 +31,7 @@
   color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
-  transition: opacity , background-color ;
+  transition: opacity var(--transition-normal), background-color var(--transition-normal);
   font-family: inherit;
 }
 

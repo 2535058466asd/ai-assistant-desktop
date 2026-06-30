@@ -73,6 +73,16 @@
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
   --font-display: 'Plus Jakarta Sans', 'Noto Sans SC', sans-serif;
 
+  /* --- 字号层级（清晰的 4:5:6:8 比例） --- */
+  --text-xs: 11px;      /* 辅助标签 */
+  --text-sm: 13px;      /* 次要正文 */
+  --text-base: 14px;    /* 正文 */
+  --text-md: 16px;      /* 小标题/强调 */
+  --text-lg: 20px;      /* 区域标题 */
+  --text-xl: 26px;      /* 页面标题 */
+  --text-2xl: 34px;     /* 大标题/欢迎语 */
+  --text-3xl: 44px;     /* 超大展示 */
+
   /* --- 动画（更流畅） --- */
   --transition-fast: 0.12s;
   --transition-normal: 0.2s;
@@ -245,6 +255,42 @@ body {
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+/* 交错入场动画（列表项用） */
+@keyframes staggerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 页面切换动画 */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 欢迎页元素入场 */
+@keyframes welcomeReveal {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 

@@ -23,7 +23,8 @@ import { getResolvedRuntimeModel, resolveModelForRequest } from '../model/modelR
 import { getErrorMessage } from '../model/modelErrorHandler';
 import { DEFAULT_MODEL_CONTEXT_MESSAGES, buildModelContextWithDiagnostics, hasValidToolCallArguments } from '../conversation/conversationContext';
 import { createLogger, type LogMeta } from '../../../shared/logger';
-import { addModelContextSnapshot } from '../../services/workspaceStore';
+import { addModelContextSnapshot } from '../history/workspaceStore';
+import { previewValue } from '../utils/textUtils';
 
 const logger = createLogger('mainAgent');
 
@@ -189,8 +190,8 @@ export class AgentLoop {
         title: activeToolCalls.length > 0 ? '模型决定调用工具' : '模型直接生成回复',
         status: 'success',
         detail: activeToolCalls.length > 0
-          ? activeToolCalls.map((tc: any) => tc.function?.name).filter(Boolean).join('、')
-          : this.previewValue(content || finalResponse, 120),
+          ? activeToolCalls.map((tc) => tc.function?.name).filter(Boolean).join('、')
+          : previewValue(content || finalResponse, 120),
         durationMs: Math.round(performance.now() - modelStartedAt),
         createdAt: modelEventCreatedAt,
         updatedAt: Date.now(),
@@ -202,7 +203,7 @@ export class AgentLoop {
         messageId,
         round,
         hasToolCalls: activeToolCalls.length > 0,
-        toolNames: activeToolCalls.map((tc: any) => tc.function?.name).filter(Boolean),
+        toolNames: activeToolCalls.map((tc) => tc.function?.name).filter(Boolean),
         invalidToolCallCount: invalidSummaries.length,
         durationMs: Math.round(performance.now() - modelStartedAt),
         model,
@@ -283,7 +284,7 @@ export class AgentLoop {
         phase: 'tool',
         messageId,
         round,
-        toolCalls: activeToolCalls.map((tc: any) => ({
+        toolCalls: activeToolCalls.map((tc) => ({
           id: tc.id,
           name: tc.function?.name,
           arguments: tc.function?.arguments,
@@ -368,7 +369,7 @@ export class AgentLoop {
         kind: 'tool',
         title: `${toolName} 参数解析失败`,
         toolName,
-        argsPreview: this.previewValue(rawArguments),
+        argsPreview: previewValue(rawArguments),
         status: 'error',
         detail: rawArguments,
         resultPreview: `工具参数解析失败：${error}`,
@@ -379,7 +380,7 @@ export class AgentLoop {
 
       invalidSummaries.push({
         name: toolName,
-        argsPreview: this.previewValue(rawArguments, 100),
+        argsPreview: previewValue(rawArguments, 100),
         resultPreview: `工具参数解析失败：${error}`,
         durationMs: 0,
         status: 'error',
@@ -395,7 +396,7 @@ export class AgentLoop {
   private async executeToolCalls(
     messageId: string,
     round: number,
-    toolCalls: any[],
+    toolCalls: ToolCall[],
     meta: LogMeta = {}
   ): Promise<ToolCallSummary[]> {
     const summaries: ToolCallSummary[] = [];
@@ -406,12 +407,12 @@ export class AgentLoop {
       const toolCreatedAt = Date.now();
       const toolStartedAt = performance.now();
       let toolArgs: Record<string, any> = {};
-      let argsPreview = this.previewValue(toolCall.function.arguments);
+      let argsPreview = previewValue(toolCall.function.arguments);
       let result: ToolExecutionResult | null = null;
 
       try {
         toolArgs = JSON.parse(toolCall.function.arguments || '{}');
-        argsPreview = this.previewValue(toolArgs);
+        argsPreview = previewValue(toolArgs);
       } catch (parseError: any) {
         result = {
           success: false,
@@ -476,7 +477,7 @@ export class AgentLoop {
         argsPreview,
         status: result.success ? 'success' : 'error',
         detail: argsPreview,
-        resultPreview: this.previewValue(result.data || result.error || ''),
+        resultPreview: previewValue(result.data || result.error || ''),
         durationMs: Math.round(performance.now() - toolStartedAt),
         createdAt: toolCreatedAt,
         updatedAt: Date.now(),
@@ -512,8 +513,8 @@ export class AgentLoop {
       // 收集工具调用摘要
       summaries.push({
         name: toolName,
-        argsPreview: this.previewValue(toolArgs, 100),
-        resultPreview: this.previewValue(result.data || result.error || '', 100),
+        argsPreview: previewValue(toolArgs, 100),
+        resultPreview: previewValue(result.data || result.error || '', 100),
         durationMs: Math.round(performance.now() - toolStartedAt),
         status: result.success ? 'success' : 'error',
       });
@@ -601,7 +602,7 @@ export class AgentLoop {
       return {
         index,
         role: message.role,
-        textPreview: this.previewValue(text, 120),
+        textPreview: previewValue(text, 120),
         imageCount,
         hasReasoning: Boolean(message.reasoning_content),
         toolCallCount: message.tool_calls?.length || 0,
@@ -738,25 +739,6 @@ export class AgentLoop {
     }
 
     return true;
-  }
-
-  /**
-   * 生成适合 UI 展示的短摘要
-   */
-  private previewValue(value: unknown, maxLength: number = 180): string {
-    let text: string;
-    if (typeof value === 'string') {
-      text = value;
-    } else {
-      try {
-        text = JSON.stringify(value);
-      } catch {
-        text = String(value);
-      }
-    }
-
-    if (!text) return '';
-    return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
   }
 }
 

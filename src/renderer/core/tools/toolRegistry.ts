@@ -41,6 +41,7 @@ export interface RegisteredTool {
 function hasHighRiskCommand(command: string): boolean {
   const normalized = command.trim().toLowerCase();
   const highRiskPatterns = [
+    // Windows 进程/服务管理
     /\btaskkill\b/,
     /\bstop-process\b/,
     /\bkill\b/,
@@ -50,9 +51,28 @@ function hasHighRiskCommand(command: string): boolean {
     /\btakeown\b/,
     /\breg\s+(add|delete|import|restore)\b/,
     /\bsetx\b/,
+    // 文件系统破坏性操作
+    /\brm\s+(-[a-z]*r|--recursive)\b/,
+    /\bdel\s+\/[a-z]*s/i,
+    /\bformat\s+[a-z]:/,
+    /\bdd\s+if=/,
+    /\bmkfs\b/,
+    /\bchmod\b/,
+    /\bchown\b/,
+    // PowerShell 危险命令
     /\bpowershell\b.*\b(remove-item|move-item|set-executionpolicy|invoke-expression|iex)\b/,
-    /\bcurl\b.*\|\s*(powershell|pwsh|cmd|sh|bash)\b/,
     /\binvoke-webrequest\b.*\|\s*(iex|invoke-expression)\b/,
+    // 命令注入（管道到 shell）
+    /\bcurl\b.*\|\s*(powershell|pwsh|cmd|sh|bash)\b/,
+    /\bwget\b.*\|\s*(sh|bash)\b/,
+    // 系统关机/重启
+    /\b(shutdown|reboot|halt)\b/,
+    // 环境变量/执行策略
+    /\beval\b/,
+    /\bexec\b/,
+    // 包管理器（供应链风险）
+    /\bpip\s+install\b/,
+    /\bnpm\s+install\s+-g\b/,
   ];
   return highRiskPatterns.some((pattern) => pattern.test(normalized));
 }

@@ -4,7 +4,7 @@
  * 统一的工具执行函数，根据工具名分发到对应的 Electron API
  */
 
-import { addToolLog, previewValue } from '../../services/workspaceStore';
+import { addToolLog, previewValue } from '../history/workspaceStore';
 import { createLogger, type LogMeta } from '../../../shared/logger';
 import { executeRegisteredTool, getToolMetadata } from './toolRegistry';
 

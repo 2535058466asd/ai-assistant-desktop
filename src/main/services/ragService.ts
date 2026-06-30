@@ -197,6 +197,33 @@ export async function addDocuments(
   }
 }
 
+/** 中文感知分词：按中英文边界拆分，保留 ≥2 字符的 token */
+function extractSearchTerms(query: string): string[] {
+  const terms: string[] = [];
+  // 按中英文/数字边界拆分
+  const segments = query.split(/(?<=[一-鿿])(?=[a-zA-Z0-9])|(?<=[a-zA-Z0-9])(?=[一-鿿])|[\s,;.!?，。；！？、]+/).filter(Boolean);
+  for (const seg of segments) {
+    if (seg.length >= 2) {
+      terms.push(seg);
+      // 中文子串：每 2-3 字也作为匹配项
+      if (/[一-鿿]/.test(seg)) {
+        for (let len = 2; len <= Math.min(seg.length, 4); len++) {
+          for (let i = 0; i <= seg.length - len; i++) {
+            const sub = seg.slice(i, i + len);
+            if (sub.length >= 2) terms.push(sub);
+          }
+        }
+      }
+    }
+  }
+  // 整个 query 本身也作为匹配项
+  if (query.trim().length >= 2 && !terms.includes(query.trim())) {
+    terms.push(query.trim());
+  }
+  // 去重
+  return [...new Set(terms)];
+}
+
 export async function searchKnowledgeStructured(
   query: string,
   nResults: number = 8,
@@ -209,11 +236,14 @@ export async function searchKnowledgeStructured(
     }
 
     const queryVector = await embedText(query);
-    const queryTerms = query.split(/\s+/).filter(w => w.length > 1);
+    const queryTerms = extractSearchTerms(query);
+    logger.info('搜索 terms', { query, terms: queryTerms.slice(0, 10) });
 
+    // 候选集要足够大，给关键词 boost 更多翻盘机会
+    const fetchK = Math.max(nResults * 5, 50);
     let rows: any[];
     if (queryVector) {
-      const k = Math.min(nResults * 3, total.cnt);
+      const k = Math.min(fetchK, total.cnt);
       rows = await database.all(
         `SELECT id, document, source, category, chunk_id, distance
          FROM knowledge_chunks
@@ -222,33 +252,76 @@ export async function searchKnowledgeStructured(
         [vectorToBuffer(queryVector), k],
       );
     } else {
-      // 降级：无向量时全量返回，后续 JS 层关键词排序
       rows = await database.all(
         `SELECT id, document, source, category, chunk_id, 1.0 as distance
          FROM knowledge_chunks
          LIMIT ?`,
-        [nResults * 5],
+        [fetchK],
       );
     }
 
+    // 关键词 boost：匹配越多，distance 越低
     if (queryTerms.length > 0) {
+      const queryLower = query.trim().toLowerCase();
       for (const row of rows) {
         const textLower = (row.document || '').toLowerCase();
-        const matchCount = queryTerms.reduce((acc: number, t: string) => acc + (textLower.includes(t.toLowerCase()) ? 1 : 0), 0);
-        row.distance = Math.max(0, row.distance - matchCount * 0.15);
+        const sourceLower = (row.source || '').toLowerCase();
+        let matchCount = 0;
+        for (const t of queryTerms) {
+          const tl = t.toLowerCase();
+          if (textLower.includes(tl) || sourceLower.includes(tl)) matchCount++;
+        }
+        // 每个匹配项降低 distance 0.25（比原 0.15 更强）
+        let boost = matchCount * 0.25;
+        // 整个 query 精确命中额外 boost
+        if (textLower.includes(queryLower) || sourceLower.includes(queryLower)) boost += 0.3;
+        row.distance = Math.max(0, row.distance - boost);
       }
       rows.sort((a: any, b: any) => a.distance - b.distance);
     }
 
-    const top = rows.slice(0, nResults).map((row: any) => ({
-      text: row.document,
-      source: row.source,
-      category: row.category,
-      chunkId: row.chunk_id,
-      distance: row.distance,
-    }));
+    // 结果去重：限制同一 source 最多占 40%，鼓励结果多样性
+    const maxPerSource = Math.max(2, Math.ceil(nResults * 0.4));
+    const sourceCounts = new Map<string, number>();
+    const usedIds = new Set<string>();
+    const top: SearchResultItem[] = [];
 
-    logger.info(`检索到 ${top.length} 条相关内容`);
+    for (const row of rows) {
+      if (top.length >= nResults) break;
+      const count = sourceCounts.get(row.source) || 0;
+      if (count >= maxPerSource) continue;
+      sourceCounts.set(row.source, count + 1);
+      usedIds.add(row.chunk_id);
+      top.push({
+        text: row.document,
+        source: row.source,
+        category: row.category,
+        chunkId: row.chunk_id,
+        distance: row.distance,
+      });
+    }
+
+    // 如果去重后不够，放宽限制补满（但仍遵守 maxPerSource）
+    if (top.length < nResults) {
+      const relaxedMax = Math.max(maxPerSource, Math.ceil(nResults * 0.6));
+      for (const row of rows) {
+        if (top.length >= nResults) break;
+        if (usedIds.has(row.chunk_id)) continue;
+        const count = sourceCounts.get(row.source) || 0;
+        if (count >= relaxedMax) continue;
+        sourceCounts.set(row.source, count + 1);
+        usedIds.add(row.chunk_id);
+        top.push({
+          text: row.document,
+          source: row.source,
+          category: row.category,
+          chunkId: row.chunk_id,
+          distance: row.distance,
+        });
+      }
+    }
+
+    logger.info(`检索到 ${top.length} 条相关内容`, { query, nResults, topSources: top.map(t => t.source) });
     return { success: true, data: top };
   } catch (error: any) {
     logger.error('检索失败:', error.message);
@@ -290,6 +363,33 @@ export async function listKnowledgeSources(): Promise<{
     return {
       success: true,
       data: rows.map(r => ({ source: r.source, category: r.category, count: r.count, createdAt: r.createdAt || undefined })),
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getChunksBySource(
+  source: string,
+): Promise<{ success: boolean; data?: Array<{ chunkId: string; text: string; category: string; createdAt?: string }>; error?: string }> {
+  try {
+    const database = await getDb();
+    const rows: Array<{ chunk_id: string; document: string; category: string; created_at: string | null }> =
+      await database.all(
+        `SELECT chunk_id, document, category, created_at
+         FROM knowledge_chunks
+         WHERE source = ?
+         ORDER BY chunk_id`,
+        [source],
+      );
+    return {
+      success: true,
+      data: rows.map(r => ({
+        chunkId: r.chunk_id,
+        text: r.document,
+        category: r.category,
+        createdAt: r.created_at || undefined,
+      })),
     };
   } catch (error: any) {
     return { success: false, error: error.message };

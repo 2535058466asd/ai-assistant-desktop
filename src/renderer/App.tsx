@@ -16,7 +16,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AppLayout from './components/AppLayout/AppLayout';
-import { ToastProvider, useToast } from './components/Toast';
+import { ToastProvider, useToast } from './components/common/Toast';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { getOrchestrator } from './core/orchestrator';
 import { getVoiceChatMode } from './core/voiceChat/VoiceChatMode';
 import type { VoiceChatState } from './core/voiceChat/VoiceChatMode';
@@ -104,9 +105,8 @@ function AppContent() {
       }
     });
 
-    // 设置普通消息回调（用于用户消息等）
+    // 设置消息回调（用于用户消息和最终助手消息）
     orchestrator.onMessage((message: Message) => {
-      if (message.isStreaming) return;
       setMessages((prev) => upsertById(prev, message));
     });
 
@@ -305,9 +305,11 @@ function AppContent() {
 
 function App() {
   return (
-    <ToastProvider>
-      <AppContent />
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
 

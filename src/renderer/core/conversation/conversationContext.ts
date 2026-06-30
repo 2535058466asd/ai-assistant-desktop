@@ -93,8 +93,9 @@ function getToolCallIds(toolCalls?: ToolCall[]): string[] {
 
 export function hasValidToolCallArguments(toolCall: ToolCall): boolean {
   const rawArguments = toolCall.function?.arguments;
+  // 空参数视为有效（等同于 {}），让工具自己处理缺参
   if (typeof rawArguments !== 'string' || rawArguments.trim().length === 0) {
-    return false;
+    return true;
   }
 
   try {

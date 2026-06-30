@@ -21,6 +21,7 @@ import { getNovaSystemPrompt, getToolGuidancePrompt, DEFAULT_NOVA_SETTINGS } fro
 import { getMemoryService } from '../services/memoryServiceClient';
 import { tryExtractAndSaveMemory, shouldExtractMemory } from './utils/memoryExtractor';
 import { createLogger, createTraceId, type LogMeta } from '../../shared/logger';
+import { previewValue } from './utils/textUtils';
 import { getResolvedRuntimeModel } from './model/modelRuntime';
 import { getModelProvider } from './model';
 import { getToolPromptSummary, getInitialToolDefinitions } from './tools/toolRegistry';
@@ -181,25 +182,6 @@ export class Orchestrator {
   }
 
   /**
-   * 生成适合 UI 展示的短摘要，避免把完整文件、长网页或敏感请求体塞进聊天区。
-   */
-  private previewValue(value: unknown, maxLength: number = 180): string {
-    let text: string;
-    if (typeof value === 'string') {
-      text = value;
-    } else {
-      try {
-        text = JSON.stringify(value);
-      } catch {
-        text = String(value);
-      }
-    }
-
-    if (!text) return '';
-    return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
-  }
-
-  /**
    * 处理一次用户输入。
    *
    * @param text 用户输入的文本
@@ -275,7 +257,7 @@ export class Orchestrator {
         kind: 'analysis',
         title: '理解用户输入',
         status: 'success',
-        detail: this.previewValue(text, 120),
+        detail: previewValue(text, 120),
         createdAt: inputEventCreatedAt,
         updatedAt: inputEventCreatedAt,
         traceId,
@@ -301,7 +283,7 @@ export class Orchestrator {
         kind: 'response',
         title: '整理最终回复',
         status: 'success',
-        detail: this.previewValue(accumulatedContent, 140),
+        detail: previewValue(accumulatedContent, 140),
         createdAt: responseEventCreatedAt,
         updatedAt: responseEventCreatedAt,
         traceId,
@@ -336,10 +318,10 @@ export class Orchestrator {
         assistantMessage.model = model;
       }
       assistantMessage.durationMs = durationMs;
-      delete (assistantMessage as any).isStreaming; // 移除流式标记
 
+      const { isStreaming: _, ...persistedMessage } = assistantMessage;
       this.conversationRuntime.addMessage({
-        ...assistantMessage,
+        ...persistedMessage,
         content: accumulatedContent
       });
       logger.info('助手消息已写入对话历史', {

@@ -16,7 +16,7 @@ import {
   getToolLogs,
   type ModelContextSnapshot,
   type ToolCallLog,
-} from '../../services/workspaceStore';
+} from '../../core/history/workspaceStore';
 import type { Message } from '../../types';
 import { clearBufferedLogs, getBufferedLogs, type BufferedLogEntry } from '../../../shared/logger';
 

@@ -8,6 +8,7 @@ import {
   deleteDocumentsBySource,
   cleanText,
   isEmbeddingReady,
+  getChunksBySource,
 } from '../services/ragService';
 import { parseFile, chunkText } from '../services/documentParser';
 import { recognizeImage } from '../services/imageRecognizer';
@@ -183,10 +184,22 @@ export function registerParseFileToText() {
   });
 }
 
+export function registerKnowledgeChunksBySource() {
+  ipcMain.handle('knowledge-chunks-by-source', async (_event, source: string) => {
+    try {
+      return await getChunksBySource(source);
+    } catch (error: any) {
+      logger.error('知识库获取切片失败', { error: error.message });
+      return { success: false, error: error.message };
+    }
+  });
+}
+
 export function registerKnowledgeSearchStructured() {
   ipcMain.handle('knowledge-search-structured', async (_event, query: string, nResults: number = 5) => {
     try {
-      return await searchKnowledgeStructured(query, nResults);
+      const result = await searchKnowledgeStructured(query, nResults);
+      return result;
     } catch (error: any) {
       logger.error('知识库结构化搜索失败', { error: error.message });
       return { success: false, error: error.message };

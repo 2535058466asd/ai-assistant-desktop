@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import styles from './ToolLogPanel.module.css';
-import { clearToolLogs, getToolLogs, type ToolCallLog } from '../../services/workspaceStore';
+import { clearToolLogs, getToolLogs, type ToolCallLog } from '../../core/history/workspaceStore';
 
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat('zh-CN', {
   month: '2-digit',
