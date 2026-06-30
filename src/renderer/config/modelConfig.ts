@@ -28,12 +28,6 @@ const DEFAULT_DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
 const KEYS = {
   provider: 'nova.model.provider',
   legacyProvider: 'qiyuan.model.provider',
-  modelApiKey: 'nova.model.apiKey',
-  legacyModelApiKey: 'qiyuan.model.apiKey',
-  modelBaseUrl: 'nova.model.baseUrl',
-  legacyModelBaseUrl: 'qiyuan.model.baseUrl',
-  modelName: 'nova.model.modelName',
-  legacyModelName: 'qiyuan.model.modelName',
   modelTemperature: 'nova.model.temperature',
   legacyModelTemperature: 'qiyuan.model.temperature',
   modelMaxTokens: 'nova.model.maxTokens',
@@ -147,12 +141,6 @@ function getStoredProvider(): ModelProviderId {
   return normalizeProvider(readStored(KEYS.provider, KEYS.legacyProvider));
 }
 
-function readLegacyCurrentProviderValue(key: string, provider: ModelProviderId): string {
-  // 早期单模型配置遗留键。现在多 Provider 后，只有当前 Provider 一致时才允许读取，
-  // 避免“小米 key 被豆包 Provider 误用”这类串配置问题。
-  return getStoredProvider() === provider ? readStored(key) : '';
-}
-
 /**
  * 统一模型配置入口。
  *
@@ -231,7 +219,6 @@ export function getModelConfigForProvider(provider: ModelProviderId): ActiveMode
     provider: 'doubao',
     apiKey: firstValue(
       readStored(KEYS.doubaoApiKey, KEYS.legacyDoubaoApiKey),
-      readLegacyCurrentProviderValue(KEYS.legacyModelApiKey, 'doubao'),
       readEnv('VITE_DOUBAO_API_KEY')
     ),
     baseUrl: firstValue(readStored(KEYS.doubaoBaseUrl, KEYS.legacyDoubaoBaseUrl), readEnv('VITE_DOUBAO_API_URL'), DEFAULT_DOUBAO_BASE_URL),
@@ -253,15 +240,12 @@ export function getActiveModelConfig(): ActiveModelConfig {
 
 export function saveActiveModelConfig(config: ActiveModelConfig): void {
   if (typeof window === 'undefined') return;
-  // 通用键用于 getActiveModelConfig
+  // 只写 provider 标识和全局参数
   writeStored(KEYS.provider, config.provider, KEYS.legacyProvider);
-  writeStored(KEYS.modelApiKey, config.apiKey, KEYS.legacyModelApiKey);
-  writeStored(KEYS.modelBaseUrl, config.baseUrl, KEYS.legacyModelBaseUrl);
-  writeStored(KEYS.modelName, config.model, KEYS.legacyModelName);
   writeStored(KEYS.modelTemperature, String(config.temperature), KEYS.legacyModelTemperature);
   writeStored(KEYS.modelMaxTokens, String(config.maxTokens), KEYS.legacyModelMaxTokens);
 
-  // 同时写 provider 专属键，让 getModelConfigForProvider 能读到
+  // 写 provider 专属键
   if (config.provider === 'doubao') {
     writeStored(KEYS.doubaoApiKey, config.apiKey, KEYS.legacyDoubaoApiKey);
     writeStored(KEYS.doubaoModel, config.model, KEYS.legacyDoubaoModel);
