@@ -76,9 +76,12 @@ export default function ModelApiPanel() {
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${apiKey}` },
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}，该服务商可能不支持模型列表接口`);
+      }
       const data = await res.json();
       const ids = (data.data || []).map((m: any) => m.id).sort();
+      if (ids.length === 0) throw new Error('返回的模型列表为空');
       setAvailableModels(ids);
       if (ids.length > 0 && !model) setModel(ids[0]);
     } catch (e: any) {
@@ -91,7 +94,7 @@ export default function ModelApiPanel() {
     setTesting(true);
     setTestResult(null);
     try {
-      const testConfig = { provider, apiKey, baseUrl, temperature: 0.1, maxTokens: 32, model: getActiveModelConfig().model, compactModel: getActiveModelConfig().compactModel };
+      const testConfig = { provider, apiKey, baseUrl, temperature: 0.1, maxTokens: 32, model, compactModel: model };
       const testProvider = createModelProvider(testConfig);
       const response = await testProvider.chatWithTools({
         model: testConfig.model,
