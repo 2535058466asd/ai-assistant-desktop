@@ -40,6 +40,7 @@ export default function ModelApiPanel() {
     const config = getModelConfigForProvider(newProvider);
     setApiKey(config.apiKey);
     setBaseUrl(config.baseUrl);
+    // config.model 已经是该 provider 自己的 model（读的是 provider 专属 key）
     setModel(config.model);
     setAvailableModels([]);
   };

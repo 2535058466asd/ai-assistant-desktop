@@ -71,7 +71,9 @@ export function normalizeModelSelection(provider: ModelProviderId, requestedMode
 }
 
 export function getResolvedRuntimeModel(requestedModelId?: string): ResolvedModelRuntime {
-  const activeConfig = getActiveModelConfig();
+  // 从 provider 专属 key 读配置，避免通用 key 串值
+  const genericConfig = getActiveModelConfig();
+  const activeConfig = getModelConfigForProvider(genericConfig.provider);
   const normalized = normalizeModelSelection(activeConfig.provider, requestedModelId || activeConfig.model);
   const config: ActiveModelConfig = {
     ...activeConfig,
@@ -90,8 +92,8 @@ export function getResolvedRuntimeModel(requestedModelId?: string): ResolvedMode
 }
 
 export function syncProviderConfigForModel(modelId: string): ResolvedModelRuntime {
-  const activeConfig = getActiveModelConfig();
-  const provider = inferProviderFromModelId(modelId, activeConfig.provider) || activeConfig.provider;
+  const genericConfig = getActiveModelConfig();
+  const provider = inferProviderFromModelId(modelId, genericConfig.provider) || genericConfig.provider;
   const baseConfig = getModelConfigForProvider(provider);
   const normalized = normalizeModelSelection(provider, modelId);
   const nextConfig: ActiveModelConfig = {
