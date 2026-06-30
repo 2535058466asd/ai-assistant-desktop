@@ -1,5 +1,9 @@
 import type { ModelOption } from '../types/chat';
 import type { ModelProviderId } from './modelConfig';
+import { getModelConfigForProvider } from './modelConfig';
+import { createLogger } from '../../shared/logger';
+
+const logger = createLogger('model');
 
 export interface ProviderModelCatalog {
   defaultModel: string;
@@ -54,23 +58,66 @@ const MODEL_CATALOG: Record<ModelProviderId, ProviderModelCatalog> = {
   },
 };
 
+// 缓存从 API 获取的模型列表
+const fetchedModelsCache: Partial<Record<ModelProviderId, string[]>> = {};
+
+/**
+ * 从 API 获取可用模型列表并缓存
+ */
+export async function fetchModelsForProvider(provider: ModelProviderId): Promise<string[]> {
+  if (fetchedModelsCache[provider]) return fetchedModelsCache[provider]!;
+
+  const config = getModelConfigForProvider(provider);
+  if (!config.apiKey || !config.baseUrl) return [];
+
+  try {
+    const base = config.baseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+    const url = base + '/models';
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${config.apiKey}` } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const ids = (data.data || []).map((m: any) => m.id as string).filter(Boolean).sort();
+    if (ids.length > 0) {
+      fetchedModelsCache[provider] = ids;
+      logger.info('获取模型列表成功', { provider, count: ids.length });
+    }
+    return ids;
+  } catch (e: any) {
+    logger.warn('获取模型列表失败', { provider, error: e.message });
+    return [];
+  }
+}
+
+export function clearFetchedModelsCache(provider?: ModelProviderId): void {
+  if (provider) delete fetchedModelsCache[provider];
+  else Object.keys(fetchedModelsCache).forEach(k => delete fetchedModelsCache[k as ModelProviderId]);
+}
+
 export function getCatalogForProvider(provider: ModelProviderId): ProviderModelCatalog {
-  return MODEL_CATALOG[provider];
+  return MODEL_CATALOG[provider] || MODEL_CATALOG['openai-compatible'];
 }
 
 export function getModelsForProvider(provider: ModelProviderId, currentModelId?: string): ModelOption[] {
   const catalog = getCatalogForProvider(provider);
   const selectedModelId = currentModelId || catalog.defaultModel;
-  const knownModel = catalog.models.find((model) => model.id === selectedModelId);
 
-  if (knownModel) {
-    return catalog.models;
+  // 合并：写死的 catalog + API 获取的 + 当前选中的
+  const allModels = new Map<string, ModelOption>();
+  for (const m of catalog.models) allModels.set(m.id, m);
+
+  const fetched = fetchedModelsCache[provider];
+  if (fetched) {
+    for (const id of fetched) {
+      if (!allModels.has(id)) allModels.set(id, { id, name: id, isOnline: true });
+    }
   }
 
-  return [
-    { id: selectedModelId, name: selectedModelId, isOnline: true },
-    ...catalog.models,
-  ];
+  // 确保当前选中的模型在列表里
+  if (!allModels.has(selectedModelId)) {
+    allModels.set(selectedModelId, { id: selectedModelId, name: selectedModelId, isOnline: true });
+  }
+
+  return Array.from(allModels.values());
 }
 
 export function getDefaultModelForProvider(provider: ModelProviderId): string {
