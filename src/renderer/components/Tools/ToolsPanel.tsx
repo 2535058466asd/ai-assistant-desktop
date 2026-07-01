@@ -138,13 +138,8 @@ const ToolsPanel: React.FC = () => {
 
   return (
     <section className={styles.panel}>
-      <header className={styles.header}>
-        <h1>工具与调用</h1>
-        <p>{totalTools} 个工具 · {logs.length} 次调用 · 成功率 {successRate}%</p>
-      </header>
-
-      {/* Tab 切换 + 内容 */}
-      <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
+      {/* Tab + 内容 - 没有 header，直接填满 */}
+      <div className={styles.mainLayout}>
         <div className={styles.tabBar}>
           <button className={`${styles.tab} ${activeTab === 'tools' ? styles.tabActive : ''}`} onClick={() => setActiveTab('tools')}>
             🧩 工具管理
@@ -152,6 +147,15 @@ const ToolsPanel: React.FC = () => {
           <button className={`${styles.tab} ${activeTab === 'dashboard' ? styles.tabActive : ''}`} onClick={() => setActiveTab('dashboard')}>
             📊 仪表盘
           </button>
+          {/* 概览数据放在 tab 下方 */}
+          <div className={styles.tabStats}>
+            {statCards.map((s) => (
+              <div key={s.label} className={styles.miniStat}>
+                <SvgIcon d={s.icon} size={14} color={s.iconColor} />
+                <span>{s.value}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
       {/* Tab 1: 工具管理 */}
@@ -198,20 +202,6 @@ const ToolsPanel: React.FC = () => {
       {/* Tab 2: 仪表盘 */}
       {activeTab === 'dashboard' && (
         <div className={styles.statsSection}>
-          <div className={styles.statsRow}>
-            {statCards.map((s) => (
-              <div key={s.label} className={styles.statCard}>
-                <div className={styles.statIconWrap} style={{ background: `${s.iconColor}12` }}>
-                  <SvgIcon d={s.icon} size={16} color={s.iconColor} />
-                </div>
-                <div className={styles.statBody}>
-                  <div className={styles.statLabel}>{s.label}</div>
-                  <div className={styles.statValue} style={{ color: s.valueColor }}>{s.value}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
           {logs.length === 0 ? (
             <div className={styles.empty}>暂无调用记录。开始对话后会自动记录。</div>
           ) : (

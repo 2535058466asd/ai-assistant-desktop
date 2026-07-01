@@ -5,18 +5,26 @@
 .panel {
   height: 100%;
   padding: 0;
-  overflow-y: auto;
+  overflow: hidden;
+}
+
+.mainLayout {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
 }
 
 .tabBar {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 140px;
+  min-width: 180px;
+  max-width: 180px;
   flex-shrink: 0;
   background: var(--bg-secondary, #ffffff);
   border-right: 1px solid var(--border-color, rgba(0,0,0,0.08));
   padding: 8px 4px;
+  overflow-y: auto;
 }
 
 .tab {
@@ -46,7 +54,24 @@
   color: var(--accent-blue, #6366f1);
   background: var(--bg-active, #dbeafe);
   font-weight: 600;
-  box-shadow: 0 1px 3px rgba(99,102,241,0.2);
+}
+
+.tabStats {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color, rgba(0,0,0,0.08));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.miniStat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary, #4b5563);
+  padding: 4px 12px;
 }
 
 .header {
@@ -70,7 +95,13 @@
 
 /* ===== 调用统计 ===== */
 .statsSection {
-  padding: 16px 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  overflow-y: auto;
+  background: var(--bg-primary, #fafbfc);
 }
 
 .statsRow {
