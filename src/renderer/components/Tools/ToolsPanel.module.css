@@ -1,33 +1,106 @@
-/**
- * ToolsPanel — 工具管理 + 仪表盘
- */
+/* ToolsPanel.module.css — 全新设计 */
 
 .panel {
   height: 100%;
-  padding: 0;
   overflow: hidden;
+  background: var(--bg-primary);
 }
 
-.mainLayout {
+.layout {
   display: flex;
   height: 100%;
-  overflow: hidden;
 }
 
-.tabBar {
+/* ── Left Sidebar ── */
+.sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 180px;
-  max-width: 180px;
-  flex-shrink: 0;
-  background: var(--bg-secondary, #ffffff);
-  border-right: 1px solid var(--border-color, rgba(0,0,0,0.08));
-  padding: 8px 4px;
   overflow-y: auto;
 }
 
+/* ── Stats ── */
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.statItem {
+  background: var(--bg-secondary);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statLabel {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.statValue {
+  font-size: 20px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+/* ── Tabs ── */
+.tabs {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--border-color);
+}
+
 .tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.tabActive {
+  color: var(--accent-blue);
+  background: var(--bg-active);
+  font-weight: 600;
+}
+
+/* ── Category List ── */
+.catList {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.catItem {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -35,152 +108,198 @@
   background: transparent;
   border: none;
   border-radius: 8px;
-  color: var(--text-muted, #6b7280);
+  color: var(--text-secondary);
   font-size: 13px;
-  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s;
   font-family: inherit;
   text-align: left;
   width: 100%;
 }
 
-.tab:hover {
-  color: var(--text-primary, #1f2937);
-  background: var(--bg-hover, #f1f5f9);
-}
-
-.tabActive {
-  color: var(--accent-blue, #6366f1);
-  background: var(--bg-active, #dbeafe);
-  font-weight: 600;
-}
-
-.tabStats {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-color, rgba(0,0,0,0.08));
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.miniStat {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-secondary, #4b5563);
-  padding: 4px 12px;
-}
-
-.header {
-  padding: 22px 28px 18px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.header h1 {
-  margin: 0;
-  font-size: var(--text-xl);
-  font-weight: 300;
-  letter-spacing: -0.02em;
+.catItem:hover {
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
-.header p {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: var(--text-muted);
+.catItemActive {
+  background: var(--bg-active);
+  color: var(--accent-blue);
+  font-weight: 500;
 }
 
-/* ===== 调用统计 ===== */
-.statsSection {
+.catIcon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+
+.catName {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px 16px;
+}
+
+.catCount {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.catErr {
+  color: #ef4444;
+}
+
+/* ── Main Content ── */
+.main {
+  flex: 1;
   overflow-y: auto;
-  background: var(--bg-primary, #fafbfc);
+  background: var(--bg-primary);
 }
 
-.statsRow {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin-bottom: 14px;
+.main::-webkit-scrollbar {
+  width: 6px;
 }
 
-.statCard {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+.main::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
 }
 
-.statCard:hover {
-  border-color: rgba(148, 163, 184, 0.24);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
-}
-
-.statIconWrap {
-  width: 34px;
-  height: 34px;
+.placeholder {
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 14px;
 }
 
-.statBody { display: flex; flex-direction: column; }
+/* ── Tools Content ── */
+.toolsContent {
+  padding: 16px;
+}
 
-.statLabel { font-size: 11px; color: var(--text-muted); font-weight: 500; }
-.statValue { font-size: 24px; font-weight: 200; letter-spacing: -0.03em; color: var(--text-primary); margin-top: 2px; }
+.catHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
 
-/* ===== 图表 ===== */
-.chartsRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.catTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.catInfo {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.toolGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toolCard {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px;
+  transition: all 0.15s;
+}
+
+.toolCard:hover {
+  border-color: var(--accent-blue);
+  box-shadow: 0 2px 8px rgba(99,102,241,0.1);
+}
+
+.toolHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.toolName {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.toolRisk {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.toolRo {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.toolDesc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.toolStats {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.toolStatOk {
+  color: var(--accent-green);
+}
+
+.toolStatErr {
+  color: #ef4444;
+}
+
+/* ── Dashboard Content ── */
+.dashboardContent {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 
 .chartCard {
-  background: var(--card-bg);
+  background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 16px;
 }
 
-.chartTitle { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px; }
-
-.pieLayout {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  height: 200px;
+.chartTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
 }
 
-.pieLegend { display: flex; flex-direction: column; gap: 8px; }
-
-.pieLegendItem {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.pieLegendDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
-/* ===== 请求日志 ===== */
+/* ── Log Section ── */
 .logSection {
+  background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 10px;
   overflow: hidden;
@@ -190,204 +309,178 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
-  background: var(--card-bg);
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
-}
-
-.logTitle { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-
-.logFilters { display: flex; gap: 6px; align-items: center; }
-
-.logSearchInput {
-  padding: 4px 10px;
   background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  color: var(--text-primary);
-  font-size: 12px;
-  outline: none;
-  font-family: inherit;
-  width: 130px;
-  transition: border-color 0.2s ease;
 }
 
-.logSearchInput:focus { border-color: var(--border-focus); }
+.logTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
 
-.logFilterBtn {
+.logFilters {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.logSearch {
+  width: 140px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 12px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.logSearch::placeholder {
+  color: var(--text-muted);
+}
+
+.logSearch:focus {
+  border-color: var(--accent-blue);
+}
+
+.logFilter {
   padding: 4px 10px;
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: transparent;
   color: var(--text-muted);
   font-size: 11px;
-  font-weight: 600;
   cursor: pointer;
+  transition: all 0.15s;
   font-family: inherit;
-  transition: all 0.15s ease;
 }
 
-.logFilterBtn:hover { color: var(--text-primary); background: var(--card-nested-bg); }
-.logFilterActive { color: var(--accent-cyan); background: rgba(34,211,238,0.06); border-color: rgba(34,211,238,0.2); }
+.logFilter:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
 
-.logTableWrap { overflow-x: auto; }
+.logFilterActive {
+  color: var(--accent-blue);
+  border-color: var(--accent-blue);
+  background: rgba(99,102,241,0.1);
+}
 
-.logTable { width: 100%; border-collapse: collapse; font-size: 12px; }
-.logTable th {
-  padding: 8px 16px;
-  text-align: left;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+.logTable {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.logRow {
+  cursor: pointer;
   border-bottom: 1px solid var(--border-color);
-  background: var(--card-nested-bg);
+  transition: background 0.1s;
+}
+
+.logRow:last-child {
+  border-bottom: none;
+}
+
+.logRow:hover {
+  background: var(--bg-hover);
+}
+
+.logRowMain {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+}
+
+.logDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.logDotOk {
+  background: var(--accent-green);
+}
+
+.logDotErr {
+  background: #ef4444;
+}
+
+.logName {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.logTable td { padding: 8px 16px; border-bottom: 1px solid rgba(148,163,184,0.06); }
-.logRow { cursor: pointer; transition: background 0.15s; }
-.logRow:hover { background: var(--card-nested-bg); }
-
-.logDot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
-.dotGreen { background: #22c55e; }
-.dotRed { background: #ef4444; }
-
-.logName { font-family: var(--font-mono); font-weight: 500; color: var(--text-primary); font-size: 12px; }
-.logDuration { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
-.logTime { font-size: 11px; color: var(--text-muted); }
-.logExpand { font-size: 10px; color: var(--text-muted); width: 20px; text-align: center; }
-
-.logDetail {
-  padding: 10px 16px !important;
-  font-size: 11px;
+.logDuration {
+  font-size: 12px;
+  color: var(--text-muted);
   font-family: var(--font-mono);
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  white-space: pre-wrap;
-  word-break: break-all;
-  line-height: 1.5;
+  flex-shrink: 0;
 }
 
-.empty {
-  padding: 24px;
+.logTime {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.logDetail {
+  padding: 10px 16px 10px 34px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.logEmpty {
+  padding: 20px;
   text-align: center;
   color: var(--text-muted);
   font-size: 13px;
 }
 
-/* ===== 分页 ===== */
-.pagination {
+.paging {
   display: flex;
-  align-items: center;
-  justify-content: center;
   gap: 4px;
-  padding: 12px 16px;
+  justify-content: center;
+  padding: 12px;
   border-top: 1px solid var(--border-color);
-  background: var(--card-bg);
 }
 
-.pageBtn {
-  min-width: 30px;
-  height: 28px;
+.pageNum {
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 6px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-family: var(--font-mono);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.pageBtn:hover:not(:disabled) { background: var(--card-nested-bg); color: var(--text-primary); }
-.pageBtn:disabled { opacity: 0.35; cursor: default; }
-.pageBtnActive { color: var(--accent-cyan); border-color: rgba(34,211,238,0.3); background: rgba(34,211,238,0.06); }
-
-.pageEllipsis { font-size: 12px; color: var(--text-muted); padding: 0 2px; }
-.pageInfo { font-size: 11px; color: var(--text-muted); margin-left: 8px; font-family: var(--font-mono); }
-
-/* ===== 工具能力目录（折叠） ===== */
-.capsSection {
-  margin: 0 20px 20px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.capsToggle {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 12px 16px;
-  background: var(--card-bg);
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s ease;
-}
-
-.capsToggle:hover { background: var(--card-nested-bg); }
-
-.capsToggleTitle { font-size: 14px; font-weight: 600; color: var(--text-primary); }
-.capsToggleHint { flex: 1; font-size: 12px; color: var(--text-muted); text-align: left; }
-.capsArrow { font-size: 14px; color: var(--text-muted); }
-
-.capsContent {
-  padding: 8px 12px 12px;
-  border-top: 1px solid var(--border-color);
-}
-
-.catGroup { margin-bottom: 4px; }
-
-.catHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 10px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 13px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
   color: var(--text-primary);
-  transition: background 0.15s ease;
-}
-
-.catHeader:hover { background: var(--card-nested-bg); }
-.catCount { font-size: 11px; color: var(--text-muted); background: var(--card-nested-bg); padding: 1px 6px; border-radius: 999px; }
-.catArrow { font-size: 12px; color: var(--text-muted); margin-left: auto; }
-
-.catTools { padding: 4px 0 8px 8px; }
-
-.capToolRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
   font-size: 12px;
-  border-radius: 4px;
-  transition: background 0.15s ease;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
 }
 
-.capToolRow:hover { background: var(--card-nested-bg); }
+.pageNum:hover {
+  border-color: var(--accent-blue);
+}
 
-.capToolName { font-family: var(--font-mono); font-weight: 500; color: var(--text-primary); min-width: 120px; font-size: 12px; }
-.capRiskTag { font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
-.capRoTag { font-size: 8px; font-weight: 700; padding: 1px 4px; border-radius: 2px; background: rgba(34,211,238,0.1); color: var(--accent-cyan); }
-.capToolDesc { color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.capToolStats { font-size: 11px; font-family: var(--font-mono); margin-left: 4px; }
-
-/* ===== 响应式 ===== */
-@media (max-width: 860px) {
-  .chartsRow { grid-template-columns: 1fr; }
-  .statsRow { grid-template-columns: repeat(2, 1fr); }
+.pageNumActive {
+  background: var(--accent-blue);
+  color: white;
+  border-color: var(--accent-blue);
 }
