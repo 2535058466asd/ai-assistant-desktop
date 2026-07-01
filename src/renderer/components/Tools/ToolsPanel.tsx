@@ -10,7 +10,6 @@ import { getToolLogs, type ToolCallLog } from '../../core/history/workspaceStore
 import styles from './ToolsPanel.module.css';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
 } from 'recharts';
 
 const CATEGORIES = [
@@ -85,12 +84,6 @@ const ToolsPanel: React.FC = () => {
       .sort((a, b) => (b.成功 + b.失败) - (a.成功 + a.失败)).slice(0, 8);
   }, [logs]);
 
-  const pieData = useMemo(() => {
-    const s = logs.filter((l) => l.status === 'success').length;
-    const e = logs.filter((l) => l.status === 'error').length;
-    return [{ name: '成功', value: s }, { name: '失败', value: e }].filter((d) => d.value > 0);
-  }, [logs]);
-
   const filteredLogs = useMemo(() => {
     let result = [...logs].sort((a, b) => b.createdAt - a.createdAt);
     if (statusFilter !== 'all') result = result.filter((l) => l.status === statusFilter);
@@ -163,45 +156,22 @@ const ToolsPanel: React.FC = () => {
           <div className={styles.empty}>暂无调用记录。开始对话后会自动记录。</div>
         ) : (
           <>
-            {/* 图表 */}
-            <div className={styles.chartsRow}>
-              <div className={styles.chartCard}>
-                <div className={styles.chartTitle}>工具调用排名</div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={ranking} layout="vertical" margin={{ left: 10, right: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11, fill: '#94a3b8', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 8, fontSize: 12, backdropFilter: 'blur(8px)' }}
-                      cursor={{ fill: 'rgba(148,163,184,0.06)' }}
-                    />
-                    <Bar dataKey="成功" stackId="a" fill="#22c55e" />
-                    <Bar dataKey="失败" stackId="a" fill="#ef4444" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className={styles.chartCard}>
-                <div className={styles.chartTitle}>执行状态</div>
-                <div className={styles.pieLayout}>
-                  <ResponsiveContainer width="45%" height={160}>
-                    <PieChart>
-                      <Pie data={pieData} innerRadius={40} outerRadius={65} dataKey="value" stroke="none" paddingAngle={2}>
-                        {pieData.map((e) => <Cell key={e.name} fill={e.name === '成功' ? COLORS.green : COLORS.red} />)}
-                      </Pie>
-                      <Tooltip contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 8, fontSize: 12 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className={styles.pieLegend}>
-                    {pieData.map((d) => (
-                      <div key={d.name} className={styles.pieLegendItem}>
-                        <span className={styles.pieLegendDot} style={{ background: d.name === '成功' ? COLORS.green : COLORS.red }} />
-                        <span>{d.name}: {d.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+            {/* 工具调用详情 — 堆叠柱状图 */}
+            <div className={styles.chartCard}>
+              <div className={styles.chartTitle}>工具调用详情 <span style={{ fontSize: 11, color: '#64748b', fontWeight: 400, marginLeft: 8 }}>🟢 成功 🔴 失败</span></div>
+              <ResponsiveContainer width="100%" height={Math.max(200, ranking.length * 32 + 20)}>
+                <BarChart data={ranking} layout="vertical" margin={{ left: 10, right: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12, fill: '#94a3b8', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 8, fontSize: 12, backdropFilter: 'blur(8px)' }}
+                    formatter={(value: any, name: any) => [`${value} 次`, name]}
+                  />
+                  <Bar dataKey="成功" stackId="a" fill="#22c55e" />
+                  <Bar dataKey="失败" stackId="a" fill="#ef4444" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
 
             {/* 请求日志表格 */}
