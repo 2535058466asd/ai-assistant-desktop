@@ -286,8 +286,12 @@ export async function searchKnowledgeStructured(
     const usedIds = new Set<string>();
     const top: SearchResultItem[] = [];
 
+    // 距离阈值：超过 0.8 的结果不相关，直接跳过
+    const DISTANCE_THRESHOLD = 0.8;
+
     for (const row of rows) {
       if (top.length >= nResults) break;
+      if (row.distance > DISTANCE_THRESHOLD) continue; // 太远了，跳过
       const count = sourceCounts.get(row.source) || 0;
       if (count >= maxPerSource) continue;
       sourceCounts.set(row.source, count + 1);
