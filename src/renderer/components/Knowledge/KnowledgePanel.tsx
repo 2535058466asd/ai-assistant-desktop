@@ -198,7 +198,7 @@ const KnowledgePanel: React.FC = () => {
     setSearchPage(1);
     setRightPanel('search');
     try {
-      const result = await api.knowledgeSearchStructured(searchQuery, 20);
+      const result = await api.knowledgeSearchStructured(searchQuery, 8);
       if (result.success && result.data) {
         setSearchResults(result.data);
       } else {
