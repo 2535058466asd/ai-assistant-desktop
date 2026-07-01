@@ -1,11 +1,41 @@
 /**
- * ToolsPanel — 统计 + 日志分页 + 能力目录
+ * ToolsPanel — 工具管理 + 仪表盘
  */
 
 .panel {
   height: 100%;
   padding: 0;
   overflow-y: auto;
+}
+
+.tabBar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 20px;
+  margin-bottom: 16px;
+}
+
+.tab {
+  padding: 10px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tabActive {
+  color: var(--accent-cyan, #22d3ee);
+  border-bottom-color: var(--accent-cyan, #22d3ee);
 }
 
 .header {
@@ -312,6 +342,7 @@
 .capRiskTag { font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
 .capRoTag { font-size: 8px; font-weight: 700; padding: 1px 4px; border-radius: 2px; background: rgba(34,211,238,0.1); color: var(--accent-cyan); }
 .capToolDesc { color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.capToolStats { font-size: 11px; font-family: var(--font-mono); margin-left: 4px; }
 
 /* ===== 响应式 ===== */
 @media (max-width: 860px) {

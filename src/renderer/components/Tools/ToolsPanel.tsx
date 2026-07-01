@@ -1,7 +1,8 @@
 /**
- * ToolsPanel 工具与调用
+ * ToolsPanel — 工具与调用
  *
- * 统计为主 + 请求日志（分页）+ 能力目录（折叠）
+ * Tab 1: 工具管理（工具列表 + 技能）
+ * Tab 2: 仪表盘（统计 + 图表 + 日志）
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -35,7 +36,6 @@ const fmtDuration = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : 
 const fmtTime = (ts: number) => new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(ts));
 const PAGE_SIZE = 20;
 
-/* ── SVG 图标 ── */
 const SvgIcon = ({ d, size = 16, color = 'currentColor' }: { d: string; size?: number; color?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
     <path d={d} />
@@ -49,11 +49,11 @@ const ICONS = {
 };
 
 const ToolsPanel: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'tools' | 'dashboard'>('tools');
   const [logs, setLogs] = useState<ToolCallLog[]>([]);
   const [logSearch, setLogSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'success' | 'error'>('all');
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
-  const [capabilitiesOpen, setCapabilitiesOpen] = useState(false);
   const [expandedCat, setExpandedCat] = useState<string | null>(null);
   const [logPage, setLogPage] = useState(1);
 
@@ -81,7 +81,7 @@ const ToolsPanel: React.FC = () => {
         成功: d.count - d.errors,
         失败: d.errors,
       }))
-      .sort((a, b) => (b.成功 + b.失败) - (a.成功 + a.失败)).slice(0, 8);
+      .sort((a, b) => (b.成功 + b.失败) - (a.成功 + a.失败)).slice(0, 10);
   }, [logs]);
 
   const filteredLogs = useMemo(() => {
@@ -94,11 +94,9 @@ const ToolsPanel: React.FC = () => {
     return result;
   }, [logs, logSearch, statusFilter]);
 
-  // 分页
   const totalLogPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
   const safeLogPage = Math.min(logPage, totalLogPages);
   const pageLogs = filteredLogs.slice((safeLogPage - 1) * PAGE_SIZE, safeLogPage * PAGE_SIZE);
-
   useEffect(() => { setLogPage(1); }, [statusFilter, logSearch]);
 
   const logPageNumbers = useMemo(() => {
@@ -109,18 +107,27 @@ const ToolsPanel: React.FC = () => {
     return pages;
   }, [safeLogPage, totalLogPages]);
 
-  // 工具能力目录
   const totalTools = Object.keys(TOOLS).length;
   const categorizedTools = useMemo(() => {
-    const map = new Map<string, Array<{ name: string; desc: string; risk: string; readOnly: boolean }>>();
+    const map = new Map<string, Array<{ name: string; desc: string; risk: string; readOnly: boolean; count: number; errors: number }>>();
+    // 统计每个工具的调用次数和错误数
+    const toolStats = new Map<string, { count: number; errors: number }>();
+    for (const l of logs) {
+      const s = toolStats.get(l.name) || { count: 0, errors: 0 };
+      s.count++; if (l.status === 'error') s.errors++;
+      toolStats.set(l.name, s);
+    }
     for (const cat of CATEGORIES) {
       const tools = Object.entries(TOOLS)
         .filter(([, t]) => (t.category || 'other') === cat.id)
-        .map(([name, t]) => ({ name, desc: t.schema.function.description, risk: t.riskLevel, readOnly: t.isReadOnly }));
+        .map(([name, t]) => {
+          const s = toolStats.get(name) || { count: 0, errors: 0 };
+          return { name, desc: t.schema.function.description, risk: t.riskLevel, readOnly: t.isReadOnly, count: s.count, errors: s.errors };
+        });
       if (tools.length > 0) map.set(cat.id, tools);
     }
     return map;
-  }, []);
+  }, [logs]);
 
   const statCards = [
     { label: '总调用', value: String(logs.length), icon: ICONS.activity, iconColor: COLORS.cyan },
@@ -136,143 +143,152 @@ const ToolsPanel: React.FC = () => {
         <p>{totalTools} 个工具 · {logs.length} 次调用 · 成功率 {successRate}%</p>
       </header>
 
-      <div className={styles.statsSection}>
-        {/* 指标行 */}
-        <div className={styles.statsRow}>
-          {statCards.map((s) => (
-            <div key={s.label} className={styles.statCard}>
-              <div className={styles.statIconWrap} style={{ background: `${s.iconColor}12` }}>
-                <SvgIcon d={s.icon} size={16} color={s.iconColor} />
-              </div>
-              <div className={styles.statBody}>
-                <div className={styles.statLabel}>{s.label}</div>
-                <div className={styles.statValue} style={{ color: s.valueColor }}>{s.value}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {logs.length === 0 ? (
-          <div className={styles.empty}>暂无调用记录。开始对话后会自动记录。</div>
-        ) : (
-          <>
-            {/* 工具调用详情 — 堆叠柱状图 */}
-            <div className={styles.chartCard}>
-              <div className={styles.chartTitle}>工具调用详情 <span style={{ fontSize: 11, color: '#64748b', fontWeight: 400, marginLeft: 8 }}>🟢 成功 🔴 失败</span></div>
-              <ResponsiveContainer width="100%" height={Math.max(200, ranking.length * 32 + 20)}>
-                <BarChart data={ranking} layout="vertical" margin={{ left: 10, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12, fill: '#94a3b8', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 8, fontSize: 12, backdropFilter: 'blur(8px)' }}
-                    formatter={(value: any, name: any) => [`${value} 次`, name]}
-                  />
-                  <Bar dataKey="成功" stackId="a" fill="#22c55e" />
-                  <Bar dataKey="失败" stackId="a" fill="#ef4444" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* 请求日志表格 */}
-            <div className={styles.logSection}>
-              <div className={styles.logHeader}>
-                <span className={styles.logTitle}>请求日志</span>
-                <div className={styles.logFilters}>
-                  <input value={logSearch} onChange={(e) => setLogSearch(e.target.value)} placeholder="搜索工具名…" className={styles.logSearchInput} />
-                  {(['all', 'success', 'error'] as const).map((f) => (
-                    <button key={f} onClick={() => setStatusFilter(f)} className={`${styles.logFilterBtn} ${statusFilter === f ? styles.logFilterActive : ''}`}>
-                      {f === 'all' ? '全部' : f === 'success' ? '成功' : '失败'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className={styles.logTableWrap}>
-                <table className={styles.logTable}>
-                  <thead>
-                    <tr><th>状态</th><th>工具</th><th>耗时</th><th>时间</th><th></th></tr>
-                  </thead>
-                  <tbody>
-                    {pageLogs.map((log) => (
-                      <React.Fragment key={log.id}>
-                        <tr onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)} className={styles.logRow}>
-                          <td><span className={`${styles.logDot} ${log.status === 'success' ? styles.dotGreen : styles.dotRed}`} /></td>
-                          <td className={styles.logName}>{log.name}</td>
-                          <td className={styles.logDuration}>{fmtDuration(log.durationMs)}</td>
-                          <td className={styles.logTime}>{fmtTime(log.createdAt)}</td>
-                          <td className={styles.logExpand}>{expandedLogId === log.id ? '▾' : '▸'}</td>
-                        </tr>
-                        {expandedLogId === log.id && (
-                          <tr><td colSpan={5} className={styles.logDetail}>{log.resultPreview || log.argsPreview || '无详情'}</td></tr>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
-                {filteredLogs.length === 0 && <div className={styles.empty}>无匹配记录</div>}
-              </div>
-              {totalLogPages > 1 && (
-                <div className={styles.pagination}>
-                  <button className={styles.pageBtn} disabled={safeLogPage <= 1} onClick={() => setLogPage(safeLogPage - 1)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
-                  </button>
-                  {logPageNumbers[0] > 1 && <span className={styles.pageEllipsis}>…</span>}
-                  {logPageNumbers.map((p) => (
-                    <button key={p} className={`${styles.pageBtn} ${p === safeLogPage ? styles.pageBtnActive : ''}`} onClick={() => setLogPage(p)}>{p}</button>
-                  ))}
-                  {logPageNumbers[logPageNumbers.length - 1] < totalLogPages && <span className={styles.pageEllipsis}>…</span>}
-                  <button className={styles.pageBtn} disabled={safeLogPage >= totalLogPages} onClick={() => setLogPage(safeLogPage + 1)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-                  </button>
-                  <span className={styles.pageInfo}>{safeLogPage} / {totalLogPages}</span>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* 工具能力目录（折叠） */}
-      <div className={styles.capsSection}>
-        <button className={styles.capsToggle} onClick={() => setCapabilitiesOpen(!capabilitiesOpen)}>
-          <span className={styles.capsToggleTitle}>🧩 工具能力目录</span>
-          <span className={styles.capsToggleHint}>{totalTools} 个工具 · {CATEGORIES.length} 个分类</span>
-          <span className={styles.capsArrow}>{capabilitiesOpen ? '▾' : '▸'}</span>
+      {/* Tab 切换 */}
+      <div className={styles.tabBar}>
+        <button className={`${styles.tab} ${activeTab === 'tools' ? styles.tabActive : ''}`} onClick={() => setActiveTab('tools')}>
+          🧩 工具管理
         </button>
-
-        {capabilitiesOpen && (
-          <div className={styles.capsContent}>
-            {CATEGORIES.filter((cat) => categorizedTools.has(cat.id)).map((cat) => {
-              const tools = categorizedTools.get(cat.id) || [];
-              const isOpen = expandedCat === cat.id;
-              return (
-                <div key={cat.id} className={styles.catGroup}>
-                  <button className={styles.catHeader} onClick={() => setExpandedCat(isOpen ? null : cat.id)}>
-                    <span>{cat.icon} {cat.label}</span>
-                    <span className={styles.catCount}>{tools.length}</span>
-                    <span className={styles.catArrow}>{isOpen ? '▾' : '▸'}</span>
-                  </button>
-                  {isOpen && (
-                    <div className={styles.catTools}>
-                      {tools.map((tool) => {
-                        const risk = RISK_CONFIG[tool.risk] || RISK_CONFIG.read;
-                        return (
-                          <div key={tool.name} className={styles.capToolRow}>
-                            <span className={styles.capToolName}>{tool.name}</span>
-                            <span className={styles.capRiskTag} style={{ color: risk.color, background: risk.bg }}>{risk.label}</span>
-                            {tool.readOnly && <span className={styles.capRoTag}>RO</span>}
-                            <span className={styles.capToolDesc}>{tool.desc}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <button className={`${styles.tab} ${activeTab === 'dashboard' ? styles.tabActive : ''}`} onClick={() => setActiveTab('dashboard')}>
+          📊 仪表盘
+        </button>
       </div>
+
+      {/* Tab 1: 工具管理 */}
+      {activeTab === 'tools' && (
+        <div className={styles.capsSection}>
+          {CATEGORIES.filter((cat) => categorizedTools.has(cat.id)).map((cat) => {
+            const tools = categorizedTools.get(cat.id) || [];
+            const isOpen = expandedCat === cat.id;
+            const catErrors = tools.reduce((s, t) => s + t.errors, 0);
+            return (
+              <div key={cat.id} className={styles.catGroup}>
+                <button className={styles.catHeader} onClick={() => setExpandedCat(isOpen ? null : cat.id)}>
+                  <span>{cat.icon} {cat.label}</span>
+                  <span className={styles.catCount}>{tools.length} 个工具{catErrors > 0 ? ` · ${catErrors} 个失败` : ''}</span>
+                  <span className={styles.catArrow}>{isOpen ? '▾' : '▸'}</span>
+                </button>
+                {isOpen && (
+                  <div className={styles.catTools}>
+                    {tools.map((tool) => {
+                      const risk = RISK_CONFIG[tool.risk] || RISK_CONFIG.read;
+                      return (
+                        <div key={tool.name} className={styles.capToolRow}>
+                          <span className={styles.capToolName}>{tool.name}</span>
+                          <span className={styles.capRiskTag} style={{ color: risk.color, background: risk.bg }}>{risk.label}</span>
+                          {tool.readOnly && <span className={styles.capRoTag}>RO</span>}
+                          {tool.count > 0 && (
+                            <span className={styles.capToolStats}>
+                              <span style={{ color: COLORS.green }}>{tool.count - tool.errors}</span>
+                              {tool.errors > 0 && <span style={{ color: COLORS.red }}> / {tool.errors}</span>}
+                            </span>
+                          )}
+                          <span className={styles.capToolDesc}>{tool.desc}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Tab 2: 仪表盘 */}
+      {activeTab === 'dashboard' && (
+        <div className={styles.statsSection}>
+          <div className={styles.statsRow}>
+            {statCards.map((s) => (
+              <div key={s.label} className={styles.statCard}>
+                <div className={styles.statIconWrap} style={{ background: `${s.iconColor}12` }}>
+                  <SvgIcon d={s.icon} size={16} color={s.iconColor} />
+                </div>
+                <div className={styles.statBody}>
+                  <div className={styles.statLabel}>{s.label}</div>
+                  <div className={styles.statValue} style={{ color: s.valueColor }}>{s.value}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {logs.length === 0 ? (
+            <div className={styles.empty}>暂无调用记录。开始对话后会自动记录。</div>
+          ) : (
+            <>
+              <div className={styles.chartCard}>
+                <div className={styles.chartTitle}>工具调用详情 <span style={{ fontSize: 11, color: '#64748b', fontWeight: 400, marginLeft: 8 }}>🟢 成功 🔴 失败</span></div>
+                <ResponsiveContainer width="100%" height={Math.max(200, ranking.length * 32 + 20)}>
+                  <BarChart data={ranking} layout="vertical" margin={{ left: 10, right: 30 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12, fill: '#94a3b8', fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 8, fontSize: 12, backdropFilter: 'blur(8px)' }}
+                      formatter={(value: any, name: any) => [`${value} 次`, name]}
+                    />
+                    <Bar dataKey="成功" stackId="a" fill="#22c55e" />
+                    <Bar dataKey="失败" stackId="a" fill="#ef4444" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className={styles.logSection}>
+                <div className={styles.logHeader}>
+                  <span className={styles.logTitle}>请求日志</span>
+                  <div className={styles.logFilters}>
+                    <input value={logSearch} onChange={(e) => setLogSearch(e.target.value)} placeholder="搜索工具名…" className={styles.logSearchInput} />
+                    {(['all', 'success', 'error'] as const).map((f) => (
+                      <button key={f} onClick={() => setStatusFilter(f)} className={`${styles.logFilterBtn} ${statusFilter === f ? styles.logFilterActive : ''}`}>
+                        {f === 'all' ? '全部' : f === 'success' ? '成功' : '失败'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.logTableWrap}>
+                  <table className={styles.logTable}>
+                    <thead>
+                      <tr><th>状态</th><th>工具</th><th>耗时</th><th>时间</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      {pageLogs.map((log) => (
+                        <React.Fragment key={log.id}>
+                          <tr onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)} className={styles.logRow}>
+                            <td><span className={`${styles.logDot} ${log.status === 'success' ? styles.dotGreen : styles.dotRed}`} /></td>
+                            <td className={styles.logName}>{log.name}</td>
+                            <td className={styles.logDuration}>{fmtDuration(log.durationMs)}</td>
+                            <td className={styles.logTime}>{fmtTime(log.createdAt)}</td>
+                            <td className={styles.logExpand}>{expandedLogId === log.id ? '▾' : '▸'}</td>
+                          </tr>
+                          {expandedLogId === log.id && (
+                            <tr><td colSpan={5} className={styles.logDetail}>{log.resultPreview || log.argsPreview || '无详情'}</td></tr>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredLogs.length === 0 && <div className={styles.empty}>无匹配记录</div>}
+                </div>
+                {totalLogPages > 1 && (
+                  <div className={styles.pagination}>
+                    <button className={styles.pageBtn} disabled={safeLogPage <= 1} onClick={() => setLogPage(safeLogPage - 1)}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
+                    </button>
+                    {logPageNumbers[0] > 1 && <span className={styles.pageEllipsis}>…</span>}
+                    {logPageNumbers.map((p) => (
+                      <button key={p} className={`${styles.pageBtn} ${p === safeLogPage ? styles.pageBtnActive : ''}`} onClick={() => setLogPage(p)}>{p}</button>
+                    ))}
+                    {logPageNumbers[logPageNumbers.length - 1] < totalLogPages && <span className={styles.pageEllipsis}>…</span>}
+                    <button className={styles.pageBtn} disabled={safeLogPage >= totalLogPages} onClick={() => setLogPage(safeLogPage + 1)}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                    </button>
+                    <span className={styles.pageInfo}>{safeLogPage} / {totalLogPages}</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 };
