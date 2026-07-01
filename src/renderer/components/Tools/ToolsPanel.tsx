@@ -70,15 +70,19 @@ const ToolsPanel: React.FC = () => {
   const avgDuration = logs.length ? Math.round(logs.reduce((s, l) => s + l.durationMs, 0) / logs.length) : 0;
 
   const ranking = useMemo(() => {
-    const map = new Map<string, { count: number; totalMs: number }>();
+    const map = new Map<string, { count: number; totalMs: number; errors: number }>();
     for (const l of logs) {
-      const e = map.get(l.name) || { count: 0, totalMs: 0 };
-      e.count++; e.totalMs += l.durationMs;
+      const e = map.get(l.name) || { count: 0, totalMs: 0, errors: 0 };
+      e.count++; e.totalMs += l.durationMs; if (l.status === 'error') e.errors++;
       map.set(l.name, e);
     }
     return Array.from(map.entries())
-      .map(([name, d]) => ({ name: name.length > 14 ? name.slice(0, 12) + '…' : name, 调用次数: d.count }))
-      .sort((a, b) => b.调用次数 - a.调用次数).slice(0, 6);
+      .map(([name, d]) => ({
+        name: name.length > 14 ? name.slice(0, 12) + '…' : name,
+        成功: d.count - d.errors,
+        失败: d.errors,
+      }))
+      .sort((a, b) => (b.成功 + b.失败) - (a.成功 + a.失败)).slice(0, 8);
   }, [logs]);
 
   const pieData = useMemo(() => {
@@ -172,7 +176,8 @@ const ToolsPanel: React.FC = () => {
                       contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 8, fontSize: 12, backdropFilter: 'blur(8px)' }}
                       cursor={{ fill: 'rgba(148,163,184,0.06)' }}
                     />
-                    <Bar dataKey="调用次数" fill={COLORS.cyan} radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="成功" stackId="a" fill="#22c55e" />
+                    <Bar dataKey="失败" stackId="a" fill="#ef4444" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
