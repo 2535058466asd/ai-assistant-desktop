@@ -117,8 +117,7 @@ export default function ModelApiPanel() {
   return (
     <div className={styles.panel}>
       <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>模型服务配置</h3>
-        <p className={styles.sectionDesc}>这里配置模型服务、密钥和默认模型；聊天页顶部下拉只负责切换当前对话使用的模型。</p>
+        <label className={styles.label}>模型服务商</label>
         <select
           className={styles.select}
           value={provider}
@@ -131,10 +130,6 @@ export default function ModelApiPanel() {
       </div>
 
       <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>连接配置</h3>
-        <p className={styles.sectionDesc}>
-          {provider === 'doubao' ? '填写火山引擎 ARK API Key' : '填写 API 接入信息'}
-        </p>
         <label className={styles.label}>API Key</label>
         <input
           className={styles.input}
@@ -184,7 +179,6 @@ export default function ModelApiPanel() {
       </div>
 
       <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>生成参数</h3>
         <div className={styles.paramRow}>
           <span className={styles.paramLabel}>温度</span>
           <input
