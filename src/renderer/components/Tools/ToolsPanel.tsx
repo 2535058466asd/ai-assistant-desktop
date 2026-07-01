@@ -124,16 +124,6 @@ const ToolsPanel: React.FC = () => {
       <div className={styles.layout}>
         {/* ── Left Sidebar ── */}
         <nav className={styles.sidebar}>
-          {/* 概览数据 */}
-          <div className={styles.stats}>
-            {statCards.map(s => (
-              <div key={s.label} className={styles.statItem}>
-                <span className={styles.statLabel}>{s.label}</span>
-                <span className={styles.statValue} style={{ color: s.color }}>{s.value}</span>
-              </div>
-            ))}
-          </div>
-
           {/* Tab 切换 */}
           <div className={styles.tabs}>
             <button className={`${styles.tab} ${activeTab === 'tools' ? styles.tabActive : ''}`} onClick={() => setActiveTab('tools')}>
@@ -144,9 +134,8 @@ const ToolsPanel: React.FC = () => {
             </button>
           </div>
 
-          {/* 工具分类列表 */}
-          {activeTab === 'tools' && (
-            <div className={styles.catList}>
+          {/* 工具分类列表（始终显示） */}
+          <div className={styles.catList}>
               {CATEGORIES.filter(cat => categorizedTools.has(cat.id)).map(cat => {
                 const tools = categorizedTools.get(cat.id) || [];
                 const catErrors = tools.reduce((s, t) => s + t.errors, 0);
@@ -166,7 +155,6 @@ const ToolsPanel: React.FC = () => {
                 );
               })}
             </div>
-          )}
         </nav>
 
         {/* ── Right Content ── */}
@@ -217,6 +205,16 @@ const ToolsPanel: React.FC = () => {
                 </div>
               ) : (
                 <>
+                  {/* 概览数据卡片 */}
+                  <div className={styles.statCards}>
+                    {statCards.map(s => (
+                      <div key={s.label} className={styles.statCard}>
+                        <span className={styles.statLabel}>{s.label}</span>
+                        <span className={styles.statValue} style={{ color: s.color }}>{s.value}</span>
+                      </div>
+                    ))}
+                  </div>
+
                   {/* 堆叠柱状图 */}
                   <div className={styles.chartCard}>
                     <div className={styles.chartTitle}>工具调用详情</div>
