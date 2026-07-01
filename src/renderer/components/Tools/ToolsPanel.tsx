@@ -143,15 +143,16 @@ const ToolsPanel: React.FC = () => {
         <p>{totalTools} 个工具 · {logs.length} 次调用 · 成功率 {successRate}%</p>
       </header>
 
-      {/* Tab 切换 */}
-      <div className={styles.tabBar}>
-        <button className={`${styles.tab} ${activeTab === 'tools' ? styles.tabActive : ''}`} onClick={() => setActiveTab('tools')}>
-          🧩 工具管理
-        </button>
-        <button className={`${styles.tab} ${activeTab === 'dashboard' ? styles.tabActive : ''}`} onClick={() => setActiveTab('dashboard')}>
-          📊 仪表盘
-        </button>
-      </div>
+      {/* Tab 切换 + 内容 */}
+      <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
+        <div className={styles.tabBar}>
+          <button className={`${styles.tab} ${activeTab === 'tools' ? styles.tabActive : ''}`} onClick={() => setActiveTab('tools')}>
+            🧩 工具管理
+          </button>
+          <button className={`${styles.tab} ${activeTab === 'dashboard' ? styles.tabActive : ''}`} onClick={() => setActiveTab('dashboard')}>
+            📊 仪表盘
+          </button>
+        </div>
 
       {/* Tab 1: 工具管理 */}
       {activeTab === 'tools' && (
@@ -289,6 +290,7 @@ const ToolsPanel: React.FC = () => {
           )}
         </div>
       )}
+      </div>
     </section>
   );
 };

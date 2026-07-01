@@ -11,20 +11,20 @@
    ========================================== */
 :root {
   /* --- 卡片背景（语义化，替代各模块硬编码 rgba） --- */
-  --card-bg: rgba(10, 18, 32, 0.52);               /* 面板/卡片容器 */
-  --card-nested-bg: rgba(15, 23, 42, 0.26);        /* 卡片内嵌套元素 */
+  --card-bg: rgba(18, 26, 46, 0.7);               /* 面板/卡片容器 */
+  --card-nested-bg: rgba(22, 32, 55, 0.45);        /* 卡片内嵌套元素 */
 
   /* --- 背景色层级（更深邃） --- */
-  --bg-primary: #06080f;           /* 最底层背景 - 纯深空黑 */
-  --bg-secondary: #0c1021;         /* 侧边栏/卡片背景 - 深海蓝 */
-  --bg-tertiary: #131829;          /* 输入框/搜索框背景 - 深靛蓝 */
-  --bg-hover: #1a2038;             /* 悬停态背景 */
-  --bg-active: #1e2a4a;            /* 选中/激活态背景 */
+  --bg-primary: #0f1219;           /* 最底层背景 - 深灰蓝 */
+  --bg-secondary: #161c2e;         /* 侧边栏/卡片背景 - 深蓝灰 */
+  --bg-tertiary: #1e2640;          /* 输入框/搜索框背景 */
+  --bg-hover: #242e4a;             /* 悬停态背景 */
+  --bg-active: #2a3658;            /* 选中/激活态背景 */
 
   /* --- 文字颜色层级（更清晰） --- */
   --text-primary: #e8edf5;         /* 主要文字 - 冷白 */
-  --text-secondary: #8892a8;       /* 次要文字 - 银灰 */
-  --text-muted: #4a5568;           /* 弱化文字 - 暗灰 */
+  --text-secondary: #8e99b0;       /* 次要文字 - 银灰 */
+  --text-muted: #5a6578;           /* 弱化文字 - 中灰 */
 
   /* --- 品牌强调色（更精致） --- */
   --accent-cyan: #22d3ee;          /* 青色 - 主强调 */
@@ -39,15 +39,15 @@
   --gradient-subtle: linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(139,92,246,0.08) 100%);
 
   /* --- 边框（更精致） --- */
-  --border-color: rgba(255, 255, 255, 0.06);        /* 默认边框 - 极淡 */
+  --border-color: rgba(255, 255, 255, 0.08);        /* 默认边框 */
   --border-focus: rgba(34, 211, 238, 0.5);           /* 聚焦边框 - 青色 */
   --border-gradient: linear-gradient(135deg, rgba(34,211,238,0.3), rgba(99,102,241,0.3));
 
   /* --- 阴影（多层，更有深度） --- */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
   --shadow-glow: 0 0 24px rgba(34, 211, 238, 0.15);
   --shadow-glow-strong: 0 0 40px rgba(34, 211, 238, 0.25);
   --shadow-logo: 0 0 20px rgba(34, 211, 238, 0.35);
@@ -99,19 +99,20 @@
    ========================================== */
 [data-theme="light"] {
   /* --- 卡片背景 --- */
-  --card-bg: rgba(255, 255, 255, 0.82);
-  --card-nested-bg: rgba(248, 250, 252, 0.78);
+  --card-bg: #ffffff;
+  --card-nested-bg: #f8f9fb;
 
-  /* --- 背景色层级 --- */  --bg-primary: #fafbfc;
+  /* --- 背景色层级 --- */
+  --bg-primary: #eef1f6;
   --bg-secondary: #ffffff;
-  --bg-tertiary: #f1f5f9;
-  --bg-hover: #e8ecf1;
-  --bg-active: #dbeafe;
+  --bg-tertiary: #e2e7f0;
+  --bg-hover: #dce1ea;
+  --bg-active: #d0daf0;
 
   /* --- 文字颜色层级 --- */
   --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-secondary: #3e4a5e;
+  --text-muted: #7c8ba0;
 
   /* --- 强调色 --- */
   --accent-blue: #4f46e5;
@@ -126,14 +127,14 @@
   --gradient-subtle: linear-gradient(135deg, rgba(79,70,229,0.08) 0%, rgba(124,58,237,0.04) 100%);
 
   /* --- 边框 --- */
-  --border-color: rgba(0, 0, 0, 0.08);
+  --border-color: rgba(0, 0, 0, 0.12);
   --border-focus: rgba(79, 70, 229, 0.5);
 
   /* --- 阴影 --- */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.08);
-  --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 16px 40px rgba(0, 0, 0, 0.12);
   --shadow-glow: 0 0 24px rgba(79, 70, 229, 0.1);
   --shadow-logo: 0 2px 12px rgba(8, 145, 178, 0.2);
   --shadow-avatar: 0 2px 8px rgba(79, 70, 229, 0.15);
