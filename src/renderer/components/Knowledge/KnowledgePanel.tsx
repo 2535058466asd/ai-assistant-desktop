@@ -1,4 +1,12 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+/**
+ * KnowledgePanel — 知识库管理页面
+ *
+ * 左右分栏布局：
+ * - 左侧：文件列表（带类型图标和统计）
+ * - 右侧：文件详情/搜索结果
+ */
+
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import styles from './KnowledgePanel.module.css';
 import { createLogger } from '../../../shared/logger';
 
@@ -44,7 +52,7 @@ const IMAGE_EXTS = /\.(jpg|jpeg|png|gif|webp|bmp)$/i;
 const isImageFile = (name: string) => IMAGE_EXTS.test(name);
 
 const getFileIcon = (name: string) => {
-  if (/\.(xlsx|xls)$/i.test(name)) return { emoji: '📊', color: '#22c55e' };
+  if (/\.(xlsx|xls)$/i.test(name)) return { emoji: '📊', color: '#10b981' };
   if (/\.pdf$/i.test(name)) return { emoji: '📄', color: '#ef4444' };
   if (/\.(docx|doc)$/i.test(name)) return { emoji: '📝', color: '#3b82f6' };
   if (/\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(name)) return { emoji: '🖼️', color: '#f59e0b' };
