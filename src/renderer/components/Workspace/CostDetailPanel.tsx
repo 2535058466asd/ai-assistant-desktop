@@ -50,13 +50,16 @@ const PATHS = {
 const CostDetailPanel: React.FC = () => {
   const [timeRange, setTimeRange] = useState<'today' | '7d' | '30d' | 'all'>('all');
   const [modelFilter, setModelFilter] = useState('all');
+  const [granularity, setGranularity] = useState<'day' | 'hour'>('day');
+  const [refreshInterval, setRefreshInterval] = useState<number>(5000);
   const [allRecords, setAllRecords] = useState<UsageRecord[]>(() => getUsageRecords());
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    const t = window.setInterval(() => setAllRecords(getUsageRecords()), 5000);
+    if (refreshInterval === 0) return; // 关闭自动刷新
+    const t = window.setInterval(() => setAllRecords(getUsageRecords()), refreshInterval);
     return () => window.clearInterval(t);
-  }, []);
+  }, [refreshInterval]);
 
   const filteredRecords = useMemo(() => {
     const since = timeRange === 'today' ? (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })()
@@ -87,7 +90,9 @@ const CostDetailPanel: React.FC = () => {
     const map = new Map<string, { date: string; tokens: number; cost: number; count: number }>();
     for (const r of filteredRecords) {
       const d = new Date(r.timestamp);
-      const key = `${d.getMonth() + 1}/${d.getDate()}`;
+      const key = granularity === 'hour'
+        ? `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:00`
+        : `${d.getMonth() + 1}/${d.getDate()}`;
       if (!map.has(key)) map.set(key, { date: key, tokens: 0, cost: 0, count: 0 });
       const e = map.get(key)!;
       e.tokens += r.totalTokens;
@@ -95,7 +100,7 @@ const CostDetailPanel: React.FC = () => {
       e.count++;
     }
     return Array.from(map.values());
-  }, [filteredRecords]);
+  }, [filteredRecords, granularity]);
 
   // 分页
   const sortedRecords = useMemo(() => [...filteredRecords].reverse(), [filteredRecords]);
@@ -184,6 +189,22 @@ const CostDetailPanel: React.FC = () => {
             </button>
           ))}
         </div>
+        <div className={styles.filterGroup}>
+          <span className={styles.filterLabel}>粒度</span>
+          {(['day', 'hour'] as const).map((g) => (
+            <button key={g} onClick={() => setGranularity(g)} className={`${styles.filterBtn} ${granularity === g ? styles.filterBtnActive : ''}`}>
+              {g === 'day' ? '天' : '小时'}
+            </button>
+          ))}
+        </div>
+        <div className={styles.filterGroup}>
+          <span className={styles.filterLabel}>刷新</span>
+          {([5000, 30000, 60000, 0] as const).map((ms) => (
+            <button key={ms} onClick={() => setRefreshInterval(ms)} className={`${styles.filterBtn} ${refreshInterval === ms ? styles.filterBtnActive : ''}`}>
+              {ms === 0 ? '关' : ms >= 60000 ? '1分' : ms >= 30000 ? '30秒' : '5秒'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 使用趋势 */}
@@ -191,7 +212,7 @@ const CostDetailPanel: React.FC = () => {
         <div className={styles.chartCard}>
           <div className={styles.chartHeader}>
             <div className={styles.chartTitle}>使用趋势</div>
-            <span className={styles.chartSubtitle}>{trendData.length} 天</span>
+            <span className={styles.chartSubtitle}>{trendData.length} {granularity === 'hour' ? '小时' : '天'}</span>
           </div>
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={trendData} margin={{ top: 4, left: -10, right: 10, bottom: 0 }}>

@@ -58,9 +58,16 @@ const ToolDetailPanel: React.FC = () => {
       map.set(l.name, e);
     }
     return Array.from(map.entries())
-      .map(([name, d]) => ({ name: name.length > 14 ? name.slice(0, 12) + '…' : name, fullName: name, 调用次数: d.count, 平均延迟: Math.round(d.totalMs / d.count) }))
+      .map(([name, d]) => ({
+        name: name.length > 14 ? name.slice(0, 12) + '…' : name,
+        fullName: name,
+        成功: d.count - d.errors,
+        失败: d.errors,
+        调用次数: d.count,
+        平均延迟: Math.round(d.totalMs / d.count),
+      }))
       .sort((a, b) => b.调用次数 - a.调用次数)
-      .slice(0, 8);
+      .slice(0, 10);
   }, [logs]);
 
   // 延迟分布
@@ -122,18 +129,20 @@ const ToolDetailPanel: React.FC = () => {
         </div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {/* 工具调用排名 */}
-            <Card title="工具调用排名">
-              <ResponsiveContainer width="100%" height={200}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 12 }}>
+            {/* 工具调用排名 — 堆叠柱状图 */}
+            <Card title="工具调用详情" extra={<span style={{ fontSize: 11, color: 'var(--text-muted)' }}>绿色=成功 红色=失败</span>}>
+              <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={ranking} layout="vertical" margin={{ left: 10, right: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" />
                   <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} />
                   <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11, fill: '#94a3b8', fontFamily: 'var(--font-mono)' }} />
                   <Tooltip
                     contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 6, fontSize: 12 }}
+                    formatter={(value: any, name: any) => [`${value} 次`, name]}
                   />
-                  <Bar dataKey="调用次数" fill={COLORS.cyan} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="成功" stackId="a" fill={COLORS.green} radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="失败" stackId="a" fill={COLORS.red} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </Card>
