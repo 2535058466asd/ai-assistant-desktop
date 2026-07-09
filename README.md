@@ -212,7 +212,6 @@ npm run electron:build
 | `npm run electron:dev` | 启动桌面端开发环境 |
 | `npm run electron:build` | 构建桌面应用 |
 | `npm run test` | 运行测试 |
-| `npm run smoke:web` | 运行 Web 冒烟检查 |
 
 ## 配置说明
 

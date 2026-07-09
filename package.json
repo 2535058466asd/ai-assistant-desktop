@@ -8,7 +8,6 @@
     "build": "tsc && vite build",
     "build:node": "tsc -p tsconfig.node.json",
     "check": "npm run build",
-    "smoke:web": "node scripts/smoke-web.js",
     "test": "vitest",
     "test:run": "vitest run",
     "test:ui": "vitest --ui",
