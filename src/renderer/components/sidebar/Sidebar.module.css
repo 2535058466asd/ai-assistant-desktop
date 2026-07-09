@@ -285,32 +285,6 @@
   color: var(--text-muted);
 }
 
-.settingsBtn {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s ease;
-  flex-shrink: 0;
-}
-
-.settingsBtn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  transform: rotate(90deg);
-}
-
-.settingsBtnSvg {
-  width: 18px;
-  height: 18px;
-}
-
 /* ===== 右键菜单 ===== */
 .contextMenu {
   position: fixed;
@@ -440,92 +414,6 @@
 .renameCancel:hover {
   background: rgba(239, 68, 68, 0.08);
   color: #ef4444;
-}
-
-/* ===== 删除确认弹窗 ===== */
-.deleteConfirmOverlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  animation: fadeIn 0.2s ease;
-}
-
-.deleteConfirmDialog {
-  background: rgba(12, 16, 33, 0.98);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  min-width: 320px;
-  box-shadow: var(--shadow-xl);
-  animation: dropdownFadeIn 0.25s var(--ease-out-expo);
-}
-
-[data-theme="light"] .deleteConfirmDialog {
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: var(--shadow-lg);
-}
-
-.deleteConfirmDialog h3 {
-  margin: 0 0 12px 0;
-  color: var(--text-primary);
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.deleteConfirmDialog p {
-  margin: 0 0 24px 0;
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.deleteConfirmActions {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
-
-.deleteConfirmCancel,
-.deleteConfirmDelete {
-  padding: 10px 20px;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background-color 0.2s ease;
-}
-
-.deleteConfirmCancel {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-}
-
-.deleteConfirmDelete {
-  background: #ef4444;
-  color: white;
-}
-
-.deleteConfirmCancel:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.deleteConfirmDelete:hover {
-  background: #dc2626;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 @keyframes fadeIn {

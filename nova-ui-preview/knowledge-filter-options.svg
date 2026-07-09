@@ -1,0 +1,127 @@
+<svg width="1500" height="860" viewBox="0 0 1500 860" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1500" height="860" fill="#EEF3F8"/>
+  <style>
+    .title { font: 700 24px "Microsoft YaHei", "Segoe UI", sans-serif; fill: #111827; }
+    .sub { font: 500 15px "Microsoft YaHei", "Segoe UI", sans-serif; fill: #73839A; }
+    .label { font: 700 14px "Microsoft YaHei", "Segoe UI", sans-serif; fill: #74839A; }
+    .text { font: 650 16px "Microsoft YaHei", "Segoe UI", sans-serif; fill: #243044; }
+    .small { font: 600 13px "Microsoft YaHei", "Segoe UI", sans-serif; fill: #7C8CA3; }
+    .chip { fill: #FFFFFF; stroke: #D6DEE8; stroke-width: 1; }
+    .chipActive { fill: #DDF7FC; stroke: #65D6EA; stroke-width: 1.2; }
+    .sortActive { fill: #E9E8FF; stroke: #A5A0FF; stroke-width: 1.2; }
+    .disabled { fill: #F3F6FA; stroke: #E1E7EF; stroke-width: 1; }
+    .panel { fill: #F7FAFD; stroke: #D7E0EA; stroke-width: 1; }
+    .item { fill: #FFFFFF; stroke: #E0E6EE; stroke-width: 1; }
+    .itemActive { fill: #DDE8FA; stroke: #6372F5; stroke-width: 1.3; }
+    .blue { fill: #0891B2; }
+  </style>
+
+  <text x="54" y="58" class="title">知识库筛选区三种方案预览</text>
+  <text x="54" y="88" class="sub">这里只对左侧筛选/排序区域做结构对比，右侧内容区不参与。</text>
+
+  <!-- Option A -->
+  <g transform="translate(50 130)">
+    <rect width="430" height="650" rx="20" fill="#FFFFFF" stroke="#D7E0EA"/>
+    <text x="24" y="48" class="title">方案 A</text>
+    <text x="24" y="76" class="sub">固定工具区，不折叠。最清楚。</text>
+
+    <rect x="24" y="112" width="382" height="500" rx="16" class="panel"/>
+    <text x="48" y="154" class="label">来源类型</text>
+    <rect x="48" y="174" width="160" height="42" rx="12" class="chipActive"/>
+    <text x="68" y="201" class="text blue">全部 5</text>
+    <rect x="222" y="174" width="160" height="42" rx="12" class="chip"/>
+    <text x="242" y="201" class="text">文档 2</text>
+    <rect x="48" y="228" width="160" height="42" rx="12" class="chip"/>
+    <text x="68" y="255" class="text">表格 1</text>
+    <rect x="222" y="228" width="160" height="42" rx="12" class="chip"/>
+    <text x="242" y="255" class="text">文本 2</text>
+    <rect x="48" y="282" width="160" height="42" rx="12" class="disabled"/>
+    <text x="68" y="309" class="text" fill="#B7C2D0">PDF 0</text>
+    <rect x="222" y="282" width="160" height="42" rx="12" class="disabled"/>
+    <text x="242" y="309" class="text" fill="#B7C2D0">图片 0</text>
+    <rect x="48" y="336" width="160" height="42" rx="12" class="disabled"/>
+    <text x="68" y="363" class="text" fill="#B7C2D0">其他 0</text>
+
+    <text x="48" y="424" class="label">排序</text>
+    <rect x="48" y="444" width="104" height="42" rx="12" class="sortActive"/>
+    <text x="68" y="471" class="text">最近</text>
+    <rect x="160" y="444" width="104" height="42" rx="12" class="chip"/>
+    <text x="180" y="471" class="text">片段</text>
+    <rect x="272" y="444" width="110" height="42" rx="12" class="chip"/>
+    <text x="292" y="471" class="text">名称</text>
+
+    <line x1="48" y1="516" x2="382" y2="516" stroke="#D7E0EA"/>
+    <rect x="48" y="540" width="334" height="52" rx="12" class="itemActive"/>
+    <text x="72" y="573" class="text">mimo-platform-research.md</text>
+  </g>
+
+  <!-- Option B -->
+  <g transform="translate(535 130)">
+    <rect width="430" height="650" rx="20" fill="#FFFFFF" stroke="#D7E0EA"/>
+    <text x="24" y="48" class="title">方案 B</text>
+    <text x="24" y="76" class="sub">可折叠，但筛选和排序分两行。</text>
+
+    <rect x="24" y="112" width="382" height="500" rx="16" class="panel"/>
+    <rect x="48" y="138" width="334" height="46" rx="12" fill="#FFFFFF" stroke="#D6DEE8"/>
+    <text x="68" y="167" class="label">筛选条件</text>
+    <text x="292" y="167" class="text">全部</text>
+    <rect x="48" y="194" width="334" height="46" rx="12" fill="#FFFFFF" stroke="#D6DEE8"/>
+    <text x="68" y="223" class="label">排序方式</text>
+    <text x="260" y="223" class="text">最近导入</text>
+
+    <text x="48" y="286" class="label">展开后</text>
+    <rect x="48" y="306" width="160" height="38" rx="10" class="chipActive"/>
+    <text x="68" y="331" class="text blue">全部 5</text>
+    <rect x="222" y="306" width="160" height="38" rx="10" class="chip"/>
+    <text x="242" y="331" class="text">文档 2</text>
+    <rect x="48" y="354" width="160" height="38" rx="10" class="chip"/>
+    <text x="68" y="379" class="text">表格 1</text>
+    <rect x="222" y="354" width="160" height="38" rx="10" class="chip"/>
+    <text x="242" y="379" class="text">文本 2</text>
+
+    <rect x="48" y="426" width="104" height="38" rx="10" class="sortActive"/>
+    <text x="66" y="451" class="text">最近</text>
+    <rect x="160" y="426" width="104" height="38" rx="10" class="chip"/>
+    <text x="178" y="451" class="text">片段</text>
+    <rect x="272" y="426" width="110" height="38" rx="10" class="chip"/>
+    <text x="290" y="451" class="text">名称</text>
+
+    <line x1="48" y1="516" x2="382" y2="516" stroke="#D7E0EA"/>
+    <rect x="48" y="540" width="334" height="52" rx="12" class="item"/>
+    <text x="72" y="573" class="text">api.txt</text>
+  </g>
+
+  <!-- Option C -->
+  <g transform="translate(1020 130)">
+    <rect width="430" height="650" rx="20" fill="#FFFFFF" stroke="#D7E0EA"/>
+    <text x="24" y="48" class="title">方案 C</text>
+    <text x="24" y="76" class="sub">紧凑摘要 + 弹出筛选层。更现代。</text>
+
+    <rect x="24" y="112" width="382" height="500" rx="16" class="panel"/>
+    <rect x="48" y="138" width="334" height="48" rx="13" fill="#FFFFFF" stroke="#D6DEE8"/>
+    <text x="68" y="168" class="text">全部来源 · 最近导入</text>
+    <circle cx="354" cy="162" r="16" fill="#EEF2FF" stroke="#C7D2FE"/>
+    <text x="348" y="168" class="text">≡</text>
+
+    <rect x="76" y="210" width="306" height="260" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="100" y="246" class="label">筛选来源</text>
+    <rect x="100" y="266" width="118" height="38" rx="10" class="chipActive"/>
+    <text x="120" y="291" class="text blue">全部 5</text>
+    <rect x="230" y="266" width="118" height="38" rx="10" class="chip"/>
+    <text x="250" y="291" class="text">文档 2</text>
+    <rect x="100" y="314" width="118" height="38" rx="10" class="chip"/>
+    <text x="120" y="339" class="text">表格 1</text>
+    <rect x="230" y="314" width="118" height="38" rx="10" class="chip"/>
+    <text x="250" y="339" class="text">文本 2</text>
+    <text x="100" y="390" class="label">排序</text>
+    <rect x="100" y="410" width="248" height="38" rx="10" fill="#EEF2FF" stroke="#A5B4FC"/>
+    <text x="120" y="435" class="text">最近导入</text>
+
+    <line x1="48" y1="516" x2="382" y2="516" stroke="#D7E0EA"/>
+    <rect x="48" y="540" width="334" height="52" rx="12" class="item"/>
+    <text x="72" y="573" class="text">FAQ.xlsx</text>
+  </g>
+
+  <rect x="74" y="796" width="1352" height="1" fill="#D7E0EA"/>
+  <text x="74" y="828" class="sub">建议：当前项目更适合方案 A。来源类型少、排序选项少，直接展示比折叠更稳定；如果后面筛选项很多，再升级为方案 B 或 C。</text>
+</svg>

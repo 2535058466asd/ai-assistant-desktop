@@ -1,0 +1,45 @@
+{
+  "project": {
+    "name": "Nova 前端 UI 预览",
+    "deviceType": "desktop",
+    "operatingMode": "free-explore"
+  },
+  "designSource": {
+    "type": "codebase-reference",
+    "description": "Nova AI Desktop App - actual production CSS/TSX components"
+  },
+  "styleAnchors": {
+    "colorSystem": "Dark theme default, cyan (#22d3ee) + indigo (#6366f1) + purple (#a78bfa) accent palette, rgba card backgrounds with backdrop-filter blur",
+    "typography": "Plus Jakarta Sans + Noto Sans SC, 14px base, 300 weight headings, -0.02em letter-spacing",
+    "spacing": "260px sidebar, 72px primary nav, 52px header, 720px max chat width",
+    "effects": "Multi-layer shadows, glow effects, gradient borders, glassmorphism (backdrop-filter: blur(24px) saturate(180%)), noise texture overlay, radial gradient ambient glows",
+    "interactions": "Smooth cubic-bezier transitions, spring animations, scale transforms on hover, staggered fade-in for list items, typing bounce indicators"
+  },
+  "pages": [
+    {
+      "id": "page-chat-main",
+      "title": "聊天主页",
+      "htmlSrc": "pages/chat-main.html",
+      "description": "完整聊天界面：一级导航 + 侧边栏对话列表 + Header + 欢迎页/消息区 + 输入框"
+    },
+    {
+      "id": "page-chat-conversation",
+      "title": "对话详情",
+      "htmlSrc": "pages/chat-conversation.html",
+      "description": "有历史消息的对话界面：用户消息气泡 + AI回复 + Agent工具调用过程 + 操作按钮"
+    },
+    {
+      "id": "page-settings",
+      "title": "设置页面",
+      "htmlSrc": "pages/settings.html",
+      "description": "设置页面：左侧导航 + 右侧配置内容（模型API、语音设置、快捷键等）"
+    }
+  ],
+  "generationTree": {
+    "nodes": [
+      { "id": "page-chat-main", "type": "page", "status": "planned" },
+      { "id": "page-chat-conversation", "type": "page", "status": "planned" },
+      { "id": "page-settings", "type": "page", "status": "planned" }
+    ]
+  }
+}

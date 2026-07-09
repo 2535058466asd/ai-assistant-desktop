@@ -1,19 +1,32 @@
-/**
- * CostDetailPanel — 费用与用量
- *
- * 大数字 Token 消耗 + 指标行 + 使用趋势 + 请求日志（分页）
- */
-
-import React, { useState, useMemo, useEffect } from 'react';
-import { getUsageRecords, type UsageRecord } from '../../core/cost/costTracker';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Activity,
+  BarChart3,
+  Clock3,
+  Coins,
+  DollarSign,
+  Gauge,
+  RefreshCw,
+  Search,
+  Zap,
+} from 'lucide-react';
+import {
+  Area,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
+import { getUsageRecords, type UsageRecord } from '../../core/cost/costTracker';
 import styles from './CostDetailPanel.module.css';
 
-const COLORS = { cyan: '#22d3ee', blue: '#6366f1', green: '#22c55e', red: '#ef4444', purple: '#a78bfa' };
-const fmtTokens = (n: number) => n >= 10000000 ? `${(n / 10000000).toFixed(2)} 亿` : n >= 10000 ? `${(n / 10000).toFixed(1)} 万` : String(n);
-const fmtTime = (ts: number) => new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(ts));
+type TimeRange = 'today' | '7d' | '30d' | 'all';
+type Granularity = 'day' | 'hour';
+
 const PAGE_SIZE = 20;
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
@@ -23,6 +36,8 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'doubao-1-5-pro-32k-250125': '豆包 1.5 Pro 32K',
   'doubao-1-5-lite-32k-250115': '豆包 1.5 Lite 32K',
   'doubao-seed-2-0-pro': '豆包 2.0 Pro',
+  'doubao-seed-2-0-lite': '豆包 2.0 Lite',
+  'doubao-seed-2-0-mini': '豆包 2.0 Mini',
   'doubao-1-5-pro-32k': '豆包 1.5 Pro 32K',
   'doubao-1-5-lite-32k': '豆包 1.5 Lite 32K',
   'mimo-v2.5': 'MiMo 2.5',
@@ -31,268 +46,350 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'gpt-4-turbo': 'GPT-4 Turbo',
   'gpt-3.5-turbo': 'GPT-3.5 Turbo',
 };
+
 const getDisplayName = (modelId: string) => MODEL_DISPLAY_NAMES[modelId] || modelId;
 
-/* ── SVG 图标 ── */
-const SvgIcon = ({ d, size = 16, color = 'currentColor', className }: { d: string; size?: number; color?: string; className?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d={d} />
-  </svg>
-);
-const PATHS = {
-  zap: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
-  down: 'M12 5v14M5 12l7 7 7-7',
-  up: 'M12 19V5M5 12l7-7 7 7',
-  dollar: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
-  layers: 'M12 2l10 6.5v7L12 22 2 15.5v-7L12 2zM2 9l10 6.5L22 9',
-};
+function fmtTokens(n: number) {
+  if (n >= 10000000) return `${(n / 10000000).toFixed(2)} 亿`;
+  if (n >= 10000) return `${(n / 10000).toFixed(1)} 万`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+function fmtCost(n: number, digits = 4) {
+  return `$${n.toFixed(digits)}`;
+}
+
+function fmtTime(ts: number) {
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(ts));
+}
+
+function getSince(range: TimeRange) {
+  if (range === 'today') {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+  if (range === '7d') return Date.now() - 7 * 86400000;
+  if (range === '30d') return Date.now() - 30 * 86400000;
+  return 0;
+}
+
+function getTrendKey(timestamp: number, granularity: Granularity) {
+  const date = new Date(timestamp);
+  if (granularity === 'hour') {
+    return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:00`;
+  }
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
 
 const CostDetailPanel: React.FC = () => {
-  const [timeRange, setTimeRange] = useState<'today' | '7d' | '30d' | 'all'>('all');
+  const [timeRange, setTimeRange] = useState<TimeRange>('7d');
   const [modelFilter, setModelFilter] = useState('all');
-  const [granularity, setGranularity] = useState<'day' | 'hour'>('day');
+  const [granularity, setGranularity] = useState<Granularity>('day');
   const [refreshInterval, setRefreshInterval] = useState<number>(5000);
-  const [allRecords, setAllRecords] = useState<UsageRecord[]>(() => getUsageRecords());
+  const [records, setRecords] = useState<UsageRecord[]>(() => getUsageRecords());
+  const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [pageJump, setPageJump] = useState('');
 
   useEffect(() => {
-    if (refreshInterval === 0) return; // 关闭自动刷新
-    const t = window.setInterval(() => setAllRecords(getUsageRecords()), refreshInterval);
-    return () => window.clearInterval(t);
+    if (refreshInterval === 0) return;
+    const timer = window.setInterval(() => setRecords(getUsageRecords()), refreshInterval);
+    return () => window.clearInterval(timer);
   }, [refreshInterval]);
 
+  const models = useMemo(() => Array.from(new Set(records.map((record) => record.model))).sort(), [records]);
+
   const filteredRecords = useMemo(() => {
-    const since = timeRange === 'today' ? (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })()
-      : timeRange === '7d' ? Date.now() - 7 * 86400000
-      : timeRange === '30d' ? Date.now() - 30 * 86400000
-      : 0;
-    return allRecords.filter((r) => {
-      if (since && r.timestamp < since) return false;
-      if (modelFilter !== 'all' && r.model !== modelFilter) return false;
+    const since = getSince(timeRange);
+    const lowerQuery = query.trim().toLowerCase();
+    return records.filter((record) => {
+      if (since && record.timestamp < since) return false;
+      if (modelFilter !== 'all' && record.model !== modelFilter) return false;
+      if (lowerQuery && !record.model.toLowerCase().includes(lowerQuery) && !getDisplayName(record.model).toLowerCase().includes(lowerQuery)) return false;
       return true;
     });
-  }, [allRecords, timeRange, modelFilter]);
+  }, [modelFilter, query, records, timeRange]);
 
   const stats = useMemo(() => {
-    let totalTokens = 0, totalCost = 0, totalInput = 0, totalOutput = 0;
-    for (const r of filteredRecords) {
-      totalTokens += r.totalTokens;
-      totalCost += r.cost;
-      totalInput += r.promptTokens;
-      totalOutput += r.completionTokens;
+    let totalTokens = 0;
+    let totalCost = 0;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let latest: UsageRecord | null = null;
+
+    for (const record of filteredRecords) {
+      totalTokens += record.totalTokens;
+      totalCost += record.cost;
+      inputTokens += record.promptTokens;
+      outputTokens += record.completionTokens;
+      if (!latest || record.timestamp > latest.timestamp) latest = record;
     }
-    return { total: filteredRecords.length, totalTokens, totalCost: Math.round(totalCost * 100) / 100, totalInput, totalOutput };
+
+    return {
+      totalRequests: filteredRecords.length,
+      totalTokens,
+      totalCost,
+      inputTokens,
+      outputTokens,
+      avgCost: filteredRecords.length ? totalCost / filteredRecords.length : 0,
+      avgTokens: filteredRecords.length ? Math.round(totalTokens / filteredRecords.length) : 0,
+      latest,
+    };
   }, [filteredRecords]);
 
-  const models = useMemo(() => Array.from(new Set(allRecords.map((r) => r.model))), [allRecords]);
-
   const trendData = useMemo(() => {
-    const map = new Map<string, { date: string; tokens: number; cost: number; count: number }>();
-    for (const r of filteredRecords) {
-      const d = new Date(r.timestamp);
-      const key = granularity === 'hour'
-        ? `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:00`
-        : `${d.getMonth() + 1}/${d.getDate()}`;
-      if (!map.has(key)) map.set(key, { date: key, tokens: 0, cost: 0, count: 0 });
-      const e = map.get(key)!;
-      e.tokens += r.totalTokens;
-      e.cost += r.cost;
-      e.count++;
+    const map = new Map<string, { date: string; input: number; output: number; tokens: number; cost: number; count: number }>();
+    for (const record of filteredRecords) {
+      const key = getTrendKey(record.timestamp, granularity);
+      const item = map.get(key) || { date: key, input: 0, output: 0, tokens: 0, cost: 0, count: 0 };
+      item.input += record.promptTokens;
+      item.output += record.completionTokens;
+      item.tokens += record.totalTokens;
+      item.cost += record.cost;
+      item.count += 1;
+      map.set(key, item);
     }
     return Array.from(map.values());
   }, [filteredRecords, granularity]);
 
-  // 分页
-  const sortedRecords = useMemo(() => [...filteredRecords].reverse(), [filteredRecords]);
+  const sortedRecords = useMemo(() => [...filteredRecords].sort((a, b) => b.timestamp - a.timestamp), [filteredRecords]);
   const totalPages = Math.max(1, Math.ceil(sortedRecords.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const pageRecords = sortedRecords.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  useEffect(() => { setPage(1); }, [timeRange, modelFilter]);
+  useEffect(() => {
+    setPage(1);
+    setPageJump('');
+  }, [modelFilter, query, timeRange]);
 
-  const pageNumbers = useMemo(() => {
-    const pages: number[] = [];
-    const start = Math.max(1, safePage - 2);
-    const end = Math.min(totalPages, start + 4);
-    for (let i = start; i <= end; i++) pages.push(i);
-    return pages;
-  }, [safePage, totalPages]);
+  const jumpToPage = () => {
+    const next = Number(pageJump);
+    if (!Number.isFinite(next)) return;
+    setPage(Math.min(totalPages, Math.max(1, Math.trunc(next))));
+  };
 
   return (
     <section className={styles.page}>
-      {/* 大数字 */}
-      <div className={styles.heroCard}>
-        <div className={styles.heroLeft}>
-          <div className={styles.heroLabel}>
-            <SvgIcon d={PATHS.zap} size={14} color={COLORS.cyan} className={styles.labelIcon} />
-            总 Token 消耗
-          </div>
-          <div className={styles.heroNumber}>{fmtTokens(stats.totalTokens)}</div>
-        </div>
-        <div className={styles.heroRight}>
-          <div className={styles.heroStat}>
-            <span>请求数</span>
-            <strong>{stats.total}</strong>
-          </div>
-          <div className={styles.heroStat}>
-            <span>总成本</span>
-            <strong>${stats.totalCost.toFixed(2)}</strong>
+      <header className={styles.topbar}>
+        <div className={styles.titleBlock}>
+          <span className={styles.titleIcon}><Coins size={19} /></span>
+          <div>
+            <h2>费用 Token</h2>
+            <p>同图查看输入、输出、总 Token、费用和模型调用日志</p>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* 指标行 */}
-      <div className={styles.metricsRow}>
-        <div className={styles.metricBox}>
-          <div className={styles.metricIcon}><SvgIcon d={PATHS.down} size={15} color={COLORS.cyan} /></div>
-          <div className={styles.metricInfo}>
-            <div className={styles.metricLabel}>新增输入</div>
-            <div className={styles.metricValue}>{fmtTokens(stats.totalInput)}</div>
-          </div>
-        </div>
-        <div className={styles.metricBox}>
-          <div className={styles.metricIcon}><SvgIcon d={PATHS.up} size={15} color={COLORS.purple} /></div>
-          <div className={styles.metricInfo}>
-            <div className={styles.metricLabel}>生成输出</div>
-            <div className={styles.metricValue}>{fmtTokens(stats.totalOutput)}</div>
-          </div>
-        </div>
-        <div className={styles.metricBox}>
-          <div className={styles.metricIcon}><SvgIcon d={PATHS.dollar} size={15} color={COLORS.green} /></div>
-          <div className={styles.metricInfo}>
-            <div className={styles.metricLabel}>总费用</div>
-            <div className={styles.metricValue}>${stats.totalCost.toFixed(4)}</div>
-          </div>
-        </div>
-        <div className={styles.metricBox}>
-          <div className={styles.metricIcon}><SvgIcon d={PATHS.layers} size={15} color={COLORS.blue} /></div>
-          <div className={styles.metricInfo}>
-            <div className={styles.metricLabel}>模型种类</div>
-            <div className={styles.metricValue}>{models.length}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* 筛选栏 */}
       <div className={styles.filterBar}>
         <div className={styles.filterGroup}>
-          <span className={styles.filterLabel}>模型</span>
-          <select value={modelFilter} onChange={(e) => setModelFilter(e.target.value)} className={styles.filterSelect}>
+          {([
+            ['today', '今天'],
+            ['7d', '7 天'],
+            ['30d', '30 天'],
+            ['all', '全部'],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              className={`${styles.filterButton} ${timeRange === value ? styles.filterButtonActive : ''}`}
+              onClick={() => setTimeRange(value)}
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className={styles.filterGroup}>
+          <select value={modelFilter} onChange={(event) => setModelFilter(event.target.value)} className={styles.select}>
             <option value="all">全部模型</option>
-            {models.map((m) => <option key={m} value={m}>{getDisplayName(m)}</option>)}
+            {models.map((model) => <option key={model} value={model}>{getDisplayName(model)}</option>)}
           </select>
-        </div>
-        <div className={styles.filterGroup}>
-          {(['today', '7d', '30d', 'all'] as const).map((r) => (
-            <button key={r} onClick={() => setTimeRange(r)} className={`${styles.filterBtn} ${timeRange === r ? styles.filterBtnActive : ''}`}>
-              {r === 'today' ? '当天' : r === '7d' ? '7天' : r === '30d' ? '30天' : '全部'}
-            </button>
-          ))}
-        </div>
-        <div className={styles.filterGroup}>
-          <span className={styles.filterLabel}>粒度</span>
-          {(['day', 'hour'] as const).map((g) => (
-            <button key={g} onClick={() => setGranularity(g)} className={`${styles.filterBtn} ${granularity === g ? styles.filterBtnActive : ''}`}>
-              {g === 'day' ? '天' : '小时'}
-            </button>
-          ))}
-        </div>
-        <div className={styles.filterGroup}>
-          <span className={styles.filterLabel}>刷新</span>
-          {([5000, 30000, 60000, 0] as const).map((ms) => (
-            <button key={ms} onClick={() => setRefreshInterval(ms)} className={`${styles.filterBtn} ${refreshInterval === ms ? styles.filterBtnActive : ''}`}>
-              {ms === 0 ? '关' : ms >= 60000 ? '1分' : ms >= 30000 ? '30秒' : '5秒'}
-            </button>
-          ))}
+          <button className={styles.refreshButton} onClick={() => setRecords(getUsageRecords())} type="button">
+            <RefreshCw size={14} />
+            刷新
+          </button>
+          <select value={refreshInterval} onChange={(event) => setRefreshInterval(Number(event.target.value))} className={styles.select}>
+            <option value={5000}>5 秒自动</option>
+            <option value={30000}>30 秒自动</option>
+            <option value={60000}>1 分钟自动</option>
+            <option value={0}>关闭自动</option>
+          </select>
         </div>
       </div>
 
-      {/* 使用趋势 */}
-      {trendData.length > 0 && (
-        <div className={styles.chartCard}>
-          <div className={styles.chartHeader}>
-            <div className={styles.chartTitle}>使用趋势</div>
-            <span className={styles.chartSubtitle}>{trendData.length} {granularity === 'hour' ? '小时' : '天'}</span>
+      <section className={styles.usageOverview}>
+        <div className={styles.overviewTopline}>
+          <div className={styles.primaryMetric}>
+            <span className={`${styles.statIcon} ${styles.tone_blue}`}><Zap size={18} /></span>
+            <div>
+              <span className={styles.statLabel}>真实消耗 Tokens</span>
+              <strong>{stats.totalTokens.toLocaleString()} <small>约 {fmtTokens(stats.totalTokens)}</small></strong>
+            </div>
           </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={trendData} margin={{ top: 4, left: -10, right: 10, bottom: 0 }}>
-              <defs>
-                <linearGradient id="tokenGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={COLORS.cyan} stopOpacity={0.25} />
-                  <stop offset="50%" stopColor={COLORS.cyan} stopOpacity={0.08} />
-                  <stop offset="95%" stopColor={COLORS.cyan} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.08)" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} dy={4} />
-              <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtTokens(Number(v))} dx={-4} />
-              <Tooltip
-                contentStyle={{ background: 'rgba(15, 23, 42, 0.95)', border: '1px solid rgba(148,163,184,0.15)', borderRadius: 8, fontSize: 12, backdropFilter: 'blur(8px)' }}
-                labelStyle={{ color: '#94a3b8', fontSize: 11, marginBottom: 4 }}
-                itemStyle={{ padding: 0 }}
-                formatter={(v, name) => [name === 'tokens' ? fmtTokens(Number(v)) : name === 'cost' ? `$${Number(v).toFixed(4)}` : String(v), name === 'tokens' ? 'Token' : name === 'cost' ? '费用' : String(name)]}
-              />
-              <Area type="monotone" dataKey="tokens" stroke={COLORS.cyan} strokeWidth={2} fill="url(#tokenGrad)" dot={false} activeDot={{ r: 4, fill: COLORS.cyan, stroke: '#0f172a', strokeWidth: 2 }} name="tokens" />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div className={styles.compactTotals}>
+            <div>
+              <span>总请求数</span>
+              <strong><Activity size={15} /> {stats.totalRequests}</strong>
+            </div>
+            <div>
+              <span>总成本</span>
+              <strong><DollarSign size={15} /> {fmtCost(stats.totalCost, stats.totalCost >= 1 ? 2 : 4)}</strong>
+            </div>
+          </div>
         </div>
-      )}
+        <div className={styles.overviewCards}>
+          {[
+            { label: '新增输入', value: fmtTokens(stats.inputTokens), icon: Activity, tone: 'blue' },
+            { label: 'Output', value: fmtTokens(stats.outputTokens), icon: Gauge, tone: 'purple' },
+            { label: '缓存创建', value: 'N/A', icon: Coins, tone: 'yellow' },
+            { label: '单次均价', value: fmtCost(stats.avgCost), icon: DollarSign, tone: 'green' },
+            { label: '最近请求', value: stats.latest ? getDisplayName(stats.latest.model) : '无记录', icon: Clock3, tone: 'yellow' },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.label} className={styles.overviewCard}>
+                <span><Icon size={16} /> {item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
-      {/* 请求日志表格 */}
-      <div className={styles.chartCard}>
-        <div className={styles.chartHeader}>
-          <div className={styles.chartTitle}>请求日志</div>
-          <span className={styles.chartSubtitle}>{filteredRecords.length} 条记录</span>
+      {filteredRecords.length === 0 ? (
+        <div className={styles.emptyState}>
+          <BarChart3 size={30} />
+          <span>暂无费用记录</span>
+          <p>开始与模型对话并返回 usage 后，这里会显示 Token、费用趋势和模型调用日志。</p>
         </div>
-        {sortedRecords.length === 0 ? (
-          <div className={styles.empty}>暂无请求记录</div>
-        ) : (
-          <>
+      ) : (
+        <>
+          <div className={styles.chartCard}>
+            <div className={styles.chartHeader}>
+              <div>
+                <div className={styles.chartTitle}>使用趋势</div>
+                <span className={styles.chartSubtitle}>{trendData.length} 个时间点 · 左轴 Token / 右轴费用</span>
+              </div>
+              <div className={styles.panelControls}>
+                {(['day', 'hour'] as const).map((value) => (
+                  <button
+                    key={value}
+                    className={`${styles.miniButton} ${granularity === value ? styles.miniButtonActive : ''}`}
+                    onClick={() => setGranularity(value)}
+                    type="button"
+                  >
+                    {value === 'day' ? '天' : '小时'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={320}>
+              <ComposedChart data={trendData} margin={{ top: 8, left: -4, right: 8, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="tokenTotalGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#a78bfa" stopOpacity={0.18} />
+                    <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8e99b0' }} axisLine={false} tickLine={false} dy={6} />
+                <YAxis
+                  yAxisId="tokens"
+                  tick={{ fontSize: 10, fill: '#8e99b0' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value) => fmtTokens(Number(value))}
+                />
+                <YAxis
+                  yAxisId="cost"
+                  orientation="right"
+                  tick={{ fontSize: 10, fill: '#8e99b0' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value) => fmtCost(Number(value), 3)}
+                />
+                <Tooltip
+                  contentStyle={{ background: 'rgba(15, 23, 42, 0.96)', border: '1px solid rgba(148,163,184,0.18)', borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: '#94a3b8', fontSize: 11, marginBottom: 4 }}
+                  formatter={(value, name) => {
+                    if (name === '费用') return [fmtCost(Number(value)), name];
+                    return [fmtTokens(Number(value)), name];
+                  }}
+                />
+                <Legend verticalAlign="bottom" height={28} iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                <Area yAxisId="tokens" type="monotone" dataKey="tokens" name="总 Token" stroke="#a78bfa" strokeWidth={2} fill="url(#tokenTotalGradient)" dot={false} activeDot={{ r: 4 }} />
+                <Line yAxisId="tokens" type="monotone" dataKey="input" name="输入" stroke="#3b82f6" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                <Line yAxisId="tokens" type="monotone" dataKey="output" name="输出" stroke="#22c55e" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                <Line yAxisId="cost" type="monotone" dataKey="cost" name="费用" stroke="#ef4444" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          <section className={styles.logPanel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h3>模型调用日志</h3>
+                <span>{filteredRecords.length} 条模型请求 · 按时间倒序</span>
+              </div>
+              <div className={styles.logControls}>
+                <div className={styles.searchBox}>
+                  <Search size={15} />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索模型" />
+                </div>
+                {stats.latest && (
+                  <div className={styles.latestChip}>
+                    <Clock3 size={14} />
+                    最近 {fmtTime(stats.latest.timestamp)}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className={styles.tableWrap}>
-              <table className={styles.table}>
+              <table className={styles.detailTable}>
                 <thead>
                   <tr>
                     <th>时间</th>
                     <th>模型</th>
-                    <th style={{ textAlign: 'right' }}>输入</th>
-                    <th style={{ textAlign: 'right' }}>输出</th>
-                    <th style={{ textAlign: 'right' }}>总 Token</th>
-                    <th style={{ textAlign: 'right' }}>费用</th>
+                    <th>输入</th>
+                    <th>输出</th>
+                    <th>总量</th>
+                    <th>费用</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pageRecords.map((r) => (
-                    <tr key={r.id} className={styles.tableRow}>
-                      <td className={styles.cellTime}>{fmtTime(r.timestamp)}</td>
-                      <td className={styles.cellModel}>{getDisplayName(r.model)}</td>
-                      <td className={styles.cellNum}>{r.promptTokens.toLocaleString()}</td>
-                      <td className={styles.cellNum}>{r.completionTokens.toLocaleString()}</td>
-                      <td className={styles.cellNum} style={{ fontWeight: 500 }}>{r.totalTokens.toLocaleString()}</td>
-                      <td className={styles.cellCost}>${r.cost.toFixed(4)}</td>
+                  {pageRecords.map((record) => (
+                    <tr key={record.id}>
+                      <td>{fmtTime(record.timestamp)}</td>
+                      <td>{getDisplayName(record.model)}</td>
+                      <td>{record.promptTokens.toLocaleString()}</td>
+                      <td>{record.completionTokens.toLocaleString()}</td>
+                      <td>{record.totalTokens.toLocaleString()}</td>
+                      <td>{fmtCost(record.cost)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            {totalPages > 1 && (
-              <div className={styles.pagination}>
-                <button className={styles.pageBtn} disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
-                </button>
-                {pageNumbers[0] > 1 && <span className={styles.pageEllipsis}>…</span>}
-                {pageNumbers.map((p) => (
-                  <button key={p} className={`${styles.pageBtn} ${p === safePage ? styles.pageBtnActive : ''}`} onClick={() => setPage(p)}>{p}</button>
-                ))}
-                {pageNumbers[pageNumbers.length - 1] < totalPages && <span className={styles.pageEllipsis}>…</span>}
-                <button className={styles.pageBtn} disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
-                </button>
-                <span className={styles.pageInfo}>{safePage} / {totalPages}</span>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+            <div className={styles.paging}>
+              <span>共 {filteredRecords.length} 条</span>
+              <span>每页 {PAGE_SIZE} 条</span>
+              <button type="button" onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage === 1}>上一页</button>
+              <span>{safePage} / {totalPages}</span>
+              <button type="button" onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage === totalPages}>下一页</button>
+              <label className={styles.jumpBox}>
+                <input value={pageJump} onChange={(event) => setPageJump(event.target.value.replace(/\D/g, ''))} onKeyDown={(event) => { if (event.key === 'Enter') jumpToPage(); }} />
+              </label>
+              <button type="button" onClick={jumpToPage}>跳转</button>
+            </div>
+          </section>
+        </>
+      )}
     </section>
   );
 };

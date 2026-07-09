@@ -22,8 +22,16 @@ interface ModelPricing {
 }
 
 const MODEL_PRICING: Record<string, ModelPricing> = {
+  'doubao-seed-2-0-pro-260215': { inputPer1k: 0.0008, outputPer1k: 0.002 },
+  'doubao-seed-2-0-lite-260215': { inputPer1k: 0.0002, outputPer1k: 0.0006 },
+  'doubao-seed-2-0-mini-260215': { inputPer1k: 0.0001, outputPer1k: 0.0003 },
+  'doubao-1-5-pro-32k-250125': { inputPer1k: 0.0008, outputPer1k: 0.002 },
+  'doubao-1-5-lite-32k-250115': { inputPer1k: 0.0003, outputPer1k: 0.0006 },
   'doubao-seed-2-0-pro': { inputPer1k: 0.0008, outputPer1k: 0.002 },
+  'doubao-seed-2-0-lite': { inputPer1k: 0.0002, outputPer1k: 0.0006 },
+  'doubao-seed-2-0-mini': { inputPer1k: 0.0001, outputPer1k: 0.0003 },
   'doubao-1-5-pro-32k': { inputPer1k: 0.0008, outputPer1k: 0.002 },
+  'doubao-1-5-lite-32k': { inputPer1k: 0.0003, outputPer1k: 0.0006 },
   'mimo-v2.5': { inputPer1k: 0.001, outputPer1k: 0.003 },
   'gpt-4': { inputPer1k: 0.03, outputPer1k: 0.06 },
   'gpt-4-turbo': { inputPer1k: 0.01, outputPer1k: 0.03 },
@@ -32,8 +40,16 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
 
 const DEFAULT_PRICING: ModelPricing = { inputPer1k: 0.002, outputPer1k: 0.006 };
 
+function getPricing(model: string): ModelPricing {
+  if (MODEL_PRICING[model]) return MODEL_PRICING[model];
+  const matchedKey = Object.keys(MODEL_PRICING)
+    .sort((a, b) => b.length - a.length)
+    .find((key) => model.startsWith(key));
+  return matchedKey ? MODEL_PRICING[matchedKey] : DEFAULT_PRICING;
+}
+
 export function calculateCost(model: string, usage: { prompt_tokens: number; completion_tokens: number }): number {
-  const pricing = MODEL_PRICING[model] || DEFAULT_PRICING;
+  const pricing = getPricing(model);
   const inputCost = (usage.prompt_tokens / 1000) * pricing.inputPer1k;
   const outputCost = (usage.completion_tokens / 1000) * pricing.outputPer1k;
   return Math.round((inputCost + outputCost) * 1000000) / 1000000;

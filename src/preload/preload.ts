@@ -78,6 +78,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openApp: async (target: string) => {
     return ipcRenderer.invoke('open-app', target);
   },
+  // ========== 窗口控制 ==========
+  windowMinimize: async () => {
+    return ipcRenderer.invoke('window-minimize');
+  },
+  windowToggleMaximize: async () => {
+    return ipcRenderer.invoke('window-toggle-maximize');
+  },
+  windowClose: async () => {
+    return ipcRenderer.invoke('window-close');
+  },
+  windowIsMaximized: async () => {
+    return ipcRenderer.invoke('window-is-maximized');
+  },
+  onWindowMaximizedChange: (callback: (maximized: boolean) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, maximized: boolean) => callback(Boolean(maximized));
+    ipcRenderer.on('window-maximized-change', listener);
+    return () => ipcRenderer.removeListener('window-maximized-change', listener);
+  },
   // ========== 系统工具 ==========
   // 获取当前时间
   getCurrentTime: async () => {
@@ -295,6 +313,11 @@ declare global {
       clipboardRead: () => Promise<{ success: boolean; data?: string; error?: string }>;
       clipboardWrite: (text: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       openApp: (target: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      windowMinimize: () => Promise<void>;
+      windowToggleMaximize: () => Promise<boolean>;
+      windowClose: () => Promise<void>;
+      windowIsMaximized: () => Promise<boolean>;
+      onWindowMaximizedChange: (callback: (maximized: boolean) => void) => () => void;
       // 系统工具
       getCurrentTime: () => Promise<{ success: boolean; data?: string; error?: string }>;
       getSystemInfo: () => Promise<{ success: boolean; data?: string; error?: string }>;

@@ -1,0 +1,54 @@
+{
+  "data": [
+    {
+      "id": "page-chat-main",
+      "type": "page",
+      "title": "聊天主页",
+      "version": 1,
+      "createdAt": 1783322000000,
+      "canvasData": {
+        "x": -72,
+        "y": 300,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/chat-main.html"
+      }
+    },
+    {
+      "id": "page-chat-conversation",
+      "type": "page",
+      "title": "对话详情",
+      "version": 1,
+      "createdAt": 1783322100000,
+      "canvasData": {
+        "x": -84,
+        "y": 672,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/chat-conversation.html"
+      }
+    },
+    {
+      "id": "page-settings",
+      "type": "page",
+      "title": "设置页面",
+      "version": 1,
+      "createdAt": 1783322200000,
+      "canvasData": {
+        "x": -48,
+        "y": -156,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/settings.html"
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": false,
+    "deviceType": "desktop",
+    "showEdge": true
+  }
+}

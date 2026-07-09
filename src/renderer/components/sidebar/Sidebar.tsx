@@ -6,12 +6,13 @@
  * - 顶部：新建对话按钮（虚线风格）
  * - 中上：搜索框（带图标）
  * - 中间：对话列表（按时间分组：今天/昨天/更早）
- * - 底部：用户信息 + 设置按钮
+ * - 底部：用户信息
  */
 
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './Sidebar.module.css';
+import ConfirmDialog from '../common/ConfirmDialog';
 import type {
   ChatGroup,
   UserInfo,
@@ -360,20 +361,15 @@ const Sidebar: React.FC<SidebarProps> = ({
         document.body
       )}
 
-      {/* ===== 删除确认弹窗 ===== */}
-      {deleteConfirm.isOpen && createPortal(
-        <div className={styles.deleteConfirmOverlay}>
-          <div className={styles.deleteConfirmDialog}>
-            <h3>确认删除</h3>
-            <p>确定要删除这个对话吗？此操作无法撤销。</p>
-            <div className={styles.deleteConfirmActions}>
-              <button className={styles.deleteConfirmCancel} onClick={cancelDelete}>取消</button>
-              <button className={styles.deleteConfirmDelete} onClick={confirmDelete}>删除</button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      <ConfirmDialog
+        open={deleteConfirm.isOpen}
+        title="删除对话"
+        message="确定要删除这个对话吗？此操作无法撤销。"
+        confirmLabel="删除"
+        tone="danger"
+        onCancel={cancelDelete}
+        onConfirm={confirmDelete}
+      />
     </aside>
   );
 };

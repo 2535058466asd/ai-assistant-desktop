@@ -8,7 +8,7 @@ if (process.env.NODE_ENV === 'development') {
     } catch (_) {}
   }).catch(() => {});
 }
-import { app, BrowserWindow, globalShortcut } from 'electron'
+import { app, BrowserWindow, globalShortcut, ipcMain } from 'electron'
 import path from 'path'
 import { registerAllTools } from './tools'
 import { createLogger } from '../shared/logger'
@@ -43,9 +43,13 @@ function registerDevelopmentShortcuts() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1180,
+    height: 820,
+    minWidth: 980,
+    minHeight: 680,
+    frame: false,
     autoHideMenuBar: true,
+    backgroundColor: '#eef1f6',
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       nodeIntegration: false,
@@ -54,6 +58,12 @@ function createWindow() {
     }
   })
   mainWindow.setMenuBarVisibility(false)
+  mainWindow.on('maximize', () => {
+    mainWindow?.webContents.send('window-maximized-change', true)
+  })
+  mainWindow.on('unmaximize', () => {
+    mainWindow?.webContents.send('window-maximized-change', false)
+  })
 
   const isDev = !app.isPackaged;
   if (isDev) {
@@ -80,9 +90,34 @@ function createWindow() {
   })
 }
 
+function registerWindowControlHandlers() {
+  ipcMain.handle('window-minimize', () => {
+    mainWindow?.minimize()
+  })
+
+  ipcMain.handle('window-toggle-maximize', () => {
+    if (!mainWindow) return false
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize()
+      return false
+    }
+    mainWindow.maximize()
+    return true
+  })
+
+  ipcMain.handle('window-close', () => {
+    mainWindow?.close()
+  })
+
+  ipcMain.handle('window-is-maximized', () => {
+    return mainWindow?.isMaximized() ?? false
+  })
+}
+
 app.whenReady().then(() => {
   createWindow()
   registerDevelopmentShortcuts()
+  registerWindowControlHandlers()
   registerAllTools()
   registerModelProxyHandlers()
   registerTTSHandlers()

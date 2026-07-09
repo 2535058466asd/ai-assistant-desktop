@@ -55,6 +55,7 @@ const LEGACY_TOOL_LOGS_KEY = 'qiyuan_tool_call_logs';
 const EVAL_CASES_KEY = 'nova.eval.cases';
 const LEGACY_EVAL_CASES_KEY = 'qiyuan_eval_cases';
 const MODEL_CONTEXT_SNAPSHOTS_KEY = 'nova.debug.model_context_snapshots';
+const TOOL_LOG_LIMIT = 1000;
 
 const now = () => Date.now();
 const id = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -76,7 +77,7 @@ function writeJson<T>(key: string, value: T, legacyKey?: string): void {
 export function addToolLog(log: Omit<ToolCallLog, 'id' | 'createdAt'>): ToolCallLog {
   const logs = getToolLogs();
   const next: ToolCallLog = { ...log, id: id('tool'), createdAt: now() };
-  writeJson(TOOL_LOGS_KEY, [next, ...logs].slice(0, 200), LEGACY_TOOL_LOGS_KEY);
+  writeJson(TOOL_LOGS_KEY, [next, ...logs].slice(0, TOOL_LOG_LIMIT), LEGACY_TOOL_LOGS_KEY);
   return next;
 }
 

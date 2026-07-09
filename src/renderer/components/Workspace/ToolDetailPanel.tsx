@@ -1,38 +1,48 @@
 /**
- * ToolDetailPanel — 工具调用详情页（recharts 可视化）
+ * ToolDetailPanel — 工具调用详情页
  *
- * 展示：
- * 1. 概览指标（总调用、成功率、平均耗时、工具种类）
- * 2. 工具调用排名（横向柱状图）
- * 3. 延迟分布（柱状图）+ 成功/失败饼图
- * 4. 最近调用日志（可搜索过滤）
+ * 这里重点保留能排查问题的数据：概览、工具成功/失败排行、可搜索的调用日志。
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { getToolLogs, type ToolCallLog } from '../../core/history/workspaceStore';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
-} from 'recharts';
 
 const COLORS = {
   cyan: '#22d3ee',
-  blue: '#6366f1',
   green: '#22c55e',
   red: '#ef4444',
-  yellow: '#f59e0b',
+  slate: '#8ea0bc',
 };
 
-const fmtDuration = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
-const fmtTime = (ts: number) => new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(ts));
+const PAGE_SIZE = 20;
+
+const fmtDuration = (ms: number) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`);
+
+const fmtTime = (ts: number) => new Intl.DateTimeFormat('zh-CN', {
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+}).format(new Date(ts));
 
 const Card: React.FC<{ title: string; extra?: React.ReactNode; children: React.ReactNode }> = ({ title, extra, children }) => (
-  <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: 10, padding: 18 }}>
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
+  <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden' }}>
+    <div style={{ minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: '1px solid var(--border-color)', background: 'var(--card-nested-bg)' }}>
+      <div style={{ fontSize: 14, fontWeight: 750, color: 'var(--text-primary)' }}>{title}</div>
       {extra}
     </div>
-    {children}
+    <div style={{ padding: 14 }}>{children}</div>
+  </div>
+);
+
+const DetailBlock: React.FC<{ title: string; value?: string }> = ({ title, value }) => (
+  <div style={{ display: 'grid', gap: 6 }}>
+    <span style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 750 }}>{title}</span>
+    <pre style={{ maxHeight: 150, margin: 0, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1.55 }}>
+      {value || '无记录'}
+    </pre>
   </div>
 );
 
@@ -41,205 +51,196 @@ const ToolDetailPanel: React.FC = () => {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'success' | 'error'>('all');
+  const [page, setPage] = useState(1);
+  const [pageJump, setPageJump] = useState('');
 
-  useMemo(() => {
+  useEffect(() => {
     const timer = window.setInterval(() => setLogs(getToolLogs()), 3000);
     return () => window.clearInterval(timer);
   }, []);
 
-  const failedCount = logs.filter((l) => l.status === 'error').length;
+  const failedCount = useMemo(() => logs.filter((log) => log.status === 'error').length, [logs]);
+  const avgDuration = useMemo(() => (
+    logs.length ? Math.round(logs.reduce((sum, log) => sum + log.durationMs, 0) / logs.length) : 0
+  ), [logs]);
 
-  // 工具调用排名
   const ranking = useMemo(() => {
     const map = new Map<string, { count: number; totalMs: number; errors: number }>();
-    for (const l of logs) {
-      const e = map.get(l.name) || { count: 0, totalMs: 0, errors: 0 };
-      e.count++; e.totalMs += l.durationMs; if (l.status === 'error') e.errors++;
-      map.set(l.name, e);
+    for (const log of logs) {
+      const item = map.get(log.name) || { count: 0, totalMs: 0, errors: 0 };
+      item.count += 1;
+      item.totalMs += log.durationMs;
+      if (log.status === 'error') item.errors += 1;
+      map.set(log.name, item);
     }
+
     return Array.from(map.entries())
-      .map(([name, d]) => ({
-        name: name.length > 14 ? name.slice(0, 12) + '…' : name,
+      .map(([name, item]) => ({
+        name: name.length > 18 ? `${name.slice(0, 16)}...` : name,
         fullName: name,
-        成功: d.count - d.errors,
-        失败: d.errors,
-        调用次数: d.count,
-        平均延迟: Math.round(d.totalMs / d.count),
+        成功: item.count - item.errors,
+        失败: item.errors,
+        平均耗时: Math.round(item.totalMs / Math.max(1, item.count)),
       }))
-      .sort((a, b) => b.调用次数 - a.调用次数)
-      .slice(0, 10);
+      .sort((a, b) => (b.成功 + b.失败) - (a.成功 + a.失败))
+      .slice(0, 12);
   }, [logs]);
 
-  // 延迟分布
-  const latencyBuckets = useMemo(() => {
-    const buckets = [
-      { range: '<100ms', min: 0, max: 100, count: 0 },
-      { range: '100-500', min: 100, max: 500, count: 0 },
-      { range: '500ms-1s', min: 500, max: 1000, count: 0 },
-      { range: '1-3s', min: 1000, max: 3000, count: 0 },
-      { range: '3-10s', min: 3000, max: 10000, count: 0 },
-      { range: '>10s', min: 10000, max: Infinity, count: 0 },
-    ];
-    for (const l of logs) {
-      for (const b of buckets) {
-        if (l.durationMs >= b.min && l.durationMs < b.max) { b.count++; break; }
-      }
-    }
-    return buckets.map(({ range, count }) => ({ range, 次数: count }));
-  }, [logs]);
-
-  // 成功/失败饼图
-  const pieData = useMemo(() => {
-    const s = logs.filter((l) => l.status === 'success').length;
-    const e = logs.filter((l) => l.status === 'error').length;
-    return [{ name: '成功', value: s }, { name: '失败', value: e }].filter((d) => d.value > 0);
-  }, [logs]);
-
-  // 过滤日志
   const filteredLogs = useMemo(() => {
-    let result = [...logs].sort((a, b) => b.createdAt - a.createdAt);
-    if (statusFilter !== 'all') result = result.filter((l) => l.status === statusFilter);
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter((l) => l.name.toLowerCase().includes(q) || l.resultPreview?.toLowerCase().includes(q));
-    }
-    return result;
+    const q = search.trim().toLowerCase();
+    return [...logs]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .filter((log) => {
+        if (statusFilter !== 'all' && log.status !== statusFilter) return false;
+        if (!q) return true;
+        return [
+          log.name,
+          log.category || '',
+          log.riskLevel || '',
+          log.argsPreview || '',
+          log.resultPreview || '',
+        ].some((text) => text.toLowerCase().includes(q));
+      });
   }, [logs, search, statusFilter]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageLogs = filteredLogs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+    setPageJump('');
+  }, [search, statusFilter]);
+
+  const jumpToPage = () => {
+    const next = Number(pageJump);
+    if (!Number.isFinite(next)) return;
+    setPage(Math.min(totalPages, Math.max(1, Math.trunc(next))));
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* 概览指标 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
         {[
-          { label: '总调用', value: String(logs.length), color: 'var(--text-primary)' },
-          { label: '成功率', value: `${logs.length ? Math.round(((logs.length - failedCount) / logs.length) * 100) : 100}%`, color: failedCount === 0 ? COLORS.green : COLORS.red },
-          { label: '平均耗时', value: fmtDuration(logs.length ? Math.round(logs.reduce((s, l) => s + l.durationMs, 0) / logs.length) : 0) },
-          { label: '工具种类', value: String(new Set(logs.map((l) => l.name)).size), color: COLORS.cyan },
-        ].map((s) => (
-          <div key={s.label} style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: 10, padding: 16 }}>
-            <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600 }}>{s.label}</div>
-            <div style={{ color: s.color || 'var(--text-primary)', fontSize: 28, fontWeight: 300, marginTop: 4 }}>{s.value}</div>
+          { label: '总调用', value: String(logs.length), sub: '本地保留最多 1000 条', color: 'var(--text-primary)' },
+          { label: '失败次数', value: String(failedCount), sub: logs.length ? `失败率 ${Math.round((failedCount / logs.length) * 100)}%` : '暂无失败', color: failedCount > 0 ? COLORS.red : COLORS.green },
+          { label: '平均耗时', value: fmtDuration(avgDuration), sub: '按当前日志统计', color: COLORS.cyan },
+          { label: '工具种类', value: String(new Set(logs.map((log) => log.name)).size), sub: `${ranking.length} 个有排行数据`, color: 'var(--text-primary)' },
+        ].map((item) => (
+          <div key={item.label} style={{ minHeight: 108, display: 'grid', gap: 7, padding: 14, border: '1px solid var(--border-color)', borderRadius: 8, background: 'var(--card-bg)' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 750 }}>{item.label}</span>
+            <strong style={{ overflow: 'hidden', color: item.color, fontSize: 28, lineHeight: 1.1, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.value}</strong>
+            <small style={{ overflow: 'hidden', color: 'var(--text-secondary)', fontSize: 12, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.sub}</small>
           </div>
         ))}
       </div>
 
       {logs.length === 0 ? (
-        <div style={{ background: 'var(--card-bg)', border: '1px dashed var(--border-color)', borderRadius: 10, padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+        <div style={{ minHeight: 280, display: 'grid', placeItems: 'center', padding: 36, border: '1px dashed var(--border-color)', borderRadius: 8, color: 'var(--text-muted)', background: 'var(--card-bg)', textAlign: 'center' }}>
           暂无工具调用记录。开始对话后会自动记录。
         </div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 12 }}>
-            {/* 工具调用排名 — 堆叠柱状图 */}
-            <Card title="工具调用详情" extra={<span style={{ fontSize: 11, color: 'var(--text-muted)' }}>绿色=成功 红色=失败</span>}>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={ranking} layout="vertical" margin={{ left: 10, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                  <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11, fill: '#94a3b8', fontFamily: 'var(--font-mono)' }} />
-                  <Tooltip
-                    contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 6, fontSize: 12 }}
-                    formatter={(value: any, name: any) => [`${value} 次`, name]}
-                  />
-                  <Bar dataKey="成功" stackId="a" fill={COLORS.green} radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="失败" stackId="a" fill={COLORS.red} radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-
-            {/* 成功/失败 + 延迟分布 */}
-            <Card title="执行状态">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20, height: 200 }}>
-                <ResponsiveContainer width="40%" height={180}>
-                  <PieChart>
-                    <Pie data={pieData} innerRadius={45} outerRadius={70} dataKey="value" stroke="none">
-                      {pieData.map((e) => <Cell key={e.name} fill={e.name === '成功' ? COLORS.green : COLORS.red} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 6, fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {pieData.map((d) => (
-                    <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 10, height: 10, borderRadius: 2, background: d.name === '成功' ? COLORS.green : COLORS.red }} />
-                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{d.name}: {d.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          {/* 延迟分布 */}
-          <Card title="延迟分布">
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={latencyBuckets} margin={{ left: -10, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" />
-                <XAxis dataKey="range" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                <Tooltip contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(148,163,184,0.2)', borderRadius: 6, fontSize: 12 }} />
-                <Bar dataKey="次数" fill={COLORS.blue} radius={[4, 4, 0, 0]} />
+          <Card title="工具调用详情" extra={<span style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 650 }}>按工具汇总成功 / 失败次数</span>}>
+            <ResponsiveContainer width="100%" height={Math.max(240, ranking.length * 34)}>
+              <BarChart data={ranking} layout="vertical" margin={{ left: 18, right: 24, top: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: COLORS.slate }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 11, fill: COLORS.slate, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 8, fontSize: 12 }}
+                  formatter={(value, name) => [`${value} 次`, String(name)]}
+                  labelFormatter={(_, payload) => payload?.[0]?.payload?.fullName || ''}
+                />
+                <Bar dataKey="成功" stackId="calls" fill={COLORS.green} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="失败" stackId="calls" fill={COLORS.red} radius={[0, 5, 5, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>
 
-          {/* 调用日志 */}
           <Card
-            title="调用日志"
+            title="工具调用日志"
             extra={
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6 }}>
                 <input
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="搜索…"
-                  style={{ padding: '5px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 20, color: 'var(--text-primary)', fontSize: 12, outline: 'none', fontFamily: 'inherit', width: 140 }}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="搜索工具、参数、结果"
+                  style={{ width: 210, minHeight: 30, padding: '5px 10px', border: '1px solid var(--border-color)', borderRadius: 7, outline: 0, color: 'var(--text-primary)', background: 'var(--bg-tertiary)', fontSize: 12, fontFamily: 'inherit' }}
                 />
-                {(['all', 'success', 'error'] as const).map((f) => (
+                {(['all', 'success', 'error'] as const).map((filter) => (
                   <button
-                    key={f}
-                    onClick={() => setStatusFilter(f)}
+                    key={filter}
+                    onClick={() => setStatusFilter(filter)}
+                    type="button"
                     style={{
-                      padding: '4px 10px', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: 600,
-                      background: statusFilter === f ? 'rgba(34,211,238,0.08)' : 'transparent',
-                      color: statusFilter === f ? 'var(--accent-cyan)' : 'var(--text-muted)',
-                      borderColor: statusFilter === f ? 'rgba(34,211,238,0.2)' : 'var(--border-color)',
+                      minHeight: 30,
+                      padding: '5px 10px',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 7,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      fontSize: 12,
+                      fontWeight: 650,
+                      background: statusFilter === filter ? 'rgba(34,211,238,0.08)' : 'var(--bg-tertiary)',
+                      color: statusFilter === filter ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+                      borderColor: statusFilter === filter ? 'rgba(34,211,238,0.36)' : 'var(--border-color)',
                     }}
                   >
-                    {f === 'all' ? '全部' : f === 'success' ? '成功' : '失败'}
+                    {filter === 'all' ? '全部' : filter === 'success' ? '成功' : '失败'}
                   </button>
                 ))}
               </div>
             }
           >
-            <div style={{ maxHeight: 320, overflowY: 'auto' }}>
-              {filteredLogs.length === 0 ? (
-                <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>无匹配结果</div>
-              ) : (
-                filteredLogs.slice(0, 50).map((log) => {
-                  const isExpanded = expandedId === log.id;
-                  return (
-                    <div
-                      key={log.id}
+            <div style={{ display: 'grid', gridTemplateColumns: '78px minmax(170px, 1fr) 94px 88px 148px', gap: 10, padding: '8px 10px', color: 'var(--text-muted)', background: 'var(--bg-tertiary)', borderRadius: 7, fontSize: 11, fontWeight: 750 }}>
+              <span>状态</span>
+              <span>工具</span>
+              <span>分类</span>
+              <span style={{ textAlign: 'right' }}>耗时</span>
+              <span style={{ textAlign: 'right' }}>时间</span>
+            </div>
+            <div style={{ marginTop: 6, border: '1px solid var(--border-color)', borderRadius: 8, overflow: 'hidden' }}>
+              {pageLogs.length === 0 ? (
+                <div style={{ padding: 18, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>无匹配记录</div>
+              ) : pageLogs.map((log) => {
+                const isExpanded = expandedId === log.id;
+                return (
+                  <div key={log.id} style={{ borderTop: '1px solid var(--border-color)' }}>
+                    <button
+                      type="button"
                       onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                      style={{ padding: '8px 10px', borderBottom: '1px solid rgba(148,163,184,0.06)', cursor: 'pointer', transition: 'background 0.15s ease' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--card-nested-bg)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                      style={{ width: '100%', display: 'grid', gridTemplateColumns: '78px minmax(170px, 1fr) 94px 88px 148px', alignItems: 'center', gap: 10, minHeight: 42, padding: '9px 10px', border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: log.status === 'success' ? COLORS.green : COLORS.red, flexShrink: 0 }} />
-                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.name}</span>
-                        <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11, flexShrink: 0 }}>{fmtDuration(log.durationMs)}</span>
-                        <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0 }}>{fmtTime(log.createdAt)}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: log.status === 'success' ? COLORS.green : COLORS.red, fontSize: 12, fontWeight: 750 }}>
+                        <i style={{ width: 7, height: 7, borderRadius: '50%', background: log.status === 'success' ? COLORS.green : COLORS.red }} />
+                        {log.status === 'success' ? '成功' : '失败'}
+                      </span>
+                      <span style={{ minWidth: 0, overflow: 'hidden', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 650, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.name}</span>
+                      <span style={{ overflow: 'hidden', color: 'var(--text-muted)', fontSize: 12, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.category || log.riskLevel || '-'}</span>
+                      <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: 12, textAlign: 'right' }}>{fmtDuration(log.durationMs)}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtTime(log.createdAt)}</span>
+                    </button>
+                    {isExpanded && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '10px 12px 12px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-tertiary)' }}>
+                        <DetailBlock title="调用参数" value={log.argsPreview} />
+                        <DetailBlock title="返回结果" value={log.resultPreview} />
                       </div>
-                      {isExpanded && (
-                        <div style={{ marginTop: 6, padding: 8, background: 'var(--bg-tertiary)', borderRadius: 6, fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                          {log.resultPreview || log.argsPreview || '无详情'}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 7, paddingTop: 12, color: 'var(--text-muted)', fontSize: 12, fontWeight: 650 }}>
+              <span>共 {filteredLogs.length} 条</span>
+              <span>每页 {PAGE_SIZE} 条</span>
+              <button type="button" onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage === 1} style={{ minHeight: 30, padding: '5px 11px', border: '1px solid var(--border-color)', borderRadius: 7, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 12, cursor: safePage === 1 ? 'not-allowed' : 'pointer', opacity: safePage === 1 ? 0.45 : 1 }}>上一页</button>
+              <span>{safePage} / {totalPages}</span>
+              <button type="button" onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage === totalPages} style={{ minHeight: 30, padding: '5px 11px', border: '1px solid var(--border-color)', borderRadius: 7, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 12, cursor: safePage === totalPages ? 'not-allowed' : 'pointer', opacity: safePage === totalPages ? 0.45 : 1 }}>下一页</button>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <input value={pageJump} placeholder="页码" onChange={(event) => setPageJump(event.target.value.replace(/\D/g, ''))} onKeyDown={(event) => { if (event.key === 'Enter') jumpToPage(); }} style={{ width: 58, minHeight: 30, padding: '5px 8px', border: '1px solid var(--border-color)', borderRadius: 7, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 12, textAlign: 'center' }} />
+              </label>
+              <button type="button" onClick={jumpToPage} style={{ minHeight: 30, padding: '5px 11px', border: '1px solid var(--border-color)', borderRadius: 7, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontSize: 12, cursor: 'pointer' }}>跳转</button>
             </div>
           </Card>
         </>

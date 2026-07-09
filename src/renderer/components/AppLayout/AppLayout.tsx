@@ -35,13 +35,11 @@ import type { InputAreaHandle } from '../input/InputArea';
 import WorkspaceDashboard from '../Workspace/WorkspaceDashboard';
 import KnowledgePanel from '../Knowledge/KnowledgePanel';
 import MemoryPanel from '../Memory/MemoryPanel';
-import DebugPanel from '../Debug/DebugPanel';
 import ModelApiPanel from '../Settings/ModelApiPanel';
 import SystemPromptPanel from '../Settings/SystemPromptPanel';
 import ToolsPanel from '../Tools/ToolsPanel';
-import CostDetailPanel from '../Workspace/CostDetailPanel';
+import RuntimePanel from '../Runtime/RuntimePanel';
 import VoicePanel from '../Settings/VoicePanel';
-import SearchPanel from '../Settings/SearchPanel';
 import ShortcutsPanel from '../Settings/ShortcutsPanel';
 import { createLogger, createTraceId, type LogMeta } from '../../../shared/logger';
 import { getActiveModelConfig } from '../../config/modelConfig';
@@ -121,8 +119,8 @@ const LEGACY_STORAGE_KEY_ACTIVE_CHAT = 'qiyuan_active_chat_id';
 const STORAGE_KEY_ACTIVE_VIEW = 'nova.activeView';
 const LEGACY_STORAGE_KEY_ACTIVE_VIEW = 'qiyuan_active_view';
 
-type AppView = 'chat' | 'workspace' | 'cost' | 'knowledge' | 'memory' | 'tools' | 'settings';
-type SettingsPageTab = 'model-api' | 'voice' | 'search' | 'shortcuts' | 'system-prompt';
+type AppView = 'chat' | 'workspace' | 'runtime' | 'knowledge' | 'memory' | 'tools' | 'settings';
+type SettingsPageTab = 'model-api' | 'voice' | 'shortcuts' | 'system-prompt';
 
 const navIcons: Record<string, JSX.Element> = {
   chat: (
@@ -160,6 +158,14 @@ const navIcons: Record<string, JSX.Element> = {
       <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
     </svg>
   ),
+  runtime: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
+      <path d="M3 3v18h18" />
+      <path d="M7 15l3-3 3 2 5-7" />
+      <path d="M18 7h-4" />
+      <path d="M18 7v4" />
+    </svg>
+  ),
   settings: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 20, height: 20 }}>
       <circle cx="12" cy="12" r="3" />
@@ -173,8 +179,8 @@ const appViews: { id: AppView; label: string; description: string }[] = [
   { id: 'workspace', label: '工作台', description: '查看知识库、记忆、工具日志和评估概览' },
   { id: 'knowledge', label: '知识库', description: '导入、检索和管理本地知识片段' },
   { id: 'memory', label: '记忆库', description: '查看和管理 Nova 记住的长期信息' },
-  { id: 'tools', label: '工具', description: '查看所有可用工具和调用统计' },
-  { id: 'cost', label: '费用', description: 'Token 用量、费用统计和模型消耗' },
+  { id: 'tools', label: '工具', description: '查看所有可用工具、参数和安全边界' },
+  { id: 'runtime', label: '运行', description: '查看工具调用、费用 Token 和运行数据' },
   { id: 'settings', label: '设置', description: '配置模型、语音、搜索和快捷键' },
 ];
 
@@ -302,6 +308,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   /** 设置页内部标签，只管理配置项，不再承载知识库/记忆库等业务页面 */
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsPageTab>('model-api');
 
+  /** 无边框窗口是否最大化，用于切换图标和去掉外层圆角 */
+  const [isWindowMaximized, setIsWindowMaximized] = useState(false);
+
   /** 是否正在加载（AI 回复中）- 使用父组件传来的值 */
   // const [isLoading, setIsLoading] = useState(false);
 
@@ -325,6 +334,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     window.addEventListener('nova-model-config-saved', handleModelConfigSaved);
     return () => window.removeEventListener('nova-model-config-saved', handleModelConfigSaved);
   }, [onModelChange]);
+
+  useEffect(() => {
+    void window.electronAPI?.windowIsMaximized?.().then((maximized) => {
+      setIsWindowMaximized(Boolean(maximized));
+    });
+    return window.electronAPI?.onWindowMaximizedChange?.((maximized) => {
+      setIsWindowMaximized(maximized);
+    });
+  }, []);
 
   /** 输入框内容的 ref（用于快捷建议填入）*/
   const inputRef = useRef<InputAreaHandle | null>(null);
@@ -720,6 +738,19 @@ const AppLayout: React.FC<AppLayoutProps> = ({
     }
   };
 
+  const handleWindowMinimize = () => {
+    void window.electronAPI?.windowMinimize?.();
+  };
+
+  const handleWindowToggleMaximize = async () => {
+    const maximized = await window.electronAPI?.windowToggleMaximize?.();
+    setIsWindowMaximized(Boolean(maximized));
+  };
+
+  const handleWindowClose = () => {
+    void window.electronAPI?.windowClose?.();
+  };
+
   /**
    * 将后端 Message 格式转换为 UI 所需的 UIMessage 格式
    * @param msg - 后端原始消息
@@ -774,8 +805,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({
         return <MemoryPanel />;
       case 'tools':
         return <ToolsPanel />;
-      case 'cost':
-        return <CostDetailPanel />;
+      case 'runtime':
+        return <RuntimePanel />;
       case 'settings':
         return (
           <div className={styles.settingsPage}>
@@ -823,6 +854,41 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   };
 
   return (
+    <div className={`${styles.windowShell} ${isWindowMaximized ? styles.windowShellMaximized : ''}`}>
+      <div className={styles.windowTitlebar} onDoubleClick={handleWindowToggleMaximize}>
+        <div className={styles.windowBrand}>
+          <span className={styles.windowAppIcon}>N</span>
+          <div className={styles.windowBrandText}>
+            <span className={styles.windowTitle}>Nova</span>
+            <span className={styles.windowSubtitle}>AI Agent Workspace</span>
+          </div>
+        </div>
+        <div className={styles.windowControls} onDoubleClick={(event) => event.stopPropagation()}>
+          <button className={styles.windowButton} type="button" title="最小化" onClick={handleWindowMinimize} aria-label="最小化窗口">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M3 8h10" />
+            </svg>
+          </button>
+          <button className={styles.windowButton} type="button" title={isWindowMaximized ? '还原' : '最大化'} onClick={handleWindowToggleMaximize} aria-label={isWindowMaximized ? '还原窗口' : '最大化窗口'}>
+            {isWindowMaximized ? (
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M6 4h6v6" />
+                <path d="M4 6h6v6H4z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="4" y="4" width="8" height="8" rx="0.8" />
+              </svg>
+            )}
+          </button>
+          <button className={`${styles.windowButton} ${styles.windowButtonClose}`} type="button" title="关闭" onClick={handleWindowClose} aria-label="关闭窗口">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
     <div className={`${styles.app} ${activeView === 'chat' && sidebarOpen ? styles.chatSidebarOpen : ''}`}>
       {/* ===== 背景装饰光晕（固定定位，不影响布局）===== */}
       <div className="bg-glow bg-glow-1"></div>
@@ -905,6 +971,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
           />
         )}
       </main>
+    </div>
     </div>
   );
 };

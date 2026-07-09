@@ -8,6 +8,7 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import styles from './KnowledgePanel.module.css';
 import { createLogger } from '../../../shared/logger';
+import ConfirmDialog from '../common/ConfirmDialog';
 
 const logger = createLogger('rag');
 
@@ -47,15 +48,43 @@ interface KnowledgeSource {
   createdAt?: string;
 }
 
+type SourceTypeFilter = 'all' | 'pdf' | 'doc' | 'sheet' | 'image' | 'text' | 'other';
+type SourceSortMode = 'recent' | 'chunks' | 'name';
+
+const SOURCE_TYPE_LABELS: Record<SourceTypeFilter, string> = {
+  all: '全部',
+  pdf: 'PDF',
+  doc: '文档',
+  sheet: '表格',
+  image: '图片',
+  text: '文本',
+  other: '其他',
+};
+
+const SOURCE_SORT_LABELS: Record<SourceSortMode, string> = {
+  recent: '最近导入',
+  chunks: '片段最多',
+  name: '名称 A-Z',
+};
+
 const IMAGE_EXTS = /\.(jpg|jpeg|png|gif|webp|bmp)$/i;
 const isImageFile = (name: string) => IMAGE_EXTS.test(name);
 
+const getSourceType = (name: string): SourceTypeFilter => {
+  if (/\.pdf$/i.test(name)) return 'pdf';
+  if (/\.(docx|doc)$/i.test(name)) return 'doc';
+  if (/\.(xlsx|xls|csv)$/i.test(name)) return 'sheet';
+  if (/\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(name)) return 'image';
+  if (/\.(txt|md|json|yaml|yml)$/i.test(name)) return 'text';
+  return 'other';
+};
+
 const getFileIcon = (name: string) => {
-  if (/\.(xlsx|xls)$/i.test(name)) return { emoji: '📊', color: '#10b981' };
+  if (/\.(xlsx|xls|csv)$/i.test(name)) return { emoji: '📊', color: '#10b981' };
   if (/\.pdf$/i.test(name)) return { emoji: '📄', color: '#ef4444' };
   if (/\.(docx|doc)$/i.test(name)) return { emoji: '📝', color: '#3b82f6' };
   if (/\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(name)) return { emoji: '🖼️', color: '#f59e0b' };
-  if (/\.(txt|md)$/i.test(name)) return { emoji: '📋', color: '#8b5cf6' };
+  if (/\.(txt|md|json|yaml|yml)$/i.test(name)) return { emoji: '📋', color: '#8b5cf6' };
   return { emoji: '📁', color: '#6b7280' };
 };
 
@@ -99,6 +128,9 @@ const KnowledgePanel: React.FC = () => {
   const [expandedChunks, setExpandedChunks] = useState<Set<string>>(new Set());
   const [rightPanel, setRightPanel] = useState<'search' | 'detail'>('detail');
   const [targetChunkId, setTargetChunkId] = useState<string | null>(null);
+  const [sourceTypeFilter, setSourceTypeFilter] = useState<SourceTypeFilter>('all');
+  const [sourceSortMode, setSourceSortMode] = useState<SourceSortMode>('recent');
+  const [pendingDeleteSource, setPendingDeleteSource] = useState<string | null>(null);
   const chunkRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const api = (window as any).electronAPI;
@@ -302,8 +334,7 @@ const KnowledgePanel: React.FC = () => {
     if (files.length) handleFiles(files);
   };
 
-  const handleDeleteSource = async (source: string) => {
-    if (!window.confirm(`确定删除「${source}」的所有知识片段吗？`)) return;
+  const deleteSource = async (source: string) => {
     const result = await api.knowledgeDeleteBySource(source);
     if (result.success) {
       loadStats();
@@ -317,6 +348,11 @@ const KnowledgePanel: React.FC = () => {
         });
       }
     }
+    setPendingDeleteSource(null);
+  };
+
+  const handleDeleteSource = (source: string) => {
+    setPendingDeleteSource(source);
   };
 
   /* ─── Derived ─── */
@@ -326,6 +362,24 @@ const KnowledgePanel: React.FC = () => {
   const safeSearchPage = Math.min(searchPage, totalSearchPages);
   const pagedResults = searchResults.slice((safeSearchPage - 1) * SEARCH_PAGE_SIZE, safeSearchPage * SEARCH_PAGE_SIZE);
   const selectedChunks = selectedSource ? sourceChunks[selectedSource] : null;
+  const filteredSources = useMemo(() => {
+    const result = sources.filter(src => sourceTypeFilter === 'all' || getSourceType(src.source) === sourceTypeFilter);
+    return result.sort((a, b) => {
+      if (sourceSortMode === 'chunks') return b.count - a.count;
+      if (sourceSortMode === 'name') return a.source.localeCompare(b.source, 'zh-CN');
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
+  }, [sourceSortMode, sourceTypeFilter, sources]);
+  const typeCounts = useMemo(() => sources.reduce<Record<SourceTypeFilter, number>>((acc, src) => {
+    const type = getSourceType(src.source);
+    acc[type] += 1;
+    return acc;
+  }, { all: sources.length, pdf: 0, doc: 0, sheet: 0, image: 0, text: 0, other: 0 }), [sources]);
+  const selectedSourceMeta = useMemo(
+    () => selectedSource ? sources.find(src => src.source === selectedSource) || null : null,
+    [selectedSource, sources]
+  );
+  const selectedSourceType = selectedSource ? getSourceType(selectedSource) : null;
 
   return (
     <div ref={dropRef} className={styles.panel} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
@@ -340,7 +394,6 @@ const KnowledgePanel: React.FC = () => {
       <header className={styles.header}>
         <div className={styles.headerLeft}>
           <h1 className={styles.headerTitle}>知识库</h1>
-          <span className={styles.headerStat}>{stats?.count ?? 0} 片段 · {sources.length} 来源</span>
         </div>
         <div className={styles.searchBox}>
           <svg className={styles.searchIcon} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -363,7 +416,50 @@ const KnowledgePanel: React.FC = () => {
             {searching ? '...' : '搜索'}
           </button>
         </div>
+        <button type="button" className={styles.btnImport} onClick={handleOpenFilePicker}>
+          导入文件
+        </button>
       </header>
+
+      {sources.length > 0 && (
+        <section className={styles.contextStrip}>
+          {selectedSource ? (
+            <>
+              <div className={styles.contextPrimary}>
+                <span>当前来源</span>
+                <strong>{getFileIcon(selectedSource).emoji} {selectedSource}</strong>
+              </div>
+              <div className={styles.contextStat}>
+                <span>类型</span>
+                <strong>{SOURCE_TYPE_LABELS[selectedSourceType || 'other']}</strong>
+              </div>
+              <div className={styles.contextStat}>
+                <span>导入</span>
+                <strong>{formatTime(selectedSourceMeta?.createdAt) || '未记录'}</strong>
+              </div>
+              <div className={styles.contextStat}>
+                <span>全局</span>
+                <strong>{stats?.count ?? 0} 片段 · {sources.length} 来源</strong>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={styles.contextPrimary}>
+                <span>当前视图</span>
+                <strong>{sourceTypeFilter === 'all' ? '全部知识来源' : `已筛选 ${SOURCE_TYPE_LABELS[sourceTypeFilter]}`}</strong>
+              </div>
+              <div className={styles.contextStat}>
+                <span>排序</span>
+                <strong>{SOURCE_SORT_LABELS[sourceSortMode]}</strong>
+              </div>
+              <div className={styles.contextStat}>
+                <span>全局</span>
+                <strong>{stats?.count ?? 0} 片段 · {sources.length} 来源</strong>
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       {/* ─── Import Queue ─── */}
       {importQueue.length > 0 && (
@@ -394,7 +490,43 @@ const KnowledgePanel: React.FC = () => {
           <div className={styles.split}>
             {/* ─── Left: File List ─── */}
             <nav className={styles.nav}>
-              {sources.map(src => {
+              <div className={styles.navTools}>
+                <span className={styles.filterLabel}>来源类型</span>
+                <div className={styles.typeFilters}>
+                  {([
+                    ['all', `全部 ${typeCounts.all}`],
+                    ['doc', `文档 ${typeCounts.doc}`],
+                    ['sheet', `表格 ${typeCounts.sheet}`],
+                    ['text', `文本 ${typeCounts.text}`],
+                    ['pdf', `PDF ${typeCounts.pdf}`],
+                    ['image', `图片 ${typeCounts.image}`],
+                    ['other', `其他 ${typeCounts.other}`],
+                  ] as const).map(([type, label]) => (
+                    <button
+                      key={type}
+                      type="button"
+                      className={`${styles.typeChip} ${sourceTypeFilter === type ? styles.typeChipActive : ''} ${typeCounts[type] === 0 ? styles.typeChipEmpty : ''}`}
+                      onClick={() => setSourceTypeFilter(type)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <span className={styles.filterLabel}>排序</span>
+                <div className={styles.sortOptions}>
+                  {(['recent', 'chunks', 'name'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      type="button"
+                      className={`${styles.sortOption} ${sourceSortMode === mode ? styles.sortOptionActive : ''}`}
+                      onClick={() => setSourceSortMode(mode)}
+                    >
+                      {SOURCE_SORT_LABELS[mode]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {filteredSources.map(src => {
                 const isActive = selectedSource === src.source && rightPanel === 'detail';
                 const isLoading = loadingChunks === src.source;
                 const icon = getFileIcon(src.source);
@@ -424,6 +556,9 @@ const KnowledgePanel: React.FC = () => {
                   </div>
                 );
               })}
+              {filteredSources.length === 0 && (
+                <div className={styles.navEmpty}>没有匹配的来源</div>
+              )}
             </nav>
 
             {/* ─── Right: Detail / Search ─── */}
@@ -474,7 +609,7 @@ const KnowledgePanel: React.FC = () => {
                 <>
                   {!selectedSource ? (
                     <div className={styles.mainEmpty}>
-                      <p>选择左侧文件查看内容</p>
+                      <p>选择左侧来源查看切片，或直接搜索知识库</p>
                     </div>
                   ) : loadingChunks === selectedSource ? (
                     <div className={styles.mainEmpty}>
@@ -515,6 +650,15 @@ const KnowledgePanel: React.FC = () => {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={Boolean(pendingDeleteSource)}
+        title="删除知识来源"
+        message={`确定删除「${pendingDeleteSource || ''}」的所有知识片段吗？这个操作无法撤销。`}
+        confirmLabel="删除"
+        tone="danger"
+        onCancel={() => setPendingDeleteSource(null)}
+        onConfirm={() => pendingDeleteSource && void deleteSource(pendingDeleteSource)}
+      />
     </div>
   );
 };

@@ -3,12 +3,149 @@
  * 整合一级导航 + 可选侧栏 + 顶栏 + 页面内容 + 聊天输入区的整体布局
  */
 
+.windowShell {
+  --window-titlebar-height: 42px;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border: 1px solid rgba(148, 163, 184, 0.55);
+}
+
+.windowShellMaximized {
+  border: 0;
+}
+
+.windowTitlebar {
+  height: var(--window-titlebar-height);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  background: rgba(15, 18, 25, 0.96);
+  border-bottom: 1px solid var(--border-color);
+  user-select: none;
+  -webkit-app-region: drag;
+  position: relative;
+  z-index: 20;
+}
+
+[data-theme="light"] .windowTitlebar {
+  color: #334155;
+  background: #f8fafc;
+  border-bottom-color: #dfe6ee;
+}
+
+.windowBrand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 14px;
+}
+
+.windowAppIcon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: #dbeafe;
+  background: #172033;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .windowAppIcon {
+  color: #dbeafe;
+  background: #172033;
+}
+
+.windowBrandText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.windowTitle {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+[data-theme="light"] .windowTitle {
+  color: #1e293b;
+}
+
+.windowSubtitle {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.windowControls {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+.windowButton {
+  width: 44px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: default;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.windowButton svg {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.windowButton:hover {
+  color: var(--text-primary);
+  background: rgba(148, 163, 184, 0.12);
+}
+
+[data-theme="light"] .windowButton {
+  color: #475569;
+}
+
+[data-theme="light"] .windowButton:hover {
+  color: #0f172a;
+  background: #e8edf4;
+}
+
+.windowButtonClose:hover {
+  color: #ffffff;
+  background: #e11d48;
+}
+
 /* ===== 应用根容器 - 全屏 Flex 布局 ===== */
 .app {
   --image-preview-left: 72px;
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  height: calc(100vh - var(--window-titlebar-height));
+  width: 100%;
   overflow: hidden;
   position: relative;
   background: var(--bg-primary);
@@ -70,7 +207,7 @@
   z-index: 3;
   width: 72px;
   flex-shrink: 0;
-  height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -210,7 +347,7 @@
   display: flex;
   flex-direction: column; /* 内部垂直排列：顶栏 | 聊天区 | 输入区 */
   min-width: 0; /* 允许内容收缩，防止溢出 */
-  height: 100vh; /* 固定高度，不受内容影响 */
+  height: 100%; /* 固定高度，不受内容影响 */
   overflow: hidden; /* 防止内容溢出 */
 }
 

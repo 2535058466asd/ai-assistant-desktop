@@ -52,6 +52,9 @@ const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages }) => 
   }, [api, refresh]);
 
   const recentMemories = useMemo(() => [...memories].sort((a, b) => b.updated_at - a.updated_at).slice(0, 3), [memories]);
+  const recentKnowledgeSources = useMemo(() => [...knowledgeSources]
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+    .slice(0, 3), [knowledgeSources]);
   const recentLogs = useMemo(() => [...toolLogs].sort((a, b) => b.createdAt - a.createdAt).slice(0, 6), [toolLogs]);
   const failedCount = toolLogs.filter((l) => l.status === 'error').length;
   const costStats = useMemo(() => getUsageStats(), [toolLogs]);
@@ -173,7 +176,7 @@ const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages }) => 
             <div className={styles.panelTitle}>📚 知识库</div>
             <span className={styles.panelBadge}>{knowledgeSources.length} 个来源</span>
           </div>
-          <div className={styles.panelSummary}>
+          <div className={styles.knowledgeSummary}>
             <div className={styles.summaryItem}>
               <span>文档片段</span>
               <strong>{knowledgeStats?.count ?? 0}</strong>
@@ -182,7 +185,24 @@ const WorkspaceDashboard: React.FC<WorkspaceDashboardProps> = ({ messages }) => 
               <span>来源数</span>
               <strong>{knowledgeSources.length}</strong>
             </div>
+            <div className={styles.summaryItem}>
+              <span>集合</span>
+              <strong>{knowledgeStats?.collections?.length ?? 0}</strong>
+            </div>
           </div>
+          {recentKnowledgeSources.length > 0 && (
+            <div className={styles.panelPreview}>
+              {recentKnowledgeSources.map(source => (
+                <div key={`${source.source}-${source.category}`} className={styles.previewItem}>
+                  <span className={styles.previewName}>{source.source}</span>
+                  <span className={styles.previewTime}>{source.count} 片段</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {knowledgeSources.length === 0 && (
+            <div className={styles.emptyState}>暂无知识来源</div>
+          )}
         </div>
       </div>
     </section>

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from './MemoryPanel.module.css';
+import ConfirmDialog from '../common/ConfirmDialog';
 
 type MemoryCategory = 'preference' | 'fact' | 'project' | 'decision' | 'belief' | 'event';
 type MemoryStatus = 'active' | 'superseded' | 'archived';
@@ -83,11 +84,11 @@ const MemoryPanel: React.FC = () => {
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [selectedStatus, setSelectedStatus] = useState<MemoryStatus>('active');
   const [sortMode, setSortMode] = useState<SortMode>('updated');
-  const [groupBy, setGroupBy] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newContent, setNewContent] = useState('');
   const [newCategory, setNewCategory] = useState<MemoryCategory>('fact');
   const [newImportance, setNewImportance] = useState(5);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'delete'; memory: MemoryItem } | { type: 'clearAll' } | null>(null);
 
   const loadMemories = useCallback(async () => {
     setLoading(true);
@@ -128,24 +129,6 @@ const MemoryPanel: React.FC = () => {
     });
   }, [memories, query, selectedCategories, selectedStatus, sortMode]);
 
-  // 按 memory_key 分组
-  const groupedMemories = useMemo(() => {
-    if (!groupBy) return null;
-    const groups = new Map<string, MemoryItem[]>();
-    const ungrouped: MemoryItem[] = [];
-    for (const m of filteredMemories) {
-      if (m.memory_key) {
-        const prefix = m.memory_key.split('.')[0] || m.memory_key;
-        const arr = groups.get(prefix) || [];
-        arr.push(m);
-        groups.set(prefix, arr);
-      } else {
-        ungrouped.push(m);
-      }
-    }
-    return { groups, ungrouped };
-  }, [filteredMemories, groupBy]);
-
   const categoryCounts = useMemo(() => {
     return memories.filter(m => (m.status || 'active') === 'active').reduce<Record<string, number>>((acc, m) => {
       acc[m.category] = (acc[m.category] || 0) + 1;
@@ -167,7 +150,7 @@ const MemoryPanel: React.FC = () => {
     return Math.round((activeMemories.reduce((s, m) => s + m.importance, 0) / activeMemories.length) * 10) / 10;
   }, [memories]);
 
-  const handleDelete = async (id: string) => {
+  const deleteMemory = async (id: string) => {
     setBusyId(id);
     setError('');
     try {
@@ -177,7 +160,12 @@ const MemoryPanel: React.FC = () => {
       setError(e.message || '删除记忆失败');
     } finally {
       setBusyId(null);
+      setConfirmAction(null);
     }
+  };
+
+  const handleDelete = (memory: MemoryItem) => {
+    setConfirmAction({ type: 'delete', memory });
   };
 
   const handleStatusChange = async (id: string, status: 'active' | 'archived') => {
@@ -195,8 +183,10 @@ const MemoryPanel: React.FC = () => {
 
   const handleClearAll = async () => {
     if (memories.length === 0) return;
-    const confirmed = window.confirm('确定清空所有长期记忆吗？这个操作不可撤销。');
-    if (!confirmed) return;
+    setConfirmAction({ type: 'clearAll' });
+  };
+
+  const clearAllMemories = async () => {
     setLoading(true);
     setError('');
     try {
@@ -206,6 +196,7 @@ const MemoryPanel: React.FC = () => {
       setError(e.message || '清空记忆失败');
     } finally {
       setLoading(false);
+      setConfirmAction(null);
     }
   };
 
@@ -270,7 +261,7 @@ const MemoryPanel: React.FC = () => {
             )}
             <button
               className={styles.deleteButton}
-              onClick={() => handleDelete(memory.id)}
+              onClick={() => handleDelete(memory)}
               disabled={busyId === memory.id}
               title="永久删除"
             >
@@ -335,9 +326,6 @@ const MemoryPanel: React.FC = () => {
           <div className={styles.toolbarActions}>
             <button className={styles.iconButton} onClick={() => setShowAddForm(!showAddForm)} title="手动添加" style={{ color: '#22d3ee' }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-            <button className={styles.iconButton} onClick={() => setGroupBy(!groupBy)} title={groupBy ? '列表视图' : '按键分组'} style={groupBy ? { color: '#22d3ee', borderColor: 'rgba(34,211,238,0.3)' } : undefined}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
             </button>
             <button className={styles.iconButton} onClick={loadMemories} disabled={loading} title="刷新">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
@@ -450,34 +438,23 @@ const MemoryPanel: React.FC = () => {
             <div className={styles.emptyState}>{query.trim() ? '没有匹配的记忆' : '暂无长期记忆'}</div>
           )}
 
-          {!loading && groupedMemories ? (
-            <>
-              {Array.from(groupedMemories.groups.entries()).map(([prefix, items]) => (
-                <div key={prefix} className={styles.groupSection}>
-                  <div className={styles.groupHeader}>
-                    <span className={styles.groupIcon}>📁</span>
-                    <span className={styles.groupLabel}>{prefix}</span>
-                    <span className={styles.groupCount}>{items.length}</span>
-                  </div>
-                  {items.map(renderMemoryCard)}
-                </div>
-              ))}
-              {groupedMemories.ungrouped.length > 0 && (
-                <div className={styles.groupSection}>
-                  <div className={styles.groupHeader}>
-                    <span className={styles.groupIcon}>📋</span>
-                    <span className={styles.groupLabel}>未分组</span>
-                    <span className={styles.groupCount}>{groupedMemories.ungrouped.length}</span>
-                  </div>
-                  {groupedMemories.ungrouped.map(renderMemoryCard)}
-                </div>
-              )}
-            </>
-          ) : (
-            !loading && filteredMemories.map(renderMemoryCard)
-          )}
+          {!loading && filteredMemories.map(renderMemoryCard)}
         </div>
       </section>
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.type === 'clearAll' ? '清空长期记忆' : '永久删除记忆'}
+        message={confirmAction?.type === 'clearAll'
+          ? `确定清空全部 ${memories.length} 条长期记忆吗？这个操作无法撤销。`
+          : `确定永久删除这条记忆吗？\n${confirmAction?.type === 'delete' ? confirmAction.memory.content.slice(0, 90) : ''}`}
+        confirmLabel={confirmAction?.type === 'clearAll' ? '清空' : '删除'}
+        tone="danger"
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => {
+          if (confirmAction?.type === 'clearAll') void clearAllMemories();
+          if (confirmAction?.type === 'delete') void deleteMemory(confirmAction.memory.id);
+        }}
+      />
     </div>
   );
 };
